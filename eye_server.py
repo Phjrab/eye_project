@@ -1,101 +1,107 @@
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, jsonify
 import cv2
 import numpy as np
 import Jetson.GPIO as GPIO
+import torch
+import timm
+from PIL import Image
+import torchvision.transforms as transforms
+import time
 
-# Flask 설정: 웹 파일들은 'web' 폴더 안에 있다고 알려줍니다.
-app = Flask(__name__, 
-            template_folder='web/templates', 
-            static_folder='web/static')
+# [1] 설정 및 전역 변수
+app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
+current_frame = None  # 카메라의 최신 프레임을 담는 바구니
 
-# 젯슨 오린 나노 CSI 카메라(IMX477 등)를 위한 GStreamer 파이프라인
-def gstreamer_pipeline(sensor_id=0, flip_method=0):
-    return (
-        "nvarguscamerasrc sensor-id=%d ! "
-        "video/x-raw(memory:NVMM), width=(int)1280, height=(int)720, framerate=(fraction)30/1 ! "
-        "nvvidconv flip-method=%d ! "
-        "video/x-raw, width=(int)640, height=(int)360, format=(string)BGRx ! "
-        "videoconvert ! "
-        "video/x-raw, format=(string)BGR ! appsink"
-        % (sensor_id, flip_method)
-    )
+# 세은이와 약속한 ROI (640x360 해상도 기준)
+ROI_X, ROI_Y = 130, 90
+ROI_W, ROI_H = 380, 180
 
-def gen_frames():
-    # 카메라 연결 (CSI 카메라 전용)
-    camera = cv2.VideoCapture(gstreamer_pipeline(), cv2.CAP_GSTREAMER)
-    
-    while True:
-        success, frame = camera.read()
-        if not success:
-            break
-        else:
-            # JPEG으로 인코딩하여 웹으로 전송 가능한 데이터로 변환
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+# [2] AI 모델 로드 (EfficientNet-B0)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# 세준이가 학습시킨 모델 구조와 일치해야 함 (클래스 5개)
+model = timm.create_model('efficientnet_b0', pretrained=True, num_classes=5)
+model.to(device)
+model.eval()
 
-@app.route('/')
-def index():
-    # 이 부분의 이름이 세은 학생이 준 파일명과 정확히 일치해야 합니다.
-    return render_template('index.html')
+# EfficientNet 표준 전처리 (224x224)
+preprocess = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
 
-@app.route('/video_feed')
-def video_feed():
-    # 웹 페이지에서 이미지를 실시간으로 갱신해주는 경로
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-if __name__ == '__main__':
-    # 0.0.0.0으로 열어야 같은 와이파이에 연결된 노트북에서도 접속 가능합니다.
-    app.run(host='0.0.0.0', port=5000, debug=False)
-
-##############################################################
-
-def preprocess_frame(frame):
-    # 1. 중앙 크롭 (가이드라인 위치에 맞게)
-    h, w, _ = frame.shape
-    size = 224
-    start_x = (w - size) // 2
-    start_y = (h - size) // 2
-    cropped = frame[start_y:start_y+size, start_x:start_x+size]
-    
-    # 2. 모델 입력용 변환 (BGR -> RGB, Normalization)
-    img = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
-    img = img.astype(np.float32) / 255.0  # 0~1 사이로 정규화
-    
-    # 3. 차원 맞추기 (Batch size 추가)
-    img = np.expand_dims(img.transpose(2, 0, 1), axis=0)
-    return img
-
-@app.route('/diagnose', methods=['POST'])
-def diagnose():
-    # 현재 카메라 프레임 가져오기 (전역 변수 등 활용)
-    # 1. preprocess_frame() 실행
-    # 2. model.predict() 실행
-    # 3. 결과를 JSON으로 반환
-    return {"status": "success", "prediction": "데이터 대기 중"}
-
-##############################################################
-
-# GPIO 설정
-LED_PIN = 32 # PWM0
+# [3] LED 하드웨어 설정
+LED_PIN = 32
+GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(LED_PIN, GPIO.OUT, initial=GPIO.LOW)
-
-# PWM 인스턴스 생성 (주파수 1000Hz)
 pwm_led = GPIO.PWM(LED_PIN, 1000)
-pwm_led.start(0) # 처음에는 꺼둠
+pwm_led.start(0)
 
+# (GStreamer 및 gen_frames 함수는 기존과 동일하게 유지하되, 
+# 아래와 같이 current_frame을 갱신하는 로직이 추가되어야 합니다.)
+
+def gen_frames():
+    global current_frame
+    cap = cv2.VideoCapture(gstreamer_pipeline(), cv2.CAP_GSTREAMER)
+    while True:
+        success, frame = cap.read()
+        if not success: break
+        
+        current_frame = frame.copy() # 실시간 프레임을 전역 변수에 저장
+        
+        ret, buffer = cv2.imencode('.jpg', frame)
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+
+# ==========================================
+# [핵심] 진단 실행 라우트 (POST /diagnose)
+# ==========================================
 @app.route('/diagnose', methods=['POST'])
 def diagnose():
-    # 1. 조명 100% 밝기로 켜기
-    pwm_led.ChangeDutyCycle(100)
-    
-    # 2. 카메라 프레임 한 장 캡처
-    # 3. AI 모델(EfficientNet)에 사진 넣기
-    # 4. 나온 결과값을 바구니에 담아서 리턴
-    
-    # 3. 조명 다시 끄기 (또는 10%로 낮추기)
-    pwm_led.ChangeDutyCycle(0)
-    
-    return jsonify({"status": "success"})
+    global current_frame
+    if current_frame is None:
+        return jsonify({"error": "카메라 연결을 확인하세요."}), 400
+
+    try:
+        # 1. 조명 최대 밝기 (진단용 플래시)
+        pwm_led.ChangeDutyCycle(100)
+        time.sleep(0.2) # 빛이 안정될 때까지 찰나의 대기
+
+        # 2. 분석용 스냅샷 캡처 및 ROI 크롭
+        # 세은이가 정한 가이드라인 위치만 도려내기
+        snap = current_frame.copy()
+        roi_img = snap[ROI_Y:ROI_Y+ROI_H, ROI_X:ROI_X+ROI_W]
+        
+        # 촬영 직후 조명 낮추기 (눈부심 방지)
+        pwm_led.ChangeDutyCycle(10)
+
+        # 3. AI 모델 입력용 전처리
+        # OpenCV(BGR) -> PIL(RGB) 변환
+        pil_img = Image.fromarray(cv2.cvtColor(roi_img, cv2.COLOR_BGR2RGB))
+        input_tensor = preprocess(pil_img).unsqueeze(0).to(device)
+
+        # 4. AI 추론 (Inference)
+        with torch.no_grad():
+            outputs = model(input_tensor)
+            _, predicted = torch.max(outputs, 1)
+            prob = torch.nn.functional.softmax(outputs, dim=1)[0][predicted].item()
+
+        # 세준이의 데이터셋 순서 (정상, 백내장, 포도막염, 결막염, 다래끼)
+        class_names = ["정상", "백내장", "포도막염", "결막염", "다래끼"]
+        result_label = class_names[predicted.item()]
+
+        # 5. 결과 반환
+        return jsonify({
+            "status": "success",
+            "prediction": result_label,
+            "confidence": f"{prob*100:.1f}%",
+            "advice": "정확한 진단은 안과 전문의와 상담하세요."
+        })
+
+    except Exception as e:
+        pwm_led.ChangeDutyCycle(0) # 에러 시 조명 끄기
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
