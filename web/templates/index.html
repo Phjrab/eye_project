@@ -1,0 +1,12 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="welcome-container">
+    <h1>안구 건강 진단 서비스</h1>
+    <p>AI 기술을 활용하여 빠르고 정확하게 눈 상태를 점검하세요.</p>
+    
+    <div class="start-section">
+        <a href="{{ url_for('login') }}" class="btn-start">진단 시작하기</a>
+    </div>
+</div>
+{% endblock %}
