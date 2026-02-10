@@ -1,0 +1,81 @@
+"""
+[1단계] YOLO 눈 검출 및 크롭
+이미지에서 눈을 검출하고 분류기 입력용 영역을 크롭
+"""
+
+import cv2
+import numpy as np
+from ultralytics import YOLO
+import config
+
+
+class EyeDetector:
+    """
+    YOLOv8을 이용한 눈 검출기
+    """
+    
+    def __init__(self, model_path=config.YOLO_MODEL_PATH):
+        """
+        YOLO 검출기 초기화
+        
+        Args:
+            model_path (str): YOLOv8 모델 가중치 경로
+        """
+        self.model = YOLO(model_path)
+        self.conf_threshold = config.YOLO_CONF_THRESHOLD
+        self.iou_threshold = config.YOLO_IOU_THRESHOLD
+        
+    def detect(self, image):
+        """
+        이미지에서 눈 검출
+        
+        Args:
+            image (np.ndarray): 입력 이미지 (BGR)
+            
+        Returns:
+            결과: 검출된 박스와 신뢰도를 포함한 YOLO 결과 객체
+        """
+        results = self.model.predict(
+            image,
+            conf=self.conf_threshold,
+            iou=self.iou_threshold,
+            imgsz=config.YOLO_INPUT_SIZE,
+            verbose=False
+        )
+        return results[0] if results else None
+    
+    def crop_eyes(self, image, detections):
+        """
+        검출된 눈 영역을 이미지에서 크롭
+        
+        Args:
+            image (np.ndarray): 원본 이미지
+            detections: YOLO 검출 결과
+            
+        Returns:
+            list: 크롭된 눈 이미지 리스트 (좌표, 신뢰도 포함)
+        """
+        eye_crops = []
+        
+        if detections is None or len(detections.boxes) == 0:
+            return eye_crops
+        
+        for box in detections.boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            
+            # 패딩 추가 (컨텍스트 정보 확보)
+            h, w = image.shape[:2]
+            padding = 10
+            x1 = max(0, x1 - padding)
+            y1 = max(0, y1 - padding)
+            x2 = min(w, x2 + padding)
+            y2 = min(h, y2 + padding)
+            
+            crop = image[y1:y2, x1:x2]
+            eye_crops.append({
+                'image': crop,
+                'bbox': (x1, y1, x2, y2),
+                'confidence': float(box.conf)
+            })
+        
+        return eye_crops
