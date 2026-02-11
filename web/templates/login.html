@@ -1,0 +1,122 @@
+
+<div class="auth-container">
+    <div class="auth-header">
+        <h2>본인 인증</h2>
+        <p>과거 검진 기록을 불러오고 새로운 진단 결과를 저장합니다.</p>
+    </div>
+
+    <form action="{{ url_for('start_diagnosis') }}" method="POST" class="auth-form">
+        <div class="input-group">
+            <label for="identifier">전화번호 또는 이메일</label>
+            <input type="text" id="identifier" name="identifier" 
+                   placeholder="예: 010-1234-5678 또는 email@example.com" required>
+        </div>
+
+        <div class="info-message">
+            <p>ℹ️ 입력하신 정보는 <strong>비식별화 아키텍처</strong>를 통해 안전하게 보호되며, <br>
+               진단 리포트 생성 및 시계열 데이터 분석에 활용됩니다.</p>
+        </div>
+
+        <div class="action-section">
+            <button type="submit" class="btn-confirm">인증 및 진단 시작</button>
+            <a href="{{ url_for('index') }}" class="btn-back">이전으로</a>
+        </div>
+    </form>
+</div>
+
+<style>
+    .auth-container {
+        max-width: 500px;
+        margin: 60px auto;
+        padding: 40px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+
+    .auth-header h2 {
+        font-size: 1.8rem;
+        color: #0f172a;
+        margin-bottom: 10px;
+    }
+
+    .auth-header p {
+        font-size: 0.95rem;
+        color: #64748b;
+        margin-bottom: 30px;
+    }
+
+    .input-group {
+        text-align: left;
+        margin-bottom: 25px;
+    }
+
+    .input-group label {
+        display: block;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: #1e293b;
+        font-size: 0.9rem;
+    }
+
+    .input-group input {
+        width: 100%;
+        padding: 15px;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        box-sizing: border-box;
+        transition: border-color 0.3s;
+    }
+
+    .input-group input:focus {
+        outline: none;
+        border-color: #3b82f6;
+    }
+
+    .info-message {
+        background: #f8fafc;
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        text-align: left;
+    }
+
+    .info-message p {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    /* 버튼 스타일 */
+    .btn-confirm {
+        width: 100%;
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+        border: none;
+        padding: 16px;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.2s;
+        margin-bottom: 15px;
+    }
+
+    .btn-confirm:active {
+        transform: scale(0.98);
+    }
+
+    .btn-back {
+        display: block;
+        color: #94a3b8;
+        text-decoration: none;
+        font-size: 0.9rem;
+    }
+
+    .btn-back:hover {
+        color: #64748b;
+    }
+</style>
