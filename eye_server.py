@@ -27,6 +27,126 @@ current_frame = None  # 실시간 카메라 프레임
 model_manager = None  # 싱글톤 모델 매니저
 
 # ========================================
+# [2] 촬영 상태 관리 (왼쪽/오른쪽 눈 시퀀스)
+# ========================================
+class CaptureState:
+    """촬영 상태 관리 클래스"""
+    
+    # 촬영 상태 조건 체크 프레임 카운터
+    ACCEPTED_FRAMES = 0
+    
+    # 현재 촬영 상태
+    current_eye = "LEFT_EYE"  # "LEFT_EYE" 또는 "RIGHT_EYE"
+    
+    # 촬영 완료된 눈
+    captured_eyes = {
+        "LEFT_EYE": False,
+        "RIGHT_EYE": False
+    }
+    
+    # 자동 촬영 준비 상태
+    auto_capture_ready = False
+    
+    @classmethod
+    def reset(cls):
+        """촬영 시퀀스 초기화"""
+        cls.ACCEPTED_FRAMES = 0
+        cls.current_eye = "LEFT_EYE"
+        cls.captured_eyes = {"LEFT_EYE": False, "RIGHT_EYE": False}
+        cls.auto_capture_ready = False
+    
+    @classmethod
+    def move_to_next_eye(cls):
+        """다음 눈으로 이동"""
+        if cls.current_eye == "LEFT_EYE":
+            cls.current_eye = "RIGHT_EYE"
+        else:
+            cls.current_eye = "LEFT_EYE"
+        cls.ACCEPTED_FRAMES = 0
+        cls.auto_capture_ready = False
+    
+    @classmethod
+    def mark_captured(cls, eye_type):
+        """촬영 완료 표시"""
+        cls.captured_eyes[eye_type] = True
+
+
+# ========================================
+# [3] 자동 촬영 조건 확인 함수
+# ========================================
+def check_auto_capture(detections, eye_crop_bbox, guideline_bbox):
+    """
+    자동 촬영 조건 확인
+    
+    조건 1: 중심점 거리 확인 (AUTO_DIST_THRESHOLD)
+    조건 2: 눈 크기 비율 확인 (AUTO_SCALE_MIN ~ AUTO_SCALE_MAX)
+    
+    Args:
+        detections: YOLO 검출 결과 (중심점 좌표 포함)
+        eye_crop_bbox: 눈 크로핑 바운딩박스 (x1, y1, x2, y2)
+        guideline_bbox: 가이드라인 바운딩박스 (x1, y1, x2, y2)
+    
+    Returns:
+        bool: 자동 촬영 조건 만족 여부
+    """
+    try:
+        # 검출 결과가 없으면 False
+        if not detections or len(detections) == 0:
+            return False
+        
+        # 검출된 눈의 중심점 계산
+        detection = detections[0]
+        x_center = (detection.get('x1', 0) + detection.get('x2', 0)) / 2
+        y_center = (detection.get('y1', 0) + detection.get('y2', 0)) / 2
+        
+        # 가이드라인 중심점 계산
+        g_x1, g_y1, g_x2, g_y2 = guideline_bbox
+        guideline_x_center = (g_x1 + g_x2) / 2
+        guideline_y_center = (g_y1 + g_y2) / 2
+        
+        # 조건 1: 중심점 거리 확인
+        dist = np.sqrt((x_center - guideline_x_center)**2 + (y_center - guideline_y_center)**2)
+        if dist > config.AUTO_DIST_THRESHOLD:
+            return False
+        
+        # 조건 2: 눈 크기 비율 확인
+        eye_width = eye_crop_bbox[2] - eye_crop_bbox[0]
+        eye_height = eye_crop_bbox[3] - eye_crop_bbox[1]
+        eye_area = eye_width * eye_height
+        
+        guideline_width = g_x2 - g_x1
+        guideline_height = g_y2 - g_y1
+        guideline_area = guideline_width * guideline_height
+        
+        scale_ratio = eye_area / guideline_area if guideline_area > 0 else 0
+        
+        if scale_ratio < config.AUTO_SCALE_MIN or scale_ratio > config.AUTO_SCALE_MAX:
+            return False
+        
+        return True
+    
+    except Exception as e:
+        print(f"[WARNING] 자동 촬영 조건 확인 실패: {e}")
+        return False
+
+
+def should_auto_capture():
+    """
+    자동 촬영 프레임 누적 확인
+    
+    Returns:
+        bool: 자동 촬영 실행 여부
+    """
+    CaptureState.ACCEPTED_FRAMES += 1
+    
+    # AUTO_CAPTURE_HOLD_FRAMES만큼 프레임이 조건을 만족하면 True
+    if CaptureState.ACCEPTED_FRAMES >= config.AUTO_CAPTURE_HOLD_FRAMES:
+        CaptureState.ACCEPTED_FRAMES = 0
+        return True
+    
+    return False
+
+# ========================================
 # [2] LED 하드웨어 설정 (Jetson)
 # ========================================
 try:
@@ -241,6 +361,9 @@ def diagnose():
     """
     진단 실행 라우트
     클라이언트에서 '진단 시작' 버튼 클릭 시 호출
+    
+    촬영 상태:
+    - 왼쪽 눈 촬영 → 오른쪽 눈으로 이동 → 오른쪽 눈 촬영 → 시퀀스 초기화
     """
     global current_frame
     
@@ -269,10 +392,34 @@ def diagnose():
         # 5. 진단 파이프라인 실행
         diagnosis_result = run_diagnosis_pipeline(snapshot)
         
-        # 6. 스냅샷 저장
+        # 6. 촬영 상태 관리 및 UI 가이드라인 업데이트
+        if diagnosis_result['status'] == 'success':
+            current_eye = CaptureState.current_eye
+            
+            # 현재 촬영 눈 표시
+            CaptureState.mark_captured(current_eye)
+            diagnosis_result['current_eye'] = current_eye
+            diagnosis_result['captured_eyes'] = CaptureState.captured_eyes.copy()
+            
+            # UI 가이드라인 텍스트 업데이트
+            if current_eye == "LEFT_EYE":
+                diagnosis_result['next_guide_text'] = "오른쪽 눈을 맞춰주세요. 진단 시작을 누르세요."
+                CaptureState.move_to_next_eye()  # 오른쪽 눈으로 이동
+            else:
+                diagnosis_result['next_guide_text'] = "진단이 완료되었습니다."
+                # 양쪽 눈 촬영 완료
+                if CaptureState.captured_eyes["LEFT_EYE"] and CaptureState.captured_eyes["RIGHT_EYE"]:
+                    diagnosis_result['diagnosis_complete'] = True
+                    CaptureState.reset()  # 시퀀스 초기화
+        
+        # 7. 스냅샷 저장
         if diagnosis_result['status'] == 'success':
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            img_path = os.path.join(config.IMAGE_SAVE_DIR, f'diagnosis_{timestamp}.jpg')
+            eye_label = CaptureState.captured_eyes
+            img_path = os.path.join(
+                config.IMAGE_SAVE_DIR, 
+                f"diagnosis_{timestamp}_{CaptureState.current_eye}.jpg"
+            )
             cv2.imwrite(img_path, snapshot)
             diagnosis_result['snapshot_path'] = img_path
         
@@ -286,6 +433,57 @@ def diagnose():
         if LED_AVAILABLE:
             pwm_led.ChangeDutyCycle(10)
         
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/capture/state', methods=['GET'])
+def get_capture_state():
+    """
+    현재 촬영 상태 조회
+    
+    Returns:
+        - current_eye: 현재 촬영 중인 눈 ("LEFT_EYE" 또는 "RIGHT_EYE")
+        - captured_eyes: {"LEFT_EYE": bool, "RIGHT_EYE": bool}
+        - auto_capture_ready: 자동 촬영 준비 상태
+        - guide_text: UI에 표시할 가이드 텍스트
+    """
+    try:
+        guide_text = "왼쪽 눈을 맞춰주세요. 진단 시작을 누르세요."
+        if CaptureState.current_eye == "RIGHT_EYE":
+            guide_text = "오른쪽 눈을 맞춰주세요. 진단 시작을 누르세요."
+        
+        return jsonify({
+            'status': 'ok',
+            'current_eye': CaptureState.current_eye,
+            'captured_eyes': CaptureState.captured_eyes,
+            'auto_capture_ready': CaptureState.auto_capture_ready,
+            'guide_text': guide_text
+        }), 200
+    
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/capture/reset', methods=['POST'])
+def reset_capture_state():
+    """
+    촬영 시퀀스 초기화
+    새로운 진단을 시작할 때 호출
+    """
+    try:
+        CaptureState.reset()
+        return jsonify({
+            'status': 'ok',
+            'message': '촬영 상태가 초기화되었습니다.'
+        }), 200
+    
+    except Exception as e:
         return jsonify({
             'status': 'error',
             'message': str(e)
@@ -344,35 +542,3 @@ if __name__ == '__main__':
         debug=config.DEBUG_MODE,
         threaded=True
     )
-
-    except Exception as e:
-        pwm_led.ChangeDutyCycle(0) # 에러 시 조명 끄기
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# Function to calculate redness ratio in a given region of interest (ROI)
-def calculate_redness_ratio(image, roi_coords=(130, 90, 380, 180)):
-    x, y, w, h = roi_coords
-    roi = image[y:y+h, x:x+w]  # 관심 영역(ROI) 추출
-
-    # HSV 색공간으로 변환 (빨간색 추출에 유리)
-    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-
-    # 빨간색 범위 설정 (두 범위를 합쳐야 함)
-    lower_red1 = np.array([0, 50, 50])
-    upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([170, 50, 50])
-    upper_red2 = np.array([180, 255, 255])
-
-    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)  # 첫 번째 빨간색 범위 마스크 생성
-    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)  # 두 번째 빨간색 범위 마스크 생성
-    red_mask = mask1 + mask2  # 두 마스크를 합침
-
-    # 빨간색 픽셀 계산
-    red_pixels = cv2.countNonZero(red_mask)  # 빨간색 픽셀 개수 계산
-    total_pixels = w * h  # 전체 픽셀 개수 계산
-    redness_percentage = (red_pixels / total_pixels) * 100  # 빨간색 픽셀 비율 계산
-
-    return round(redness_percentage, 2)  # 소수점 둘째 자리까지 반올림하여 반환
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)

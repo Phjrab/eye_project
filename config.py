@@ -66,3 +66,19 @@ os.makedirs(LOG_DIR, exist_ok=True)
 # ========================================
 IMAGE_SAVE_DIR = os.path.join(BASE_DIR, 'web', 'static', 'captures')
 os.makedirs(IMAGE_SAVE_DIR, exist_ok=True)
+
+# ========================================
+# [10] 자동 촬영 설정
+# ========================================
+# 중심점 거리 임계값: 중심점이 가이드라인 중심으로부터 
+# 30픽셀 이내일 때 자동 촬영 준비
+AUTO_DIST_THRESHOLD = 30
+
+# 눈 크기 비율 임계값: 가이드라인 대비 
+# 눈의 크기가 이 범위 내에 있을 때 적절한 위치로 판단
+AUTO_SCALE_MIN = 0.8    # 80% 이상
+AUTO_SCALE_MAX = 1.1    # 110% 이하
+
+# 자동 촬영 대기 프레임: 조건을 만족한 후 
+# 이 프레임 수만큼 유지되면 자동 촬영
+AUTO_CAPTURE_HOLD_FRAMES = 10
