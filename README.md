@@ -147,8 +147,9 @@ $$
 $$
 \text{BGR (OpenCV)} \xrightarrow{\text{cv2.cvtColor}} \text{HSV} \xrightarrow{\text{Iris Removal}} \text{Sclera ROI}
 $$
+
 $$
-\text{Sclera ROI} \xrightarrow{\text{cv2.cvtColor}} \text{Lab} \xrightarrow{\text{Extract } a^*} \text{R_{\text{score}}}
+\text{Sclera ROI} \xrightarrow{\text{cv2.cvtColor}} \text{Lab} \xrightarrow{\text{Extract } a^*} R_{\text{score}}
 $$
 
 ---
