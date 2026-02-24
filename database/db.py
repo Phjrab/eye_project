@@ -1,14 +1,10 @@
 # db.py
 import sqlite3
 import json
-import sys
-from pathlib import Path
-from typing import Optional, Dict, Any
-
-# security_utils import (utils 폴더에 있음)
-sys.path.insert(0, str(Path(__file__).parent.parent / 'utils'))
+from typing import Optional, Dict, Any, Tuple, List
 from security_utils import phone_hash_id
 
+# ✅ DDL(스키마) 전체 포함 버전
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
 
@@ -29,17 +25,17 @@ CREATE TABLE IF NOT EXISTS diagnosis_sessions (
 
   diagnosed_at       TEXT NOT NULL DEFAULT (datetime('now')),
 
-  -- (1) AI 판독값: 모델 결과(분류/스코어/라벨 등) - 구조 유연하게 JSON
+  -- (1) AI 판독값(모델 결과) JSON
   ai_reading_json    TEXT NOT NULL,
 
-  -- (2) 픽셀 분석 수치: 하준 팀장님 지표들(예: vessel_density, redness_area 등)
+  -- (2) 픽셀 분석 수치 JSON
   pixel_metrics_json TEXT NOT NULL,
 
-  -- (3) 설문 데이터: 문진/자가 체크/증상/생활 습관
+  -- (3) 설문 JSON
   survey_json        TEXT NOT NULL,
 
-  -- (4) FHIR Bundle: 표준 교환용 (Observation/DiagnosticReport/Media 등 묶음)
-  fhir_bundle_json   TEXT,                    -- 나중에 생성해 넣어도 됨
+  -- (4) FHIR Bundle(JSON) - 나중에 생성해 넣어도 됨
+  fhir_bundle_json   TEXT,
 
   impression         TEXT,                    -- 최종 소견(자연어)
   status             TEXT NOT NULL DEFAULT 'done',  -- done/pending/failed
@@ -69,11 +65,11 @@ CREATE INDEX IF NOT EXISTS idx_assets_session_type ON session_assets(session_id,
 
 -- (선택) 이벤트 로그: 진단 완료 -> QR 생성/카톡 전송 등 이벤트 추적
 CREATE TABLE IF NOT EXISTS event_logs (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id  INTEGER,
-  event_type  TEXT NOT NULL,        -- 'DIAG_DONE' | 'QR_CREATED' | 'KAKAO_SENT' | ...
-  payload_json TEXT,                -- 이벤트 상세(JSON)
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id   INTEGER,
+  event_type   TEXT NOT NULL,        -- 'DIAG_DONE' | 'QR_CREATED' | 'KAKAO_SENT' | ...
+  payload_json TEXT,                 -- 이벤트 상세(JSON)
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY(session_id) REFERENCES diagnosis_sessions(id) ON DELETE SET NULL
 );
 
@@ -83,6 +79,8 @@ CREATE INDEX IF NOT EXISTS idx_event_time ON event_logs(created_at);
 def get_conn(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+
+    # 운영/성능(로컬 DB) 기본값
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
@@ -96,20 +94,20 @@ def init_db(db_path: str) -> None:
     finally:
         conn.close()
 
+# ---------- Users ----------
 def upsert_user_by_phone(db_path: str, phone: str, display_name: Optional[str] = None) -> int:
     """
-    phone_hash를 고유 ID로 사용하므로:
-    - 이미 존재하면 id 반환
+    phone_hash를 고유 ID로 사용:
+    - 이미 있으면 id 반환
     - 없으면 생성 후 id 반환
     """
     ph = phone_hash_id(phone)
 
     conn = get_conn(db_path)
     try:
-        row = conn.execute("SELECT id FROM users WHERE phone_hash = ?", (ph,)).fetchone()
+        row = conn.execute("SELECT id, display_name FROM users WHERE phone_hash = ?", (ph,)).fetchone()
         if row:
-            # display_name 업데이트(선택)
-            if display_name:
+            if display_name and display_name != row["display_name"]:
                 conn.execute("UPDATE users SET display_name=? WHERE id=?", (display_name, row["id"]))
                 conn.commit()
             return int(row["id"])
@@ -123,6 +121,15 @@ def upsert_user_by_phone(db_path: str, phone: str, display_name: Optional[str] =
     finally:
         conn.close()
 
+def get_user_by_phone_hash(db_path: str, phone_hash: str) -> Optional[Dict[str, Any]]:
+    conn = get_conn(db_path)
+    try:
+        row = conn.execute("SELECT * FROM users WHERE phone_hash=?", (phone_hash,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+# ---------- Diagnosis Sessions ----------
 def create_diagnosis_session(
     db_path: str,
     user_id: int,
@@ -131,7 +138,11 @@ def create_diagnosis_session(
     survey: Dict[str, Any],
     impression: Optional[str] = None,
     fhir_bundle: Optional[Dict[str, Any]] = None,
+    status: str = "done",
 ) -> int:
+    """
+    진단 1회(4종 데이터 묶음) 생성
+    """
     conn = get_conn(db_path)
     try:
         cur = conn.execute(
@@ -140,7 +151,7 @@ def create_diagnosis_session(
               user_id, ai_reading_json, pixel_metrics_json, survey_json,
               fhir_bundle_json, impression, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, 'done')
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -148,10 +159,111 @@ def create_diagnosis_session(
                 json.dumps(pixel_metrics, ensure_ascii=False),
                 json.dumps(survey, ensure_ascii=False),
                 json.dumps(fhir_bundle, ensure_ascii=False) if fhir_bundle else None,
-                impression
+                impression,
+                status,
+            )
+        )
+        conn.commit()
+        session_id = int(cur.lastrowid)
+
+        # 선택: 이벤트 로깅
+        log_event(db_path, session_id, "DIAG_CREATED", {"user_id": user_id, "status": status})
+
+        return session_id
+    finally:
+        conn.close()
+
+def update_fhir_bundle(db_path: str, session_id: int, fhir_bundle: Dict[str, Any]) -> None:
+    conn = get_conn(db_path)
+    try:
+        conn.execute(
+            "UPDATE diagnosis_sessions SET fhir_bundle_json=? WHERE id=?",
+            (json.dumps(fhir_bundle, ensure_ascii=False), session_id)
+        )
+        conn.commit()
+        log_event(db_path, session_id, "FHIR_UPDATED", {"session_id": session_id})
+    finally:
+        conn.close()
+
+def get_session(db_path: str, session_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_conn(db_path)
+    try:
+        row = conn.execute("SELECT * FROM diagnosis_sessions WHERE id=?", (session_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+def list_sessions_for_user(db_path: str, user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+    conn = get_conn(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM diagnosis_sessions WHERE user_id=? ORDER BY diagnosed_at DESC LIMIT ?",
+            (user_id, limit)
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+# ---------- Assets ----------
+def add_asset(
+    db_path: str,
+    session_id: int,
+    asset_type: str,
+    file_path: str,
+    mime_type: Optional[str] = None,
+    sha256: Optional[str] = None,
+) -> int:
+    conn = get_conn(db_path)
+    try:
+        cur = conn.execute(
+            """
+            INSERT INTO session_assets (session_id, asset_type, file_path, mime_type, sha256)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (session_id, asset_type, file_path, mime_type, sha256)
+        )
+        conn.commit()
+        asset_id = int(cur.lastrowid)
+        log_event(db_path, session_id, "ASSET_ADDED", {"asset_id": asset_id, "asset_type": asset_type})
+        return asset_id
+    finally:
+        conn.close()
+
+def list_assets(db_path: str, session_id: int) -> List[Dict[str, Any]]:
+    conn = get_conn(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM session_assets WHERE session_id=? ORDER BY created_at ASC",
+            (session_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+# ---------- Event Logs ----------
+def log_event(db_path: str, session_id: Optional[int], event_type: str, payload: Optional[Dict[str, Any]] = None) -> int:
+    conn = get_conn(db_path)
+    try:
+        cur = conn.execute(
+            "INSERT INTO event_logs (session_id, event_type, payload_json) VALUES (?, ?, ?)",
+            (
+                session_id,
+                event_type,
+                json.dumps(payload, ensure_ascii=False) if payload else None
             )
         )
         conn.commit()
         return int(cur.lastrowid)
+    finally:
+        conn.close()
+
+def list_events(db_path: str, limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_conn(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM event_logs ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()
