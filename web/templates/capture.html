@@ -2,30 +2,152 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>안구 촬영 - AI 안구 건강 스크리닝</title>
     <style>
-        body { font-family: 'Pretendard', sans-serif; background: #000; color: #fff; margin: 0; text-align: center; overflow: hidden; }
-        .capture-container { display: flex; flex-direction: column; height: 100vh; }
-        #video-feed { width: 100%; height: 70%; object-fit: cover; transform: scaleX(-1); }
-        .controls { height: 30%; background: #1c1c1e; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; }
-        .eye-selector { display: flex; gap: 20px; }
-        .btn-eye { padding: 15px 40px; border-radius: 12px; border: 2px solid #3a3a3c; background: #2c2c2e; color: #fff; font-size: 1.1rem; cursor: pointer; }
-        .btn-eye.active { border-color: #007AFF; background: #007AFF; }
-        .btn-capture { padding: 20px 80px; border-radius: 50px; background: #fff; color: #000; font-weight: bold; border: none; font-size: 1.2rem; cursor: pointer; }
-        .preview-thumbs { position: absolute; bottom: 32%; display: flex; gap: 10px; }
-        .thumb { width: 80px; height: 60px; border: 2px solid #fff; border-radius: 8px; object-fit: cover; }
+        :root { 
+            --primary: #007AFF; 
+            --bg: #f5f5f7; 
+            --card: #ffffff; 
+            --text: #1d1d1f; 
+            --border: #d2d2d7; 
+            --guide-color: rgba(40, 205, 65, 0.6); /* 연한 녹색 가이드 */
+        }
+
+        body { 
+            font-family: 'Pretendard', sans-serif; 
+            background-color: var(--bg); 
+            color: var(--text); 
+            margin: 0; 
+            display: flex; 
+            width: 1280px; 
+            height: 800px; 
+            overflow: hidden; 
+        }
+
+        /* 왼쪽: 카메라 섹션 */
+        .left-panel { 
+            flex: 1.4; 
+            display: flex; 
+            flex-direction: column; 
+            background: #000; 
+            position: relative; 
+        }
+
+        #video-feed { 
+            width: 100%; 
+            height: 82%; 
+            object-fit: cover; 
+            transform: scaleX(-1); 
+            background: #222; 
+        }
+
+        /* --- 안구 촬영 가이드 UI --- */
+        .guide-overlay {
+            position: absolute;
+            top: 41%; /* 비디오 영역의 중앙 */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none; /* 클릭 방해 금지 */
+            z-index: 5;
+        }
+
+        /* 안구 전체 윤곽 가이드 */
+        .eye-outline {
+            width: 450px;
+            height: 220px;
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50% / 50%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 홍채(Iris) 위치 가이드 */
+        .iris-circle {
+            width: 180px;
+            height: 180px;
+            border: 3px dashed var(--guide-color);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 동공(Pupil) 위치 가이드 */
+        .pupil-dot {
+            width: 50px;
+            height: 50px;
+            border: 2px solid var(--guide-color);
+            border-radius: 50%;
+            background: rgba(40, 205, 65, 0.1);
+        }
+
+        .guide-text {
+            position: absolute;
+            top: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            color: var(--primary);
+            padding: 10px 25px;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            z-index: 10;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        /* 하단 및 우측 패널 스타일 유지 */
+        .camera-bottom-btns { height: 18%; background: #ffffff; display: flex; align-items: center; justify-content: center; gap: 20px; border-top: 1px solid var(--border); }
+        .right-panel { flex: 1; padding: 30px; display: flex; flex-direction: column; justify-content: center; background: var(--bg); border-left: 1px solid var(--border); }
+        .card { background: var(--card); padding: 25px; border-radius: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .btn-eye { flex: 1; padding: 20px; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
+        .btn-eye.active { border-color: var(--primary); background: var(--primary); color: #fff; }
+        .btn-capture { width: 100%; padding: 25px; border-radius: 15px; background: var(--primary); color: white; font-weight: 800; border: none; font-size: 1.3rem; cursor: pointer; }
+        .preview-thumbs { display: flex; gap: 15px; margin-top: 20px; justify-content: center; }
+        .thumb { width: 120px; height: 90px; border: 2px solid var(--border); border-radius: 10px; background-size: cover; }
     </style>
 </head>
 <body>
-    <div class="capture-container">
+
+    <div class="left-panel">
+        <div class="guide-text">동공과 홍채를 가이드에 맞춰주세요</div>
+        
         <video id="video-feed" autoplay playsinline muted></video>
-        <div class="preview-thumbs" id="previews"></div>
-        <div class="controls">
-            <div class="eye-selector">
-                <button class="btn-eye" id="btn-L" onclick="selectEye('L')">왼쪽 눈 (L)</button>
+        
+        <div class="guide-overlay">
+            <div class="eye-outline">
+                <div class="iris-circle">
+                    <div class="pupil-dot"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="camera-bottom-btns">
+            <div style="font-size: 0.9rem; color: #64748b;">
+                ※ 고해상도 촬영을 위해 가이드 중앙에 눈을 정렬해 주세요.
+            </div>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="card">
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 1. 촬영 부위 선택</h2>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-eye active" id="btn-L" onclick="selectEye('L')">왼쪽 눈 (L)</button>
                 <button class="btn-eye" id="btn-R" onclick="selectEye('R')">오른쪽 눈 (R)</button>
             </div>
-            <button class="btn-capture" onclick="takeSnapshot()">📸 촬영하기</button>
+        </div>
+
+        <div class="card">
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 안구 캡처</h2>
+            <button class="btn-capture" onclick="takeSnapshot()">📸 지금 촬영하기</button>
+            <div class="preview-thumbs" id="previews">
+                <div style="text-align:center;"><div id="thumb-L" class="thumb"></div>L</div>
+                <div style="text-align:center;"><div id="thumb-R" class="thumb"></div>R</div>
+            </div>
         </div>
     </div>
 
@@ -34,7 +156,9 @@
         const photos = { L: null, R: null };
 
         async function setupCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: 1280, height: 720 } 
+            });
             document.getElementById('video-feed').srcObject = stream;
         }
 
@@ -51,7 +175,7 @@
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
             
-            const dataUrl = canvas.toDataURL('image/webp');
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
             photos[currentEye] = dataUrl;
             
             updatePreviews();
@@ -59,16 +183,19 @@
             if (photos.L && photos.R) {
                 localStorage.setItem('eye_photo_L', photos.L);
                 localStorage.setItem('eye_photo_R', photos.R);
-                alert("양쪽 눈 촬영 완료! 진단 결과 페이지로 이동합니다.");
-                window.location.href = 'result.html'; // 결과 페이지 파일명
+                window.location.href = './result.html';
+            } else {
+                selectEye(currentEye === 'L' ? 'R' : 'L');
             }
         }
 
         function updatePreviews() {
-            const container = document.getElementById('previews');
-            container.innerHTML = '';
-            if(photos.L) container.innerHTML += `<img src="${photos.L}" class="thumb"> (L)`;
-            if(photos.R) container.innerHTML += `<img src="${photos.R}" class="thumb"> (R)`;
+            ['L', 'R'].forEach(side => {
+                if (photos[side]) {
+                    const thumbDiv = document.getElementById('thumb-' + side);
+                    thumbDiv.style.backgroundImage = `url(${photos[side]})`;
+                }
+            });
         }
 
         window.onload = () => { setupCamera(); selectEye('L'); };
