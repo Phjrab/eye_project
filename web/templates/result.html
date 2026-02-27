@@ -3,176 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 안구 건강 스크리닝 키오스크</title>
+    <title>AI 안구 건강 스크리닝 결과</title>
     <style>
-        :root {
-            --primary: #007AFF;
-            --bg: #f5f5f7;
-            --card: #ffffff;
-            --text: #1d1d1f;
-            --accent: #28cd41;
-            --danger: #ff3b30;
-            --warning: #ff9500;
-            --border: #d2d2d7;
-        }
+        /* 기존 스타일 유지 */
+        :root { --primary: #007AFF; --bg: #f5f5f7; --card: #ffffff; --text: #1d1d1f; --accent: #28cd41; --danger: #ff3b30; --warning: #ff9500; --border: #d2d2d7; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; display: flex; width: 1280px; height: 800px; overflow: hidden; }
+        
+        .left-panel { flex: 1.4; display: flex; flex-direction: column; background: #000; position: relative; }
+        
+        /* 수정된 부분: 카메라 피드 대신 촬영된 이미지 표시 */
+        #captured-image { width: 100%; height: 82%; object-fit: contain; background: #111; }
+        
+        .eye-toggle-overlay { position: absolute; top: 5%; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 20; }
+        .btn-toggle { padding: 10px 25px; border-radius: 30px; border: none; background: rgba(255,255,255,0.9); font-weight: bold; cursor: pointer; color: var(--text); }
+        .btn-toggle.active { background: var(--primary); color: #fff; }
 
-        body {
-            font-family: 'Pretendard', sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            display: flex;
-            width: 1280px; 
-            height: 800px;
-            overflow: hidden;
-        }
-
-        /* 왼쪽: 카메라 섹션 */
-        .left-panel {
-            flex: 1.4;
-            display: flex;
-            flex-direction: column;
-            background: #000;
-            position: relative;
-        }
-
-        #video-feed {
-            width: 100%;
-            height: 82%;
-            object-fit: cover;
-            transform: scaleX(-1);
-            background: #222;
-        }
-
-        .guide-text {
-            position: absolute;
-            top: 5%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.9);
-            color: var(--primary);
-            padding: 10px 25px;
-            border-radius: 30px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            z-index: 10;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-
-        .guide-container {
-            position: absolute;
-            top: 41%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .eye-shape-guide {
-            position: absolute;
-            width: 380px;
-            height: 180px;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 50% / 50%;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
-        }
-
-        .iris-guide { border: 3px dashed var(--accent); border-radius: 50%; width: 200px; height: 200px; display: flex; justify-content: center; align-items: center; }
-        .pupil-guide { border: 2px solid var(--primary); border-radius: 50%; width: 60px; height: 60px; }
-
-        .camera-bottom-btns {
-            height: 18%;
-            background: #ffffff;
-            display: flex;
-            align-items: center;
-            justify-content: space-around;
-            padding: 0 20px;
-            gap: 20px;
-            border-top: 1px solid var(--border);
-        }
-
-        /* 오른쪽 패널 */
-        .right-panel {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            background: var(--bg);
-            border-left: 1px solid var(--border);
-            overflow-y: auto;
-        }
-
-        .card {
-            background: var(--card);
-            padding: 18px;
-            border-radius: 18px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-
+        .camera-bottom-btns { height: 18%; background: #ffffff; display: flex; align-items: center; justify-content: space-around; padding: 0 20px; gap: 20px; border-top: 1px solid var(--border); }
+        .right-panel { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: var(--bg); border-left: 1px solid var(--border); overflow-y: auto; }
+        .card { background: var(--card); padding: 18px; border-radius: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         h2 { margin: 0 0 12px 0; font-size: 1.1rem; color: var(--primary); }
-
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #f2f2f7;
-            font-size: 0.95rem;
-        }
-
+        .status-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f2f2f7; font-size: 0.95rem; }
         .status-tag { font-weight: bold; }
-        .tag-normal { color: var(--accent); }
-        .tag-danger { color: var(--danger); }
-        .tag-warning { color: var(--warning); }
-
-        .tip-box {
-            background: #fff9e6;
-            border-left: 4px solid var(--warning);
-            padding: 12px;
-            font-size: 0.85rem;
-            line-height: 1.5;
-            color: #444;
-            margin-top: 10px;
-            border-radius: 0 10px 10px 0;
-        }
-
-        .btn {
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
+        .tag-normal { color: var(--accent); } .tag-danger { color: var(--danger); } .tag-warning { color: var(--warning); }
+        .tip-box { background: #fff9e6; border-left: 4px solid var(--warning); padding: 12px; font-size: 0.85rem; line-height: 1.5; color: #444; margin-top: 10px; border-radius: 0 10px 10px 0; }
+        .btn { border: none; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .btn-camera-sub { flex: 1; height: 70%; background: #f2f2f7; color: #3a3a3c; }
         .btn-naver { background: #2DB400; color: white; }
         .btn-main { width: 100%; padding: 20px; background: var(--primary); color: white; font-size: 1.1rem; }
-
-        input[type="number"] {
-            width: 40%;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            text-align: center;
-        }
+        input[type="number"] { width: 40%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
     </style>
 </head>
 <body>
 
     <div class="left-panel">
-        <div class="guide-text">동공과 홍채를 가이드 원에 맞춰주세요</div>
-        <video id="video-feed" autoplay playsinline muted></video>
-        <div class="guide-container">
-            <div class="eye-shape-guide"></div>
-            <div class="iris-guide"><div class="pupil-guide"></div></div>
+        <div class="eye-toggle-overlay">
+            <button id="tog-L" class="btn-toggle active" onclick="displayPhoto('L')">왼쪽 눈 (L)</button>
+            <button id="tog-R" class="btn-toggle" onclick="displayPhoto('R')">오른쪽 눈 (R)</button>
         </div>
+        
+        <img id="captured-image" alt="진단 안구 이미지">
+
         <div class="camera-bottom-btns">
-            <button class="btn btn-camera-sub">📋  안구 건강 리포트 발행</button>
+            <button class="btn btn-camera-sub">📋 안구 건강 리포트 발행</button>
             <button class="btn btn-camera-sub btn-naver" onclick="window.open('https://map.naver.com/v5/search/안과')">📍 주변 안과 찾기 (네이버)</button>
         </div>
     </div>
@@ -189,10 +61,8 @@
         <div class="card">
             <h2>✍️ 사용자 시력 입력</h2>
             <div style="display:flex; justify-content: space-around; align-items: center;">
-                <label>좌(L)</label>
-                <input type="number" step="0.1" placeholder="1.0">
-                <label>우(R)</label>
-                <input type="number" step="0.1" placeholder="1.0">
+                <label>좌(L)</label> <input type="number" step="0.1" placeholder="1.0">
+                <label>우(R)</label> <input type="number" step="0.1" placeholder="1.0">
             </div>
         </div>
 
@@ -205,9 +75,8 @@
 
             <div class="tip-box">
                 <strong>💡 AI 맞춤형 권고 사항:</strong><br>
-                1. <b>충혈 관리</b>: 결막염 증상이 의심됩니다. 전염성이 있을 수 있으니 눈을 비비지 말고 수건을 따로 사용하세요.<br>
-                2. <b>백내장 주의</b>: 수정체 영역에 미세한 혼탁이 관찰됩니다. 눈부심이나 시력 저하가 느껴진다면 정밀 검사를 권장합니다.<br>
-                3. <b>즉시 조치</b>: 왼쪽 하단 버튼을 눌러 가까운 안과를 방문해 진료를 받으시기 바랍니다.
+                1. <b>충혈 관리</b>: 결막염 증상이 의심됩니다... (중략)<br>
+                2. <b>백내장 주의</b>: 수정체 영역에 미세한 혼탁이... (중략)
             </div>
         </div>
 
@@ -217,21 +86,20 @@
     </div>
 
     <script>
-        async function setupCamera() {
-            const video = document.getElementById('video-feed');
-            const constraints = {
-                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
-                audio: false
-            };
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-            } catch (err) {
-                console.error("카메라 에러:", err);
-                alert("카메라를 실행할 수 없습니다. 권한 설정을 확인해주세요.");
+        function displayPhoto(side) {
+            const photo = localStorage.getItem('eye_photo_' + side);
+            if(photo) {
+                document.getElementById('captured-image').src = photo;
+                document.getElementById('tog-L').classList.toggle('active', side === 'L');
+                document.getElementById('tog-R').classList.toggle('active', side === 'R');
+            } else {
+                alert("해당 눈의 사진이 없습니다.");
             }
         }
-        window.onload = setupCamera;
+
+        window.onload = () => {
+            displayPhoto('L'); // 초기 실행 시 왼쪽 눈 표시
+        };
     </script>
 </body>
 </html>
