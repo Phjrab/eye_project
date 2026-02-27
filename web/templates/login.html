@@ -1,122 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>본인 인증 - AI 안구 건강 스크리닝</title>
+    <style>
+        :root {
+            --primary: #007AFF;
+            --bg: #f5f5f7;
+            --card: #ffffff;
+            --text-dark: #1d1d1f;
+            --text-sub: #64748b;
+            --border: #d2d2d7;
+        }
+
+        body {
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-dark);
+            margin: 0;
+            padding: 0;
+            width: 1280px;
+            height: 800px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .auth-container {
+            width: 700px;
+            padding: 60px;
+            background: var(--card);
+            border-radius: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .auth-header h2 { font-size: 2.5rem; font-weight: 800; margin-bottom: 15px; }
+        .auth-header p { font-size: 1.2rem; color: var(--text-sub); margin-bottom: 50px; }
+
+        .input-group { text-align: left; margin-bottom: 35px; }
+        .input-group label { display: block; font-weight: 700; margin-bottom: 12px; font-size: 1.1rem; }
+        
+        .input-group input {
+            width: 100%;
+            padding: 22px;
+            border: 2px solid var(--border);
+            border-radius: 18px;
+            font-size: 1.4rem;
+            box-sizing: border-box;
+            transition: all 0.3s;
+            background-color: #fafafa;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background-color: #ffffff;
+        }
+
+        .info-message {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 18px;
+            margin-bottom: 40px;
+            text-align: left;
+            border-left: 5px solid var(--primary);
+        }
+
+        .btn-confirm {
+            width: 100%;
+            background: linear-gradient(135deg, #007AFF, #2563eb);
+            color: white;
+            border: none;
+            padding: 22px;
+            border-radius: 18px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 20px rgba(0, 122, 255, 0.2);
+        }
+
+        .btn-back {
+            display: inline-block;
+            color: var(--text-sub);
+            text-decoration: none;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
 
 <div class="auth-container">
     <div class="auth-header">
         <h2>본인 인증</h2>
-        <p>과거 검진 기록을 불러오고 새로운 진단 결과를 저장합니다.</p>
+        <p>기존 기록 조회 및 설문 시작을 위해 정보를 입력해주세요.</p>
     </div>
 
-    <form action="{{ url_for('start_diagnosis') }}" method="POST" class="auth-form">
+    <form id="loginForm" onsubmit="return handleLogin(event)">
         <div class="input-group">
             <label for="identifier">전화번호 또는 이메일</label>
             <input type="text" id="identifier" name="identifier" 
-                   placeholder="예: 010-1234-5678 또는 email@example.com" required>
+                   placeholder="010-1234-5678 또는 email@example.com" required>
         </div>
 
         <div class="info-message">
-            <p>ℹ️ 입력하신 정보는 <strong>비식별화 아키텍처</strong>를 통해 안전하게 보호되며, <br>
-               진단 리포트 생성 및 시계열 데이터 분석에 활용됩니다.</p>
+            <p style="margin:0; font-size:1rem; color:var(--text-sub); line-height:1.6;">
+                ℹ️ <strong>비식별화 아키텍처</strong>를 통해 개인정보를 보호합니다.<br>
+                입력하신 정보는 문진 결과 데이터베이스 매칭에 활용됩니다.
+            </p>
         </div>
 
         <div class="action-section">
-            <button type="submit" class="btn-confirm">인증 및 진단 시작</button>
-            <a href="{{ url_for('index') }}" class="btn-back">이전으로</a>
+            <button type="submit" class="btn-confirm">인증 완료 및 설문 시작</button>
+            <div>
+                <a href="index.html" class="btn-back">이전으로 돌아가기</a>
+            </div>
         </div>
     </form>
 </div>
 
-<style>
-    .auth-container {
-        max-width: 500px;
-        margin: 60px auto;
-        padding: 40px;
-        background: white;
-        border-radius: 20px;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-        text-align: center;
-    }
+<script>
+    function handleLogin(event) {
+        event.preventDefault(); 
+        
+        const identifier = document.getElementById('identifier').value.trim();
+        
+        // 유효성 검사 규칙
+        const phoneRegex = /^010-\d{3,4}-\d{4}$|^010\d{8}$/;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    .auth-header h2 {
-        font-size: 1.8rem;
-        color: #0f172a;
-        margin-bottom: 10px;
+        if (phoneRegex.test(identifier) || emailRegex.test(identifier)) {
+            // 사용자 식별자를 로컬 스토리지에 저장하여 나중에 survey에서 활용
+            localStorage.setItem('user_id', identifier);
+            
+            // 성공 알림 후 설문 페이지(survey.html)로 이동
+            alert("인증 성공! 사전 설문 페이지로 이동합니다.");
+            window.location.href = 'survey.html'; 
+        } else {
+            alert("올바른 전화번호(010-0000-0000) 또는 이메일 형식을 입력해주세요.");
+        }
+        
+        return false;
     }
+</script>
 
-    .auth-header p {
-        font-size: 0.95rem;
-        color: #64748b;
-        margin-bottom: 30px;
-    }
-
-    .input-group {
-        text-align: left;
-        margin-bottom: 25px;
-    }
-
-    .input-group label {
-        display: block;
-        font-weight: 700;
-        margin-bottom: 8px;
-        color: #1e293b;
-        font-size: 0.9rem;
-    }
-
-    .input-group input {
-        width: 100%;
-        padding: 15px;
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
-        font-size: 1.1rem;
-        box-sizing: border-box;
-        transition: border-color 0.3s;
-    }
-
-    .input-group input:focus {
-        outline: none;
-        border-color: #3b82f6;
-    }
-
-    .info-message {
-        background: #f8fafc;
-        padding: 15px;
-        border-radius: 12px;
-        margin-bottom: 30px;
-        text-align: left;
-    }
-
-    .info-message p {
-        font-size: 0.85rem;
-        color: #64748b;
-        margin: 0;
-        line-height: 1.5;
-    }
-
-    /* 버튼 스타일 */
-    .btn-confirm {
-        width: 100%;
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        color: white;
-        border: none;
-        padding: 16px;
-        border-radius: 12px;
-        font-size: 1.1rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: transform 0.2s;
-        margin-bottom: 15px;
-    }
-
-    .btn-confirm:active {
-        transform: scale(0.98);
-    }
-
-    .btn-back {
-        display: block;
-        color: #94a3b8;
-        text-decoration: none;
-        font-size: 0.9rem;
-    }
-
-    .btn-back:hover {
-        color: #64748b;
-    }
-</style>
+</body>
+</html>
