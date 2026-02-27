@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>안구 촬영 - AI 안구 건강 스크리닝</title>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background: #000; color: #fff; margin: 0; text-align: center; overflow: hidden; }
+        .capture-container { display: flex; flex-direction: column; height: 100vh; }
+        #video-feed { width: 100%; height: 70%; object-fit: cover; transform: scaleX(-1); }
+        .controls { height: 30%; background: #1c1c1e; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; }
+        .eye-selector { display: flex; gap: 20px; }
+        .btn-eye { padding: 15px 40px; border-radius: 12px; border: 2px solid #3a3a3c; background: #2c2c2e; color: #fff; font-size: 1.1rem; cursor: pointer; }
+        .btn-eye.active { border-color: #007AFF; background: #007AFF; }
+        .btn-capture { padding: 20px 80px; border-radius: 50px; background: #fff; color: #000; font-weight: bold; border: none; font-size: 1.2rem; cursor: pointer; }
+        .preview-thumbs { position: absolute; bottom: 32%; display: flex; gap: 10px; }
+        .thumb { width: 80px; height: 60px; border: 2px solid #fff; border-radius: 8px; object-fit: cover; }
+    </style>
+</head>
+<body>
+    <div class="capture-container">
+        <video id="video-feed" autoplay playsinline muted></video>
+        <div class="preview-thumbs" id="previews"></div>
+        <div class="controls">
+            <div class="eye-selector">
+                <button class="btn-eye" id="btn-L" onclick="selectEye('L')">왼쪽 눈 (L)</button>
+                <button class="btn-eye" id="btn-R" onclick="selectEye('R')">오른쪽 눈 (R)</button>
+            </div>
+            <button class="btn-capture" onclick="takeSnapshot()">📸 촬영하기</button>
+        </div>
+    </div>
+
+    <script>
+        let currentEye = 'L';
+        const photos = { L: null, R: null };
+
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            document.getElementById('video-feed').srcObject = stream;
+        }
+
+        function selectEye(side) {
+            currentEye = side;
+            document.getElementById('btn-L').classList.toggle('active', side === 'L');
+            document.getElementById('btn-R').classList.toggle('active', side === 'R');
+        }
+
+        function takeSnapshot() {
+            const video = document.getElementById('video-feed');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            const dataUrl = canvas.toDataURL('image/webp');
+            photos[currentEye] = dataUrl;
+            
+            updatePreviews();
+
+            if (photos.L && photos.R) {
+                localStorage.setItem('eye_photo_L', photos.L);
+                localStorage.setItem('eye_photo_R', photos.R);
+                alert("양쪽 눈 촬영 완료! 진단 결과 페이지로 이동합니다.");
+                window.location.href = 'result.html'; // 결과 페이지 파일명
+            }
+        }
+
+        function updatePreviews() {
+            const container = document.getElementById('previews');
+            container.innerHTML = '';
+            if(photos.L) container.innerHTML += `<img src="${photos.L}" class="thumb"> (L)`;
+            if(photos.R) container.innerHTML += `<img src="${photos.R}" class="thumb"> (R)`;
+        }
+
+        window.onload = () => { setupCamera(); selectEye('L'); };
+    </script>
+</body>
+</html>
