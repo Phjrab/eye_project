@@ -20,12 +20,13 @@
             color: var(--text);
             margin: 0;
             padding: 20px;
-            /* 10.1인치 비율 고정 */
+            /* 키오스크 규격 고정 및 중앙 정렬 */
             width: 1240px; 
             height: 760px;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            box-sizing: border-box;
         }
 
         header {
@@ -40,7 +41,7 @@
             display: grid;
             grid-template-columns: 1fr 2fr;
             gap: 20px;
-            height: 85%;
+            height: 82%;
         }
 
         .card {
@@ -53,7 +54,7 @@
 
         h2 { font-size: 1.2rem; margin-bottom: 15px; border-left: 5px solid var(--primary); padding-left: 10px; }
 
-        /* 개인 정보 및 라이프스타일 */
+        /* 입력 폼 스타일 */
         .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
         .field { display: flex; flex-direction: column; gap: 5px; }
         label { font-weight: 600; font-size: 0.9rem; }
@@ -65,7 +66,7 @@
             background: #f9f9f9;
         }
 
-        /* 증상 체크 리스트 (2열 배치) */
+        /* 증상 체크 리스트 */
         .symptom-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -87,22 +88,25 @@
 
         /* 하단 버튼 */
         .footer-btns {
-            margin-top: 20px;
+            margin-top: auto;
             display: flex;
             justify-content: center;
             gap: 15px;
+            padding-bottom: 10px;
         }
 
         .btn {
-            padding: 15px 40px;
+            padding: 15px 50px;
             border-radius: 15px;
             border: none;
             font-size: 1.2rem;
             font-weight: 700;
             cursor: pointer;
+            transition: transform 0.1s;
         }
 
-        .btn-prev { background: #e5e5ea; color: #3a3a3c; }
+        .btn:active { transform: scale(0.98); }
+        .btn-prev { background: #e5e5ea; color: #3a3a3c; text-decoration: none; display: inline-block; text-align: center; }
         .btn-next { background: var(--primary); color: white; }
 
     </style>
@@ -141,11 +145,11 @@
 
             <h2>🏥 병력 및 생활 습관</h2>
             <div class="field" style="margin-bottom:10px;">
-                <label>기저질환 (당뇨, 고혈압, 정신질환 등)</label>
-                <textarea rows="2" placeholder="예: 당뇨(5년차), 우울증 약 복용 중"></textarea>
+                <label>기저질환 (당뇨, 고혈압 등)</label>
+                <textarea rows="2" placeholder="예: 당뇨(5년차), 고혈압 약 복용 중"></textarea>
             </div>
             <div class="field" style="margin-bottom:10px;">
-                <label>안구 수술 이력 (라식, 라섹, 백내장 등)</label>
+                <label>안구 수술 이력</label>
                 <input type="text" placeholder="수술명 및 시기 작성">
             </div>
             <div class="input-row">
@@ -185,15 +189,15 @@
     </div>
 
     <div class="footer-btns">
-        <button class="btn btn-prev" onclick="history.back()">이전으로</button>
+        <button class="btn btn-prev" onclick="location.href='login.html'">이전으로 (본인인증)</button>
         <button class="btn btn-next" onclick="submitSurvey()">문진 완료 및 AI 검사 시작</button>
     </div>
 
     <script>
         function submitSurvey() {
             if(confirm("문진 내용을 저장하고 AI 검사 단계로 이동하시겠습니까?")) {
-                // 실제 구현 시 데이터 저장 로직(DB 저장)이 들어갈 자리입니다.
-                location.href = 'diagnosis.html'; // 진단 페이지로 이동
+                // Flask 환경일 경우 url_for('capture')를 고려하여 작성 가능
+                location.href = 'capture.html'; 
             }
         }
     </script>
