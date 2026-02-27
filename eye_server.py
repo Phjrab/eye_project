@@ -25,6 +25,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 # 전역 변수
 current_frame = None  # 실시간 카메라 프레임
 model_manager = None  # 싱글톤 모델 매니저
+models_initialized = False  # 모델 초기화 완료 여부
 
 # ========================================
 # [2] 촬영 상태 관리 (왼쪽/오른쪽 눈 시퀀스)
@@ -166,23 +167,22 @@ except:
 # ========================================
 # [3] GStreamer 파이프라인
 # ========================================
-def gstreamer_pipeline(
-    capture_width=640,
-    capture_height=360,
-    display_width=640,
-    display_height=360,
-    framerate=30,
-    flip_method=2,
-):
-    """GStreamer 파이프라인 설정"""
+def gstreamer_pipeline(cam_id=1):
+    """
+    Logitech C920 웹캠용 GStreamer 파이프라인
+    
+    Args:
+        cam_id: 비디오 장치 ID (기본값: 1 = /dev/video1)
+        
+    Returns:
+        GStreamer 파이프라인 문자열
+    """
     return (
-        f"nvarguscamerasrc ! "
-        f"video/x-raw(memory:NVMM), width=(int){capture_width}, height=(int){capture_height}, "
-        f"format=(string)NV12, framerate=(fraction){framerate}/1 ! "
-        f"nvvidconv flip-method={flip_method} ! "
-        f"video/x-raw, width=(int){display_width}, height=(int){display_height}, format=(string)BGRx ! "
-        f"videoconvert ! "
-        f"video/x-raw, format=(string)BGR ! appsink"
+        f"v4l2src device=/dev/video{cam_id} ! "
+        "image/jpeg, width=1280, height=720, framerate=30/1 ! "
+        "jpegdec ! "
+        "nvvidconv ! "
+        "video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
     )
 
 
@@ -193,9 +193,14 @@ def gen_frames():
     """
     카메라 프레임을 실시간으로 스트림
     current_frame에도 최신 프레임 저장
+    Logitech C920 웹캠 (/dev/video1) 연결
     """
     global current_frame
-    cap = cv2.VideoCapture(gstreamer_pipeline(), cv2.CAP_GSTREAMER)
+    cap = cv2.VideoCapture(gstreamer_pipeline(1), cv2.CAP_GSTREAMER)
+    
+    if not cap.isOpened():
+        print("⚠️  GStreamer 실패, 일반 모드(/dev/video1) 시도...")
+        cap = cv2.VideoCapture(1)
     
     while True:
         success, frame = cap.read()
@@ -510,19 +515,45 @@ def status():
     })
 
 
+@app.route('/login')
+def login():
+    """로그인 페이지"""
+    return render_template('login.html')
+
+
+@app.route('/capture')
+def capture():
+    """촬영 페이지"""
+    return render_template('capture.html')
+
+
+@app.route('/result')
+def result():
+    """진단 결과 페이지"""
+    return render_template('result.html')
+
+
+@app.route('/survey')
+def survey():
+    """설문조사 페이지"""
+    return render_template('survey.html')
+
+
 # ========================================
 # [7] 서버 시작/종료
 # ========================================
 
-@app.before_first_request
-def before_first_request():
-    """서버 시작 시 모델 로드"""
-    global model_manager
-    print("\n" + "="*50)
-    print("[Eye Disease Detection Server]")
-    print("="*50)
-    model_manager = initialize_models()
-    print("\n✓ 서버 준비 완료! http://0.0.0.0:5000 에서 접속하세요\n")
+@app.before_request
+def initialize_on_first_request():
+    """서버 시작 시 모델 로드 (Flask 2.3+ 호환)"""
+    global model_manager, models_initialized
+    if not models_initialized:
+        models_initialized = True
+        print("\n" + "="*50)
+        print("[Eye Disease Detection Server]")
+        print("="*50)
+        model_manager = initialize_models()
+        print("\n✓ 서버 준비 완료! http://0.0.0.0:5000 에서 접속하세요\n")
 
 
 @app.teardown_appcontext

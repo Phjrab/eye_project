@@ -189,15 +189,15 @@
     </div>
 
     <div class="footer-btns">
-        <button class="btn btn-prev" onclick="location.href='login.html'">이전으로 (본인인증)</button>
+        <button class="btn btn-prev" onclick="location.href='/login'">이전으로 (본인인증)</button>
         <button class="btn btn-next" onclick="submitSurvey()">문진 완료 및 AI 검사 시작</button>
     </div>
 
     <script>
         function submitSurvey() {
             if(confirm("문진 내용을 저장하고 AI 검사 단계로 이동하시겠습니까?")) {
-                // Flask 환경일 경우 url_for('capture')를 고려하여 작성 가능
-                location.href = 'capture.html'; 
+                // Flask 라우트 사용
+                location.href = '/capture'; 
             }
         }
     </script>

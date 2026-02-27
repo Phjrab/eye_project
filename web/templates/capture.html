@@ -183,7 +183,7 @@
             if (photos.L && photos.R) {
                 localStorage.setItem('eye_photo_L', photos.L);
                 localStorage.setItem('eye_photo_R', photos.R);
-                window.location.href = './result.html';
+                window.location.href = '/result';
             } else {
                 selectEye(currentEye === 'L' ? 'R' : 'L');
             }

@@ -225,13 +225,13 @@
             }
         }
 
-        // 2. 안구 재촬영 기능 (데이터 초기화 후 capture.html로 이동)
+        // 2. 안구 재촬영 기능 (데이터 초기화 후 capture로 이동)
         function retakePhotos() {
             if (confirm("현재 촬영된 양쪽 안구 데이터를 모두 삭제하고 다시 촬영하시겠습니까?")) {
                 localStorage.removeItem('eye_photo_L');
                 localStorage.removeItem('eye_photo_R');
-                // 현재 폴더에 있는 capture.html 파일로 이동합니다.
-                window.location.href = './capture.html';
+                // capture 페이지로 이동합니다.
+                window.location.href = '/capture';
             }
         }
 
