@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>안구 건강 추적 리포트</title>
+    <style>
+        :root {
+            --primary: #007AFF;
+            --bg: #f5f5f7;
+            --card: #ffffff;
+            --text: #1d1d1f;
+            --border: #d2d2d7;
+            --accent: #28cd41;
+            --danger: #ff3b30;
+        }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            width: 1240px; 
+            height: 760px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 0 10px;
+        }
+
+        h1 { font-size: 1.8rem; color: var(--primary); margin: 0; }
+        .user-info { font-weight: 600; color: #666; }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            height: 85%;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 { font-size: 1.2rem; margin-bottom: 15px; border-left: 5px solid var(--primary); padding-left: 10px; }
+
+        /* 히스토리 비교 섹션 */
+        .history-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            flex: 1;
+        }
+
+        .eye-compare-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            text-align: center;
+        }
+
+        .eye-frame {
+            background: #000;
+            border-radius: 15px;
+            height: 180px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: 0.2s;
+            position: relative;
+        }
+
+        .eye-frame:hover { border-color: var(--primary); }
+        .eye-frame img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .date-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+        }
+
+        /* 진단 및 관리 요약 */
+        .summary-box {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .result-tag {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+        .tag-danger { background: #ffe5e5; color: var(--danger); }
+        .tag-safe { background: #e5f9e5; color: var(--accent); }
+
+        .method-list {
+            padding-left: 20px;
+            margin: 10px 0;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        /* 하단 버튼 */
+        .footer-btns {
+            margin-top: auto;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            border-radius: 12px;
+            border: none;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn-home { background: var(--primary); color: white; }
+        .btn-print { background: #1d1d1f; color: white; }
+
+        /* 팝업 모달 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content { max-width: 90%; max-height: 90%; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>👁️ 안구 건강 종합 리포트</h1>
+        <div class="user-info" id="user-display">사용자: 하준 님 (24세)</div>
+    </header>
+
+    <div class="main-grid">
+        <div class="card">
+            <h2>📅 검사 이력 비교 (최근 2회)</h2>
+            <p style="font-size: 0.9rem; color: #666;">사진을 클릭하면 해당 시점의 정밀 사진을 볼 수 있습니다.</p>
+            
+            <div class="history-section">
+                <div>
+                    <strong style="display:block; margin-bottom:8px;">[왼쪽 눈 - L]</strong>
+                    <div class="eye-compare-box">
+                        <div class="eye-frame" onclick="viewImage('past_L')">
+                            <span class="date-badge">과거 (2025.11.20)</span>
+                            <img src="https://via.placeholder.com/200x150/333/fff?text=Past+L" id="img-past-L">
+                        </div>
+                        <div class="eye-frame" onclick="viewImage('current_L')">
+                            <span class="date-badge" style="background:var(--primary)">현재 (오늘)</span>
+                            <img src="" id="img-curr-L">
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 15px;">
+                    <strong style="display:block; margin-bottom:8px;">[오른쪽 눈 - R]</strong>
+                    <div class="eye-compare-box">
+                        <div class="eye-frame" onclick="viewImage('past_R')">
+                            <span class="date-badge">과거 (2025.11.20)</span>
+                            <img src="https://via.placeholder.com/200x150/333/fff?text=Past+R" id="img-past-R">
+                        </div>
+                        <div class="eye-frame" onclick="viewImage('current_R')">
+                            <span class="date-badge" style="background:var(--primary)">현재 (오늘)</span>
+                            <img src="" id="img-curr-R">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🔬 AI 진단 및 관리 가이드</h2>
+            
+            <div class="summary-box">
+                <span class="result-tag tag-danger">주의: 결막염 및 초기 충혈 의심</span>
+                <p style="margin: 0; font-size: 1rem; line-height: 1.5;">
+                    지난 검사 대비 <b>왼쪽 안구의 충혈도</b>가 약 15% 증가했습니다. <br>
+                    지속적인 가려움증이 동반될 경우 전염성 결막염일 가능성이 높습니다.
+                </p>
+            </div>
+
+            <div class="summary-box">
+                <strong style="color:var(--primary)">👨‍⚕️ 권장 진료 과목</strong>
+                <ul class="method-list">
+                    <li><b>일반 안과:</b> 세극등 현미경 검사를 통한 염증 확인</li>
+                    <li><b>안구건조증 클리닉:</b> 눈물막 파괴 시간(TBUT) 측정</li>
+                </ul>
+            </div>
+
+            <div class="summary-box">
+                <strong style="color:var(--accent)">🌿 일상 관리 방법</strong>
+                <ul class="method-list">
+                    <li><b>냉찜질:</b> 하루 2회, 5분간 눈 주변 열감 식히기</li>
+                    <li><b>환경 개선:</b> 실내 습도 50~60% 유지 및 블루라이트 차단</li>
+                    <li><b>청결 유지:</b> 손으로 눈을 비비지 마시고 일회용 인공눈물 사용</li>
+                </ul>
+            </div>
+
+            <div class="footer-btns">
+                <button class="btn btn-home" onclick="location.href='index.html'">메인으로</button>
+                <button class="btn btn-print" onclick="window.print()">📥 리포트 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="imageModal" class="modal" onclick="this.style.display='none'">
+        <img class="modal-content" id="modal-img">
+    </div>
+
+    <script>
+        window.onload = function() {
+            // 1. 현재 촬영한 이미지 불러오기 (localStorage)
+            const currL = localStorage.getItem('eye_photo_L');
+            const currR = localStorage.getItem('eye_photo_R');
+            const age = localStorage.getItem('user_age') || "24";
+            const userId = localStorage.getItem('user_id') || "하준";
+
+            if(currL) document.getElementById('img-curr-L').src = currL;
+            if(currR) document.getElementById('img-curr-R').src = currR;
+            
+            document.getElementById('user-display').innerText = `사용자: ${userId} 님 (${age}세)`;
+
+            // 2. 과거 데이터는 나중에 나은율 팀원의 DB(API)에서 받아와야 합니다.
+            // 현재는 시연을 위해 placeholder 이미지가 적용되어 있습니다.
+        };
+
+        function viewImage(type) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modal-img');
+            let source = "";
+
+            if(type === 'current_L') source = localStorage.getItem('eye_photo_L');
+            else if(type === 'current_R') source = localStorage.getItem('eye_photo_R');
+            else source = "https://via.placeholder.com/800x600/333/fff?text=Past+Record+Photo";
+
+            if(source) {
+                modalImg.src = source;
+                modal.style.display = 'flex';
+            }
+        }
+    </script>
+</body>
+</html>
