@@ -1,3 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Eye Healthcare Kiosk</title>
+    <style>
+        :root {
+            --primary: #007AFF;
+            --bg: #f5f5f7;
+            --text-dark: #0f172a;
+            --text-sub: #64748b;
+        }
+
+        body {
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-dark);
+            margin: 0;
+            padding: 0;
+            /* 키오스크 규격 고정 */
+            width: 1280px;
+            height: 800px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .welcome-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: white;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.02);
+        }
+
+        /* 메인 비주얼 아이콘 */
+        .main-visual {
+            margin-bottom: 30px;
+        }
+
+        .eye-scan-icon {
+            font-size: 7rem;
+            display: inline-block;
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            color: var(--text-dark);
+            margin: 0 0 20px 0;
+            font-weight: 800;
+            letter-spacing: -1.5px;
+        }
+
+        .subtitle {
+            font-size: 1.4rem;
+            color: var(--text-sub);
+            margin-bottom: 50px;
+            line-height: 1.6;
+        }
+
+        /* 질환 태그 */
+        .feature-tags {
+            margin-bottom: 60px;
+        }
+
+        .feature-tags span {
+            display: inline-block;
+            background: #f1f5f9;
+            color: var(--primary);
+            padding: 10px 25px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0 10px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* 진단 시작하기 버튼 */
+        .btn-start {
+            display: inline-block;
+            background: linear-gradient(135deg, #007AFF, #5856D6);
+            color: white;
+            padding: 25px 100px;
+            border-radius: 60px;
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-decoration: none;
+            box-shadow: 0 15px 35px rgba(0, 122, 255, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+
+        .btn-start:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 122, 255, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .btn-start:active {
+            transform: scale(0.96);
+        }
+
+        .helper-text {
+            margin-top: 30px;
+            font-size: 1rem;
+            color: #94a3b8;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
 <div class="welcome-container">
     <div class="main-visual">
         <span class="eye-scan-icon">👁️</span>
@@ -5,7 +129,7 @@
 
     <h1>안구 건강 진단 서비스</h1>
     <p class="subtitle">
-        NVIDIA Jetson AI 기술을 활용하여<br>
+        <strong>NVIDIA Jetson AI</strong> 기술을 활용하여<br>
         빠르고 정확하게 눈 상태를 점검하세요.
     </p>
     
@@ -16,90 +140,12 @@
     </div>
 
     <div class="start-section">
-        <a href="{{ url_for('result') }}" class="btn-start">진단 시작하기</a>
+        <a href="login.html" onclick="location.href='{{ url_for('login') }}'; return false;" class="btn-start">
+            진단 시작하기
+        </a>
         <p class="helper-text">※ 본 서비스는 의료 보조 및 스크리닝 목적으로 제공됩니다.</p>
     </div>
 </div>
 
-<style>
-    /* 메인 컨테이너 디자인 */
-    .welcome-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        min-height: 80vh;
-        padding: 20px;
-    }
-
-    .eye-scan-icon {
-        font-size: 5rem;
-        margin-bottom: 20px;
-        display: inline-block;
-        animation: pulse 2s infinite;
-    }
-
-    h1 {
-        font-size: 2.5rem;
-        color: #0f172a;
-        margin-bottom: 10px;
-        font-weight: 800;
-    }
-
-    .subtitle {
-        font-size: 1.1rem;
-        color: #64748b;
-        margin-bottom: 30px;
-        line-height: 1.6;
-    }
-
-    /* 질환 태그 스타일 */
-    .feature-tags {
-        margin-bottom: 40px;
-    }
-
-    .feature-tags span {
-        display: inline-block;
-        background: #f1f5f9;
-        color: #3b82f6;
-        padding: 5px 15px;
-        border-radius: 50px;
-        font-size: 0.9rem;
-        font-weight: 600;
-        margin: 0 5px;
-    }
-
-    /* 진단 시작하기 버튼 (핵심) */
-    .btn-start {
-        display: inline-block;
-        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-        color: white;
-        padding: 18px 60px;
-        border-radius: 50px;
-        font-size: 1.25rem;
-        font-weight: 700;
-        text-decoration: none;
-        box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
-        transition: all 0.3s ease;
-    }
-
-    .btn-start:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 15px 30px rgba(59, 130, 246, 0.4);
-        filter: brightness(1.1);
-    }
-
-    .helper-text {
-        margin-top: 15px;
-        font-size: 0.85rem;
-        color: #94a3b8;
-    }
-
-    /* 애니메이션 효과 */
-    @keyframes pulse {
-        0% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.1); opacity: 0.8; }
-        100% { transform: scale(1); opacity: 1; }
-    }
-</style>
+</body>
+</html>
