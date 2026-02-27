@@ -66,6 +66,12 @@
             background: #f9f9f9;
         }
 
+        /* 필수 항목 표시 스타일 */
+        .required-mark {
+            color: #ff3b30;
+            margin-left: 3px;
+        }
+
         /* 증상 체크 리스트 */
         .symptom-grid {
             display: grid;
@@ -123,8 +129,8 @@
             <h2>👤 기본 정보</h2>
             <div class="input-row">
                 <div class="field">
-                    <label>나이</label>
-                    <input type="number" placeholder="세">
+                    <label>나이<span class="required-mark">*</span></label>
+                    <input type="number" id="user-age" placeholder="세" required min="1" max="120">
                 </div>
                 <div class="field">
                     <label>성별</label>
@@ -189,15 +195,25 @@
     </div>
 
     <div class="footer-btns">
-        <button class="btn btn-prev" onclick="location.href='/login'">이전으로 (본인인증)</button>
+        <button class="btn btn-prev" onclick="location.href='login.html'">이전으로 (본인인증)</button>
         <button class="btn btn-next" onclick="submitSurvey()">문진 완료 및 AI 검사 시작</button>
     </div>
 
     <script>
         function submitSurvey() {
+            const ageInput = document.getElementById('user-age');
+            
+            // 나이 입력 여부 검사
+            if (!ageInput.value) {
+                alert("정확한 분석을 위해 나이를 입력해 주세요.");
+                ageInput.focus();
+                return;
+            }
+
             if(confirm("문진 내용을 저장하고 AI 검사 단계로 이동하시겠습니까?")) {
-                // Flask 라우트 사용
-                location.href = '/capture'; 
+                // 입력된 나이를 로컬 스토리지에 저장 (나중에 결과 리포트에서 활용 가능)
+                localStorage.setItem('user_age', ageInput.value);
+                location.href = 'capture.html'; 
             }
         }
     </script>
