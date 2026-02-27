@@ -25,7 +25,7 @@ class DiseaseClassifier:
             model_path (str): 모델 가중치 경로
             num_classes (int): 질환 클래스 개수 (5개: 정상, 결막염, 포도막염, 백내장, 다래끼)
         """
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = config.DEVICE  # config.py에서 설정된 device 사용
         self.num_classes = num_classes
         self.input_size = config.CLASSIFIER_INPUT_SIZE
         self.confidence_threshold = config.CLASSIFIER_CONFIDENCE_THRESHOLD

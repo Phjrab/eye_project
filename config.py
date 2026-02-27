@@ -4,6 +4,7 @@
 """
 
 import os
+import torch
 
 # ========================================
 # [1] 기본 경로 설정
@@ -12,9 +13,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, 'models')
 
 # ========================================
+# [1-1] Device 설정 (CPU 우선, Jetson Orin Nano 메모리 절약)
+# ========================================
+DEVICE = torch.device('cpu')  # Jetson Orin Nano의 제한된 CUDA 메모리 때문에 CPU 사용
+
+# ========================================
 # [2] 모델 경로
 # ========================================
-YOLO_MODEL_PATH = os.path.join(MODEL_DIR, 'yolov8n_eye.pt')  # 추후 추가 예정
+YOLO_MODEL_PATH = os.path.join(MODEL_DIR, 'yololv8n.pt')  # YOLO eye detector 모델
 CLASSIFIER_MODEL_PATH = os.path.join(MODEL_DIR, 'Augmented_EffNet_V1_B0_best.pth')
 
 # ========================================
