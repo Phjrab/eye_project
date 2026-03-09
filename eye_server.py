@@ -10,7 +10,10 @@ import torch
 import time
 import os
 import json
+import base64
+import threading
 from datetime import datetime
+from PIL import Image
 
 import config
 from model_loader import initialize_models, get_models
@@ -26,6 +29,8 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 current_frame = None  # 실시간 카메라 프레임
 model_manager = None  # 싱글톤 모델 매니저
 models_initialized = False  # 모델 초기화 완료 여부
+camera_thread = None  # 카메라 스레드
+camera_running = False  # 카메라 스레드 실행 상태
 
 # ========================================
 # [2] 촬영 상태 관리 (왼쪽/오른쪽 눈 시퀀스)
@@ -165,25 +170,145 @@ except:
 
 
 # ========================================
+# [2-1] YOLO 눈 감지 여부 확인
+# ========================================
+def check_eye_detection(frame):
+    """
+    현재 프레임에서 눈이 감지되는지 확인
+    
+    Args:
+        frame: 검사할 이미지 프레임
+        
+    Returns:
+        tuple: (감지 여부, 신뢰도)
+    """
+    if frame is None:
+        return False, 0
+    
+    try:
+        manager = get_models()
+        detector = manager.get_detector()
+        detections = detector.detect(frame)
+        
+        if detections and len(detections) > 0:
+            # 첫 번째 검출 결과의 신뢰도
+            confidence = detections[0].get('conf', 0)
+            return True, confidence
+        
+        return False, 0
+    except Exception as e:
+        print(f"[WARNING] 눈 감지 확인 실패: {e}")
+        return False, 0
+
+
+# ========================================
+# [2-2] EfficientNet을 이용한 질환 분석
+# ========================================
+def analyze_eye_image(base64_image_data):
+    """
+    Base64로 인코딩된 이미지를 받아 EfficientNet으로 질환 분류
+    
+    Args:
+        base64_image_data: Base64로 인코딩된 이미지
+        
+    Returns:
+        dict: 분석 결과
+    """
+    try:
+        # 1. Base64 → OpenCV 이미지 변환
+        image_data = base64.b64decode(base64_image_data.split(',')[1])
+        nparr = np.frombuffer(image_data, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img_bgr is None:
+            return None, None, "이미지 디코딩 실패"
+        
+        # 2. 모델 매니저에서 분류기 가져오기
+        manager = get_models()
+        classifier = manager.get_classifier()
+        
+        # 3. 분류 수행
+        classification = classifier.classify(img_bgr)
+        
+        disease_label = classification['disease']
+        confidence_score = classification['confidence'] * 100  # 퍼센티지
+        
+        return disease_label, confidence_score, None
+        
+    except Exception as e:
+        print(f"[ERROR] 이미지 분석 실패: {e}")
+        return None, None, str(e)
+
+
+# ========================================
 # [3] GStreamer 파이프라인
 # ========================================
-def gstreamer_pipeline(cam_id=1):
+def gstreamer_pipeline(cam_id=0):
     """
     Logitech C920 웹캠용 GStreamer 파이프라인
     
     Args:
-        cam_id: 비디오 장치 ID (기본값: 1 = /dev/video1)
+        cam_id: 비디오 장치 ID (기본값: 0 = /dev/video0)
         
     Returns:
         GStreamer 파이프라인 문자열
     """
     return (
         f"v4l2src device=/dev/video{cam_id} ! "
-        "image/jpeg, width=1280, height=720, framerate=30/1 ! "
+        "image/jpeg, width=640, height=480, framerate=30/1 ! "
         "jpegdec ! "
         "nvvidconv ! "
         "video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
     )
+
+
+# ========================================
+# [4] 백그라운드 카메라 스레드
+# ========================================
+def start_camera_thread():
+    """
+    카메라 프레임을 백그라운드에서 계속 읽고 current_frame 업데이트
+    """
+    global current_frame, camera_running, camera_thread
+    
+    def camera_worker():
+        global current_frame, camera_running
+        print("[카메라 스레드] 백그라운드 프레임 수집 시작...")
+        
+        # 짧은 대기를 통해 Flask가 완전히 초기화될 때까지 기다림
+        time.sleep(1)
+        
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            print("[카메라 스레드] ✗ 카메라 열기 실패!")
+            camera_running = False
+            return
+        
+        print("[카메라 스레드] ✓ 카메라 초기화 완료, 프레임 수집 중...")
+        frame_count = 0
+        
+        while camera_running:
+            ret, frame = cap.read()
+            if not ret:
+                print("[카메라 스레드] ✗ 프레임 읽기 실패!")
+                break
+            
+            current_frame = frame.copy()
+            frame_count += 1
+            
+            if frame_count % 30 == 0:
+                print(f"[카메라 스레드] {frame_count}개 프레임 수집 완료")
+            
+            time.sleep(0.033)  # ~30fps
+        
+        cap.release()
+        print(f"[카메라 스레드] 종료 ({frame_count}개 프레임 수집됨)")
+    
+    camera_running = True
+    # daemon=False: 메인 스레드가 종료될 때까지 스레드 유지
+    camera_thread = threading.Thread(target=camera_worker, daemon=False)
+    camera_thread.start()
+    print("[카메라 스레드] ✓ 시작")
 
 
 # ========================================
@@ -193,19 +318,36 @@ def gen_frames():
     """
     카메라 프레임을 실시간으로 스트림
     current_frame에도 최신 프레임 저장
-    Logitech C920 웹캠 (/dev/video1) 연결
+    Logitech C920 웹캠 (/dev/video0) 연결
     """
     global current_frame
-    cap = cv2.VideoCapture(gstreamer_pipeline(1), cv2.CAP_GSTREAMER)
+    print("[gen_frames] 카메라 초기화 시도...")
+    
+    # GStreamer 먼저 시도
+    cap = cv2.VideoCapture(gstreamer_pipeline(0), cv2.CAP_GSTREAMER)
+    print(f"[gen_frames] GStreamer 시도: {'성공' if cap.isOpened() else '실패'}")
     
     if not cap.isOpened():
-        print("⚠️  GStreamer 실패, 일반 모드(/dev/video1) 시도...")
-        cap = cv2.VideoCapture(1)
+        print("⚠️  GStreamer 실패, 일반 모드(/dev/video0) 시도...")
+        cap = cv2.VideoCapture(0)
+        print(f"[gen_frames] VideoCapture(0) 시도: {'성공' if cap.isOpened() else '실패'}")
+    
+    if not cap.isOpened():
+        print("[ERROR] 카메라를 열 수 없습니다!")
+        return
+    
+    print("[gen_frames] ✓ 카메라 초기화 완료, 프레임 스트리밍 시작...")
+    frame_count = 0
     
     while True:
         success, frame = cap.read()
         if not success:
+            print(f"[ERROR] 프레임 읽기 실패 (총 {frame_count}개 프레임 읽음)")
             break
+        
+        frame_count += 1
+        if frame_count % 30 == 0:  # 30프레임마다 로그
+            print(f"[gen_frames] {frame_count}개 프레임 스트리밍 중...")
         
         # 최신 프레임 저장 (스냅샷용)
         current_frame = frame.copy()
@@ -356,9 +498,101 @@ def index():
 
 @app.route('/video_feed')
 def video_feed():
-    """실시간 영상 스트림"""
+    """실시간 영상 스트림 (MJPEG)"""
     return Response(gen_frames(),
                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/video_frame')
+def video_frame():
+    """현재 카메라 프레임을 JPEG로 반환"""
+    global current_frame
+    try:
+        if current_frame is None:
+            # 검정색 더미 프레임 반환
+            dummy = np.zeros((480, 640, 3), dtype=np.uint8)
+            ret, buffer = cv2.imencode('.jpg', dummy)
+            return Response(buffer.tobytes(), mimetype='image/jpeg')
+        
+        ret, buffer = cv2.imencode('.jpg', current_frame)
+        return Response(buffer.tobytes(), mimetype='image/jpeg')
+    except Exception as e:
+        print(f"[ERROR] /video_frame 실패: {e}")
+        return Response(b'', status=500)
+
+
+@app.route('/detect_status', methods=['GET'])
+def detect_status():
+    """
+    현재 프레임에서 눈의 감지 여부만 반환 (HTML에서 상태 표시용)
+    
+    Returns:
+        - detected: bool - 눈 감지 여부
+        - confidence: float - 신뢰도 (0~1)
+        - message: str - 상태 메시지
+    """
+    global current_frame
+    try:
+        if current_frame is None:
+            return jsonify({
+                'detected': False,
+                'confidence': 0,
+                'message': '카메라 연결을 기다리는 중...'
+            }), 200
+        
+        detected, confidence = check_eye_detection(current_frame)
+        
+        return jsonify({
+            'detected': detected,
+            'confidence': round(confidence, 3),
+            'message': '🟢 눈이 감지되었습니다!' if detected else '⚪ 눈을 맞춰주세요'
+        }), 200
+    
+    except Exception as e:
+        print(f"[ERROR] 눈 감지 상태 조회 실패: {e}")
+        return jsonify({
+            'detected': False,
+            'confidence': 0,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    """
+    웹 브라우저에서 캡처한 Base64 이미지를 EfficientNet으로 분석
+    
+    Request:
+        {
+            "image": "data:image/jpeg;base64,..."
+        }
+    
+    Response:
+        {
+            "result": "Normal|Cataract|...",
+            "confidence": 95.43,
+            "error": null
+        }
+    """
+    try:
+        data = request.json
+        if 'image' not in data:
+            return jsonify({'error': '이미지 데이터가 없습니다'}), 400
+        
+        base64_image = data['image']
+        disease_label, confidence_score, error = analyze_eye_image(base64_image)
+        
+        if error:
+            return jsonify({'error': error}), 400
+        
+        return jsonify({
+            'result': disease_label,
+            'confidence': round(confidence_score, 2)
+        }), 200
+        
+    except Exception as e:
+        print(f"[ERROR] /analyze 라우트 실패: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/diagnose', methods=['POST'])
@@ -545,20 +779,29 @@ def survey():
 
 @app.before_request
 def initialize_on_first_request():
-    """서버 시작 시 모델 로드 (Flask 2.3+ 호환)"""
-    global model_manager, models_initialized
+    """서버 시작 시 모델 로드 및 카메라 스레드 시작 (Flask 2.3+ 호환)"""
+    global model_manager, models_initialized, camera_running
     if not models_initialized:
         models_initialized = True
         print("\n" + "="*50)
         print("[Eye Disease Detection Server]")
         print("="*50)
         model_manager = initialize_models()
+        
+        # 카메라 백그라운드 스레드 시작
+        start_camera_thread()
+        
         print("\n✓ 서버 준비 완료! http://0.0.0.0:5000 에서 접속하세요\n")
 
 
 @app.teardown_appcontext
 def cleanup(exception=None):
     """서버 종료 시 정리"""
+    global camera_running
+    
+    # 카메라 스레드 종료
+    camera_running = False
+    
     if LED_AVAILABLE:
         pwm_led.stop()
         GPIO.cleanup()
@@ -567,6 +810,19 @@ def cleanup(exception=None):
 
 if __name__ == '__main__':
     print("Starting Eye Disease Detection Server...")
+    
+    # 서버 시작 전에 모델과 카메라 초기화
+    if not models_initialized:
+        print("\n" + "="*50)
+        print("[Eye Disease Detection Server]")
+        print("="*50)
+        model_manager = initialize_models()
+        
+        # 카메라 백그라운드 스레드 시작
+        start_camera_thread()
+        
+        print("\n✓ 서버 준비 완료! http://0.0.0.0:5000 에서 접속하세요\n")
+    
     app.run(
         host=config.SERVER_IP,
         port=config.SERVER_PORT,

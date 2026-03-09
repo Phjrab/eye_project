@@ -115,7 +115,8 @@
     <div class="left-panel">
         <div class="guide-text">동공과 홍채를 가이드에 맞춰주세요</div>
         
-        <video id="video-feed" autoplay playsinline muted></video>
+        <!-- Canvas 또는 img로 프레임 표시 -->
+        <img id="video-feed" src="/video_feed" style="width: 100%; height: 82%; object-fit: cover; transform: scaleX(-1); background: #222; display: block;">
         
         <div class="guide-overlay">
             <div class="eye-outline">
@@ -133,6 +134,17 @@
     </div>
 
     <div class="right-panel">
+        <div class="card">
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 0. 눈 감지 상태</h2>
+            <div id="detection-status" style="display: flex; align-items: center; gap: 10px; padding: 15px; background: #f0f0f0; border-radius: 10px;">
+                <div id="status-dot" style="width: 12px; height: 12px; border-radius: 50%; background: #ccc;"></div>
+                <div>
+                    <div id="status-message" style="font-size: 0.95rem; color: #64748b;">카메라 연결 중...</div>
+                    <div id="confidence-text" style="font-size: 0.85rem; color: #999; margin-top: 3px;"></div>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 1. 촬영 부위 선택</h2>
             <div style="display: flex; gap: 10px;">
@@ -154,37 +166,111 @@
     <script>
         let currentEye = 'L';
         const photos = { L: null, R: null };
-
-        async function setupCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: 1280, height: 720 } 
-            });
-            document.getElementById('video-feed').srcObject = stream;
-        }
-
+        let detectionPollingInterval = null;
+        let frameStreamInterval = null;
+        const canvas = document.getElementById('video-feed');
+        const ctx = canvas ? canvas.getContext('2d') : null;
+        
         function selectEye(side) {
             currentEye = side;
             document.getElementById('btn-L').classList.toggle('active', side === 'L');
             document.getElementById('btn-R').classList.toggle('active', side === 'R');
         }
 
+        // ==========================================
+        // 눈 감지 상태 폴링 (서버에서 감지 여부 조회)
+        // ==========================================
+        async function pollDetectionStatus() {
+            try {
+                const response = await fetch('/detect_status');
+                const data = await response.json();
+                
+                const statusDot = document.getElementById('status-dot');
+                const statusMessage = document.getElementById('status-message');
+                const confidenceText = document.getElementById('confidence-text');
+                
+                if (data.detected) {
+                    statusDot.style.background = '#28cd41';  // 녹색
+                    statusMessage.textContent = data.message;
+                    confidenceText.textContent = `신뢰도: ${(data.confidence * 100).toFixed(1)}%`;
+                } else {
+                    statusDot.style.background = '#b0bec5';  // 회색
+                    statusMessage.textContent = data.message;
+                    confidenceText.textContent = '';
+                }
+            } catch (error) {
+                console.error('[Detection Status Error]', error);
+            }
+        }
+
+        // ==========================================
+        // 카메라 이미지 캡처 및 분석
+        // ==========================================
         function takeSnapshot() {
-            const video = document.getElementById('video-feed');
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            const videoImg = document.getElementById('video-feed');
+        
+            // 1. 사진을 찍을 찰나에만 안 보이는 임시 캔버스를 만듭니다.
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 640;  // 젯슨 서버에서 보내는 해상도와 맞춤
+            tempCanvas.height = 480;
+            const ctx = tempCanvas.getContext('2d');
+        
+            // 2. 화면에 송출 중인 영상의 현재 프레임을 캔버스에 복사합니다.
+            // (UI는 거울처럼 반전되어 있지만, AI 진단을 위해 원본 방향 그대로 캡처합니다)
+            ctx.drawImage(videoImg, 0, 0, tempCanvas.width, tempCanvas.height);
+        
+            // 3. 이미지를 Base64 데이터로 변환
+            const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);
             photos[currentEye] = dataUrl;
-            
+        
+            // 로컬 미리보기 업데이트
             updatePreviews();
 
+         // 서버로 전송
+            analyzeWithServer(dataUrl, currentEye);
+        }
+
+        // ==========================================
+        // 서버 분석 (Base64 이미지 → EfficientNet)
+        // ==========================================
+        async function analyzeWithServer(base64Image, eye) {
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        image: base64Image
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    console.log(`[${eye} Eye Analysis] Disease: ${result.result}, Confidence: ${result.confidence}%`);
+                    
+                    // (선택) 분석 결과를 로컬스토리지에 저장
+                    localStorage.setItem(`eye_analysis_${eye}`, JSON.stringify(result));
+                } else {
+                    console.error(`[Analysis Error] ${result.error}`);
+                }
+            } catch (error) {
+                console.error('[Server Analysis Error]', error);
+            }
+
+            // ==========================================
+            // 3. 두 눈 모두 촬영 완료 시 결과 페이지로 이동
+            // ==========================================
             if (photos.L && photos.R) {
                 localStorage.setItem('eye_photo_L', photos.L);
                 localStorage.setItem('eye_photo_R', photos.R);
-                window.location.href = '/result';
+                // 잠시 후 결과 페이지로 이동
+                setTimeout(() => {
+                    window.location.href = '/result';
+                }, 1000);
             } else {
+                // 다음 눈으로 전환
                 selectEye(currentEye === 'L' ? 'R' : 'L');
             }
         }
@@ -198,7 +284,24 @@
             });
         }
 
-        window.onload = () => { setupCamera(); selectEye('L'); };
+        // 화면 로딩 시 프레임 스트리밍 및 감지 폴링 시작
+        window.onload = () => {
+            selectEye('L');
+            
+            // 프레임 스트리밍 시작 (백그라운드에서 계속 실행)
+            streamFramesToCanvas();
+            
+            // 감지 상태 즉시 조회 & 주기적으로 폴링 (500ms)
+            pollDetectionStatus();
+            detectionPollingInterval = setInterval(pollDetectionStatus, 500);
+        };
+
+        // 페이지 종료 시 폴링 중지
+        window.onbeforeunload = () => {
+            if (detectionPollingInterval) {
+                clearInterval(detectionPollingInterval);
+            }
+        };
     </script>
 </body>
 </html>
