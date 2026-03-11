@@ -192,7 +192,7 @@
             if (confirm("기존 데이터를 삭제하고 다시 촬영하시겠습니까?")) {
                 localStorage.removeItem('eye_photo_L');
                 localStorage.removeItem('eye_photo_R');
-                window.location.href = './capture.html';
+                window.location.href = '/capture';
             }
         }
 
@@ -208,7 +208,7 @@
 
             if (isUpdated === 'true') {
                 // 데이터 업데이트가 완료되었을 때만 report.html로 이동
-                window.location.href = 'report.html';
+                window.location.href = '/report';
             } else {
                 alert("데이터 업데이트를 먼저 완료해 주세요.");
             }

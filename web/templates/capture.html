@@ -32,98 +32,45 @@
             flex-direction: column; 
             background: #000; 
             position: relative; 
+            overflow: hidden;
+        }
+
+        .video-container {
+            width: 100%;
+            height: 82%;
+            position: relative;
+            overflow: hidden;
+            background: #222;
         }
 
         #video-feed { 
             width: 100%; 
-            height: 82%; 
+            height: 100%; 
             object-fit: cover; 
             transform: scaleX(-1); 
             background: #222; 
+            transform-origin: center center;
+            display: block;
         }
 
-        /* --- 안구 촬영 가이드 UI --- */
-        .guide-overlay {
-            position: absolute;
-            top: 41%; /* 비디오 영역의 중앙 */
-            left: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none; /* 클릭 방해 금지 */
-            z-index: 5;
-        }
-
-        /* 안구 전체 윤곽 가이드 */
-        .eye-outline {
-            width: 450px;
-            height: 220px;
-            border: 3px solid rgba(255, 255, 255, 0.4);
-            border-radius: 50% / 50%;
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        /* 홍채(Iris) 위치 가이드 */
-        .iris-circle {
-            width: 180px;
-            height: 180px;
-            border: 3px dashed var(--guide-color);
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        /* 동공(Pupil) 위치 가이드 */
-        .pupil-dot {
-            width: 50px;
-            height: 50px;
-            border: 2px solid var(--guide-color);
-            border-radius: 50%;
-            background: rgba(40, 205, 65, 0.1);
-        }
-
-        .guide-text {
-            position: absolute;
-            top: 5%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.9);
-            color: var(--primary);
-            padding: 10px 25px;
-            border-radius: 30px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            z-index: 10;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
 
         /* 하단 및 우측 패널 스타일 유지 */
         .camera-bottom-btns { height: 18%; background: #ffffff; display: flex; align-items: center; justify-content: center; gap: 20px; border-top: 1px solid var(--border); }
-        .right-panel { flex: 1; padding: 30px; display: flex; flex-direction: column; justify-content: center; background: var(--bg); border-left: 1px solid var(--border); }
+        .right-panel { flex: 1; padding: 30px; display: flex; flex-direction: column; justify-content: flex-start; background: var(--bg); border-left: 1px solid var(--border); overflow-y: auto; }
         .card { background: var(--card); padding: 25px; border-radius: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .btn-eye { flex: 1; padding: 20px; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
-        .btn-eye.active { border-color: var(--primary); background: var(--primary); color: #fff; }
         .btn-capture { width: 100%; padding: 25px; border-radius: 15px; background: var(--primary); color: white; font-weight: 800; border: none; font-size: 1.3rem; cursor: pointer; }
-        .preview-thumbs { display: flex; gap: 15px; margin-top: 20px; justify-content: center; }
-        .thumb { width: 120px; height: 90px; border: 2px solid var(--border); border-radius: 10px; background-size: cover; }
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+        .result-eye { padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+        .result-title { font-size: 0.9rem; color: #475569; margin-bottom: 6px; font-weight: 700; }
+        .result-value { font-size: 0.95rem; color: #0f172a; line-height: 1.35; }
     </style>
 </head>
 <body>
 
     <div class="left-panel">
-        <div class="guide-text">동공과 홍채를 가이드에 맞춰주세요</div>
-        
-        <!-- Canvas 또는 img로 프레임 표시 -->
-        <img id="video-feed" src="/video_feed" style="width: 100%; height: 82%; object-fit: cover; transform: scaleX(-1); background: #222; display: block;">
-        
-        <div class="guide-overlay">
-            <div class="eye-outline">
-                <div class="iris-circle">
-                    <div class="pupil-dot"></div>
-                </div>
-            </div>
+        <div class="video-container">
+            <!-- Canvas 또는 img로 프레임 표시 -->
+            <img id="video-feed" src="/video_feed">
         </div>
 
         <div class="camera-bottom-btns">
@@ -146,36 +93,53 @@
         </div>
 
         <div class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 1. 촬영 부위 선택</h2>
-            <div style="display: flex; gap: 10px;">
-                <button class="btn-eye active" id="btn-L" onclick="selectEye('L')">왼쪽 눈 (L)</button>
-                <button class="btn-eye" id="btn-R" onclick="selectEye('R')">오른쪽 눈 (R)</button>
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 1. 자동셔터 / 디지털 줌</h2>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                <span style="font-size:0.95rem; color:#334155;">자동셔터</span>
+                <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; color:#64748b;">
+                    <input type="checkbox" id="auto-shutter-toggle" checked onchange="toggleAutoShutter()">
+                    사용
+                </label>
             </div>
+            <div id="auto-shutter-status" style="font-size:0.85rem; color:#64748b; margin-bottom:14px;">자동셔터 대기 중</div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-size:0.95rem; color:#334155;">디지털 줌</span>
+                <span id="zoom-value" style="font-size:0.9rem; color:#64748b;">1.0x</span>
+            </div>
+            <input id="zoom-slider" type="range" min="1" max="2.5" step="0.1" value="1" oninput="setDigitalZoom(this.value)" style="width:100%;">
         </div>
 
         <div class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 안구 캡처</h2>
-            <button class="btn-capture" onclick="takeSnapshot()">📸 지금 촬영하기</button>
-            <div class="preview-thumbs" id="previews">
-                <div style="text-align:center;"><div id="thumb-L" class="thumb"></div>L</div>
-                <div style="text-align:center;"><div id="thumb-R" class="thumb"></div>R</div>
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 양안 1장 촬영 및 분석</h2>
+            <button class="btn-capture" onclick="takeSnapshot()">📸 양쪽 눈 한 번에 촬영</button>
+            <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;">안내: 양쪽 눈이 가이드에 모두 들어오도록 정렬해 주세요.</div>
+        </div>
+
+        <div class="card">
+            <h2 style="margin:0 0 10px 0; font-size: 1.2rem; color: var(--primary);">Step 3. 분석 결과</h2>
+            <div id="analysis-summary" style="font-size:0.95rem; color:#64748b;">아직 분석 결과가 없습니다.</div>
+            <div class="result-grid">
+                <div class="result-eye">
+                    <div class="result-title">왼쪽 눈</div>
+                    <div class="result-value" id="left-eye-result">-</div>
+                </div>
+                <div class="result-eye">
+                    <div class="result-title">오른쪽 눈</div>
+                    <div class="result-value" id="right-eye-result">-</div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        let currentEye = 'L';
-        const photos = { L: null, R: null };
+        let capturedPhoto = null;
         let detectionPollingInterval = null;
-        let frameStreamInterval = null;
-        const canvas = document.getElementById('video-feed');
-        const ctx = canvas ? canvas.getContext('2d') : null;
-        
-        function selectEye(side) {
-            currentEye = side;
-            document.getElementById('btn-L').classList.toggle('active', side === 'L');
-            document.getElementById('btn-R').classList.toggle('active', side === 'R');
-        }
+        let digitalZoom = 1.0;
+        let autoShutterEnabled = true;
+        let isCapturing = false;
+        let autoCooldownUntil = 0;
+        const AUTO_SHUTTER_CONF_THRESHOLD = 0.70; // 70%
 
         // ==========================================
         // 눈 감지 상태 폴링 (서버에서 감지 여부 조회)
@@ -198,42 +162,105 @@
                     statusMessage.textContent = data.message;
                     confidenceText.textContent = '';
                 }
+
+                handleAutoShutter(data.detected, data.confidence || 0);
             } catch (error) {
                 console.error('[Detection Status Error]', error);
+            }
+        }
+
+        function toggleAutoShutter() {
+            autoShutterEnabled = document.getElementById('auto-shutter-toggle').checked;
+            const statusEl = document.getElementById('auto-shutter-status');
+            statusEl.textContent = autoShutterEnabled ? '자동셔터 대기 중' : '자동셔터 꺼짐';
+        }
+
+        function setDigitalZoom(value) {
+            digitalZoom = Math.max(1, parseFloat(value) || 1);
+            const videoImg = document.getElementById('video-feed');
+            const zoomValue = document.getElementById('zoom-value');
+
+            videoImg.style.transform = `scaleX(-1) scale(${digitalZoom})`;
+            zoomValue.textContent = `${digitalZoom.toFixed(1)}x`;
+        }
+
+        function handleAutoShutter(detected, confidence) {
+            const statusEl = document.getElementById('auto-shutter-status');
+
+            if (!autoShutterEnabled) {
+                statusEl.textContent = '자동셔터 꺼짐';
+                return;
+            }
+
+            if (isCapturing || Date.now() < autoCooldownUntil) {
+                return;
+            }
+
+            if (!detected) {
+                statusEl.textContent = `자동셔터 대기 중 (목표: ${(AUTO_SHUTTER_CONF_THRESHOLD * 100).toFixed(0)}%)`;
+                return;
+            }
+
+            const confPct = (confidence * 100).toFixed(1);
+            statusEl.textContent = `자동셔터 판단 중... (현재: ${confPct}%)`;
+
+            if (confidence >= AUTO_SHUTTER_CONF_THRESHOLD) {
+                statusEl.textContent = `자동셔터 촬영 중... (${confPct}%)`;
+                autoCooldownUntil = Date.now() + 1500;
+                takeSnapshot(true);
             }
         }
 
         // ==========================================
         // 카메라 이미지 캡처 및 분석
         // ==========================================
-        function takeSnapshot() {
-            const videoImg = document.getElementById('video-feed');
-        
-            // 1. 사진을 찍을 찰나에만 안 보이는 임시 캔버스를 만듭니다.
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = 640;  // 젯슨 서버에서 보내는 해상도와 맞춤
-            tempCanvas.height = 480;
-            const ctx = tempCanvas.getContext('2d');
-        
-            // 2. 화면에 송출 중인 영상의 현재 프레임을 캔버스에 복사합니다.
-            // (UI는 거울처럼 반전되어 있지만, AI 진단을 위해 원본 방향 그대로 캡처합니다)
-            ctx.drawImage(videoImg, 0, 0, tempCanvas.width, tempCanvas.height);
-        
-            // 3. 이미지를 Base64 데이터로 변환
-            const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);
-            photos[currentEye] = dataUrl;
-        
-            // 로컬 미리보기 업데이트
-            updatePreviews();
+        async function takeSnapshot(isAuto = false) {
+            if (isCapturing) {
+                return;
+            }
 
-         // 서버로 전송
-            analyzeWithServer(dataUrl, currentEye);
+            isCapturing = true;
+            const videoImg = document.getElementById('video-feed');
+            const captureMessage = document.getElementById('capture-message');
+            try {
+                captureMessage.textContent = isAuto ? '자동셔터 촬영 중...' : '촬영 및 분석 중...';
+
+                // 1. 고해상도 캡처 캔버스 생성 (해상도 방어)
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = 1920;
+                tempCanvas.height = 1080;
+                const ctx = tempCanvas.getContext('2d');
+
+                // 2. 줌 배율을 캡처에도 동일하게 반영 (중앙 크롭)
+                const sourceWidth = videoImg.naturalWidth || 640;
+                const sourceHeight = videoImg.naturalHeight || 480;
+                const cropWidth = sourceWidth / digitalZoom;
+                const cropHeight = sourceHeight / digitalZoom;
+                const sx = (sourceWidth - cropWidth) / 2;
+                const sy = (sourceHeight - cropHeight) / 2;
+
+                // (UI는 거울처럼 반전되어 있지만, AI 진단을 위해 원본 방향 그대로 캡처합니다)
+                ctx.drawImage(videoImg, sx, sy, cropWidth, cropHeight, 0, 0, tempCanvas.width, tempCanvas.height);
+
+                // 3. 이미지를 Base64 데이터로 변환
+                const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);
+                capturedPhoto = dataUrl;
+
+                // 서버로 전송
+                await analyzeWithServer(dataUrl);
+                captureMessage.textContent = '촬영/분석 완료';
+            } catch (error) {
+                captureMessage.textContent = '촬영/분석 실패. 다시 시도해 주세요.';
+                console.error('[Capture Error]', error);
+            } finally {
+                isCapturing = false;
+            }
         }
 
         // ==========================================
         // 서버 분석 (Base64 이미지 → EfficientNet)
         // ==========================================
-        async function analyzeWithServer(base64Image, eye) {
+        async function analyzeWithServer(base64Image) {
             try {
                 const response = await fetch('/analyze', {
                     method: 'POST',
@@ -248,49 +275,45 @@
                 const result = await response.json();
                 
                 if (response.ok) {
-                    console.log(`[${eye} Eye Analysis] Disease: ${result.result}, Confidence: ${result.confidence}%`);
-                    
-                    // (선택) 분석 결과를 로컬스토리지에 저장
-                    localStorage.setItem(`eye_analysis_${eye}`, JSON.stringify(result));
+                    updateAnalysisResult(result);
+                    localStorage.setItem('bilateral_analysis', JSON.stringify(result));
+                    if (capturedPhoto) {
+                        localStorage.setItem('bilateral_capture', capturedPhoto);
+                    }
                 } else {
                     console.error(`[Analysis Error] ${result.error}`);
+                    const summary = document.getElementById('analysis-summary');
+                    summary.textContent = result.error || '분석 중 오류가 발생했습니다.';
                 }
             } catch (error) {
                 console.error('[Server Analysis Error]', error);
-            }
-
-            // ==========================================
-            // 3. 두 눈 모두 촬영 완료 시 결과 페이지로 이동
-            // ==========================================
-            if (photos.L && photos.R) {
-                localStorage.setItem('eye_photo_L', photos.L);
-                localStorage.setItem('eye_photo_R', photos.R);
-                // 잠시 후 결과 페이지로 이동
-                setTimeout(() => {
-                    window.location.href = '/result';
-                }, 1000);
-            } else {
-                // 다음 눈으로 전환
-                selectEye(currentEye === 'L' ? 'R' : 'L');
+                const summary = document.getElementById('analysis-summary');
+                summary.textContent = '서버 통신 오류가 발생했습니다.';
             }
         }
 
-        function updatePreviews() {
-            ['L', 'R'].forEach(side => {
-                if (photos[side]) {
-                    const thumbDiv = document.getElementById('thumb-' + side);
-                    thumbDiv.style.backgroundImage = `url(${photos[side]})`;
-                }
-            });
+        function updateAnalysisResult(result) {
+            const summary = document.getElementById('analysis-summary');
+            const leftResult = document.getElementById('left-eye-result');
+            const rightResult = document.getElementById('right-eye-result');
+
+            if (result.status !== 'success') {
+                summary.textContent = result.message || '분석 실패';
+                leftResult.textContent = '-';
+                rightResult.textContent = '-';
+                return;
+            }
+
+            const left = result.left_eye;
+            const right = result.right_eye;
+
+            summary.textContent = '양안 분석 완료';
+            leftResult.textContent = left ? `${left.disease} (${left.confidence.toFixed(1)}%)` : '검출 실패';
+            rightResult.textContent = right ? `${right.disease} (${right.confidence.toFixed(1)}%)` : '검출 실패';
         }
 
         // 화면 로딩 시 프레임 스트리밍 및 감지 폴링 시작
         window.onload = () => {
-            selectEye('L');
-            
-            // 프레임 스트리밍 시작 (백그라운드에서 계속 실행)
-            streamFramesToCanvas();
-            
             // 감지 상태 즉시 조회 & 주기적으로 폴링 (500ms)
             pollDetectionStatus();
             detectionPollingInterval = setInterval(pollDetectionStatus, 500);

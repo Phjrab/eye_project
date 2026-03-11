@@ -25,19 +25,22 @@ class EyeDetector:
         self.conf_threshold = config.YOLO_CONF_THRESHOLD
         self.iou_threshold = config.YOLO_IOU_THRESHOLD
         
-    def detect(self, image):
+    def detect(self, image, conf_threshold=None):
         """
         이미지에서 눈 검출
         
         Args:
             image (np.ndarray): 입력 이미지 (BGR)
+            conf_threshold (float, optional): 추론 시 신뢰도 임계값 오버라이드
             
         Returns:
             결과: 검출된 박스와 신뢰도를 포함한 YOLO 결과 객체
         """
+        threshold = self.conf_threshold if conf_threshold is None else conf_threshold
+
         results = self.model.predict(
             image,
-            conf=self.conf_threshold,
+            conf=threshold,
             iou=self.iou_threshold,
             imgsz=config.YOLO_INPUT_SIZE,
             verbose=False

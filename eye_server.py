@@ -12,6 +12,8 @@ import os
 import json
 import base64
 import threading
+import atexit
+import gc
 from datetime import datetime
 from PIL import Image
 
@@ -31,6 +33,8 @@ model_manager = None  # 싱글톤 모델 매니저
 models_initialized = False  # 모델 초기화 완료 여부
 camera_thread = None  # 카메라 스레드
 camera_running = False  # 카메라 스레드 실행 상태
+debug_boxes_cache = []
+debug_frame_counter = 0
 
 # ========================================
 # [2] 촬영 상태 관리 (왼쪽/오른쪽 눈 시퀀스)
@@ -188,13 +192,24 @@ def check_eye_detection(frame):
     try:
         manager = get_models()
         detector = manager.get_detector()
-        detections = detector.detect(frame)
-        
-        if detections and len(detections) > 0:
-            # 첫 번째 검출 결과의 신뢰도
-            confidence = detections[0].get('conf', 0)
-            return True, confidence
-        
+        detections = detector.detect(frame, conf_threshold=config.YOLO_STATUS_CONF_THRESHOLD)
+
+        if detections is None or not hasattr(detections, 'boxes'):
+            return False, 0
+
+        boxes = detections.boxes
+        if boxes is None or len(boxes) == 0:
+            return False, 0
+
+        conf_tensor = boxes.conf
+        if conf_tensor is None or conf_tensor.numel() == 0:
+            return False, 0
+
+        best_confidence = float(conf_tensor.max().item())
+        detected = best_confidence >= config.YOLO_STATUS_CONF_THRESHOLD
+
+        return detected, best_confidence
+
         return False, 0
     except Exception as e:
         print(f"[WARNING] 눈 감지 확인 실패: {e}")
@@ -240,6 +255,147 @@ def analyze_eye_image(base64_image_data):
         return None, None, str(e)
 
 
+def decode_base64_image(base64_image_data):
+    """Base64(Data URL 포함) 문자열을 OpenCV BGR 이미지로 디코딩"""
+    if not base64_image_data:
+        return None, "이미지 데이터가 비어있습니다"
+
+    try:
+        encoded = base64_image_data.split(',', 1)[1] if ',' in base64_image_data else base64_image_data
+        image_data = base64.b64decode(encoded)
+        nparr = np.frombuffer(image_data, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if img_bgr is None:
+            return None, "이미지 디코딩 실패"
+
+        return img_bgr, None
+    except Exception as e:
+        return None, str(e)
+
+
+def upscale_eye_crop_for_classifier(eye_crop):
+    """작은 눈 크롭 해상도 방어를 위해 INTER_CUBIC 기반 224x224 리사이즈"""
+    if eye_crop is None or eye_crop.size == 0:
+        return None
+
+    return cv2.resize(eye_crop, config.CLASSIFIER_INPUT_SIZE, interpolation=cv2.INTER_CUBIC)
+
+
+def analyze_bilateral_from_base64(base64_image_data):
+    """
+    단일 캡처 이미지(양안 포함) 분석
+    1) YOLO 검출/크롭
+    2) 메모리 정리
+    3) EfficientNet 양안 순차 분류
+    """
+    img_bgr, decode_error = decode_base64_image(base64_image_data)
+    if decode_error:
+        return {
+            'status': 'error',
+            'message': decode_error
+        }
+
+    try:
+        manager = get_models()
+        detector = manager.get_detector()
+        classifier = manager.get_classifier()
+
+        source_h, source_w = img_bgr.shape[:2]
+
+        # Step 1) YOLO 검출 + 크롭
+        yolo_start = time.time()
+        detections = detector.detect(img_bgr, conf_threshold=config.YOLO_CONF_THRESHOLD)
+        eye_crops = detector.crop_eyes(img_bgr, detections)
+        yolo_elapsed_ms = (time.time() - yolo_start) * 1000.0
+
+        # 검출 신뢰도 기준 상위 2개 유지
+        eye_crops = sorted(eye_crops, key=lambda x: x['confidence'], reverse=True)[:2]
+        eye_crops = sorted(eye_crops, key=lambda x: ((x['bbox'][0] + x['bbox'][2]) / 2.0))
+
+        # YOLO 단계 메모리 정리 (OOM 방지)
+        del detections
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        if len(eye_crops) == 0:
+            return {
+                'status': 'warning',
+                'message': '양안을 검출하지 못했습니다. 얼굴을 조금 더 가까이 맞춰주세요.',
+                'left_eye': None,
+                'right_eye': None,
+                'meta': {
+                    'source_resolution': [source_w, source_h],
+                    'eyes_detected': 0,
+                    'yolo_time_ms': round(yolo_elapsed_ms, 1)
+                }
+            }
+
+        # 좌/우 레이블링
+        labeled_eyes = {}
+        if len(eye_crops) >= 2:
+            labeled_eyes['left_eye'] = eye_crops[0]
+            labeled_eyes['right_eye'] = eye_crops[1]
+        else:
+            center_x = (eye_crops[0]['bbox'][0] + eye_crops[0]['bbox'][2]) / 2.0
+            if center_x < (source_w / 2.0):
+                labeled_eyes['left_eye'] = eye_crops[0]
+                labeled_eyes['right_eye'] = None
+            else:
+                labeled_eyes['left_eye'] = None
+                labeled_eyes['right_eye'] = eye_crops[0]
+
+        # Step 2) EfficientNet 순차 분류
+        result = {
+            'status': 'success' if len(eye_crops) >= 2 else 'warning',
+            'message': '양안 분석 완료' if len(eye_crops) >= 2 else '한쪽 눈만 검출되었습니다.',
+            'left_eye': None,
+            'right_eye': None,
+            'meta': {
+                'source_resolution': [source_w, source_h],
+                'eyes_detected': len(eye_crops),
+                'yolo_time_ms': round(yolo_elapsed_ms, 1)
+            }
+        }
+
+        for side in ['left_eye', 'right_eye']:
+            eye_item = labeled_eyes.get(side)
+            if eye_item is None:
+                continue
+
+            cls_start = time.time()
+            prepared_eye = upscale_eye_crop_for_classifier(eye_item['image'])
+            if prepared_eye is None:
+                continue
+
+            classification = classifier.classify(prepared_eye)
+            cls_elapsed_ms = (time.time() - cls_start) * 1000.0
+
+            result[side] = {
+                'disease': classification['disease'],
+                'class': classification['class'],
+                'confidence': round(float(classification['confidence']) * 100.0, 2),
+                'bbox': eye_item['bbox'],
+                'detection_confidence': round(float(eye_item['confidence']) * 100.0, 2),
+                'process_time_ms': round(cls_elapsed_ms, 1)
+            }
+
+            del prepared_eye
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+        return result
+
+    except Exception as e:
+        print(f"[ERROR] 양안 분석 실패: {e}")
+        return {
+            'status': 'error',
+            'message': str(e)
+        }
+
+
 # ========================================
 # [3] GStreamer 파이프라인
 # ========================================
@@ -261,41 +417,69 @@ def gstreamer_pipeline(cam_id=0):
         "video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
     )
 
-
 # ========================================
-# [4] 백그라운드 카메라 스레드
+# [4] 백그라운드 카메라 스레드 
 # ========================================
 def start_camera_thread():
     """
     카메라 프레임을 백그라운드에서 계속 읽고 current_frame 업데이트
     """
     global current_frame, camera_running, camera_thread
+
+    if camera_running and camera_thread is not None and camera_thread.is_alive():
+        return
     
     def camera_worker():
         global current_frame, camera_running
         print("[카메라 스레드] 백그라운드 프레임 수집 시작...")
+        time.sleep(1) # 초기화 대기
         
-        # 짧은 대기를 통해 Flask가 완전히 초기화될 때까지 기다림
-        time.sleep(1)
+        cam_id = getattr(config, 'CAMERA_DEVICE_INDEX', 0)
+        cap = None
         
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            print("[카메라 스레드] ✗ 카메라 열기 실패!")
+        capture_candidates = [
+            (f"gstreamer:/dev/video{cam_id}", lambda: cv2.VideoCapture(gstreamer_pipeline(cam_id), cv2.CAP_GSTREAMER)),
+            (f"v4l2-index:{cam_id}", lambda: cv2.VideoCapture(cam_id, cv2.CAP_V4L2)),
+            (f"v4l2-path:/dev/video{cam_id}", lambda: cv2.VideoCapture(f"/dev/video{cam_id}", cv2.CAP_V4L2)),
+            (f"any:/dev/video{cam_id}", lambda: cv2.VideoCapture(f"/dev/video{cam_id}", cv2.CAP_ANY)),
+        ]
+
+        for source_name, opener in capture_candidates:
+            try:
+                candidate = opener()
+                if candidate.isOpened():
+                    cap = candidate
+                    print(f"[카메라 스레드] ✓ 카메라 소스 연결 성공: {source_name}")
+                    break
+                candidate.release()
+            except Exception as e:
+                print(f"[카메라 스레드] 카메라 소스 시도 실패 ({source_name}): {e}")
+
+        if cap is None:
+            print(f"[카메라 스레드] ✗ 카메라 열기 실패 (/dev/video{cam_id})")
             camera_running = False
             return
+
+        # 로지텍 카메라 권장 포맷/해상도로 고정
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FPS, 30)
         
         print("[카메라 스레드] ✓ 카메라 초기화 완료, 프레임 수집 중...")
         frame_count = 0
         
         while camera_running:
             ret, frame = cap.read()
-            if not ret:
+            if not ret or frame is None:
                 print("[카메라 스레드] ✗ 프레임 읽기 실패!")
-                break
+                time.sleep(1)
+                continue
             
             current_frame = frame.copy()
             frame_count += 1
             
+            # 잘 돌아가는지 확인하기 위한 하트비트 로그 (일단 켜둡니다)
             if frame_count % 30 == 0:
                 print(f"[카메라 스레드] {frame_count}개 프레임 수집 완료")
             
@@ -305,10 +489,20 @@ def start_camera_thread():
         print(f"[카메라 스레드] 종료 ({frame_count}개 프레임 수집됨)")
     
     camera_running = True
-    # daemon=False: 메인 스레드가 종료될 때까지 스레드 유지
-    camera_thread = threading.Thread(target=camera_worker, daemon=False)
+    camera_thread = threading.Thread(target=camera_worker, daemon=True)
     camera_thread.start()
     print("[카메라 스레드] ✓ 시작")
+
+
+def stop_camera_thread():
+    """카메라 스레드 안전 종료"""
+    global camera_running, camera_thread
+    camera_running = False
+
+    if camera_thread is not None and camera_thread.is_alive():
+        camera_thread.join(timeout=2.0)
+
+    camera_thread = None
 
 
 # ========================================
@@ -316,46 +510,68 @@ def start_camera_thread():
 # ========================================
 def gen_frames():
     """
-    카메라 프레임을 실시간으로 스트림
-    current_frame에도 최신 프레임 저장
-    Logitech C920 웹캠 (/dev/video0) 연결
+    백그라운드 스레드가 수집한 current_frame을 브라우저로 실시간 스트리밍
     """
-    global current_frame
-    print("[gen_frames] 카메라 초기화 시도...")
-    
-    # GStreamer 먼저 시도
-    cap = cv2.VideoCapture(gstreamer_pipeline(0), cv2.CAP_GSTREAMER)
-    print(f"[gen_frames] GStreamer 시도: {'성공' if cap.isOpened() else '실패'}")
-    
-    if not cap.isOpened():
-        print("⚠️  GStreamer 실패, 일반 모드(/dev/video0) 시도...")
-        cap = cv2.VideoCapture(0)
-        print(f"[gen_frames] VideoCapture(0) 시도: {'성공' if cap.isOpened() else '실패'}")
-    
-    if not cap.isOpened():
-        print("[ERROR] 카메라를 열 수 없습니다!")
-        return
-    
-    print("[gen_frames] ✓ 카메라 초기화 완료, 프레임 스트리밍 시작...")
-    frame_count = 0
+    global current_frame, debug_boxes_cache, debug_frame_counter
+    print("[gen_frames] 브라우저 스트리밍 시작...")
     
     while True:
-        success, frame = cap.read()
-        if not success:
-            print(f"[ERROR] 프레임 읽기 실패 (총 {frame_count}개 프레임 읽음)")
-            break
-        
-        frame_count += 1
-        if frame_count % 30 == 0:  # 30프레임마다 로그
-            print(f"[gen_frames] {frame_count}개 프레임 스트리밍 중...")
-        
-        # 최신 프레임 저장 (스냅샷용)
-        current_frame = frame.copy()
-        
-        # MJPEG 스트림으로 인코딩
-        ret, buffer = cv2.imencode('.jpg', frame)
+        if current_frame is None:
+            dummy = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(dummy, 'Waiting for camera...', (170, 240),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (180, 180, 180), 2)
+            ret, buffer = cv2.imencode('.jpg', dummy)
+            if ret:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            time.sleep(0.1)
+            continue
+            
+        frame_to_send = current_frame.copy()
+
+        # 임시 디버그: YOLO 박스 오버레이
+        try:
+            debug_frame_counter += 1
+            if debug_frame_counter % 5 == 0 or len(debug_boxes_cache) == 0:
+                manager = get_models()
+                detector = manager.get_detector()
+                detections = detector.detect(
+                    frame_to_send,
+                    conf_threshold=config.YOLO_STATUS_CONF_THRESHOLD
+                )
+
+                boxes = []
+                if detections is not None and hasattr(detections, 'boxes') and detections.boxes is not None:
+                    for box in detections.boxes:
+                        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                        conf = float(box.conf.item()) if box.conf is not None else 0.0
+                        boxes.append((x1, y1, x2, y2, conf))
+
+                debug_boxes_cache = boxes
+
+            for (x1, y1, x2, y2, conf) in debug_boxes_cache:
+                cv2.rectangle(frame_to_send, (x1, y1), (x2, y2), (40, 205, 65), 2)
+                label = f"Eye {conf*100:.1f}%"
+                cv2.putText(
+                    frame_to_send,
+                    label,
+                    (x1, max(20, y1 - 8)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (40, 205, 65),
+                    2
+                )
+        except Exception as e:
+            print(f"[WARNING] YOLO 박스 오버레이 실패: {e}")
+
+        ret, buffer = cv2.imencode('.jpg', frame_to_send)
+        if not ret:
+            continue
+            
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+               
+        time.sleep(0.033)
 
 
 # ========================================
@@ -560,7 +776,8 @@ def detect_status():
 @app.route('/analyze', methods=['POST'])
 def analyze():
     """
-    웹 브라우저에서 캡처한 Base64 이미지를 EfficientNet으로 분석
+    웹 브라우저에서 캡처한 단일 Base64 이미지를
+    YOLO(양안 검출/크롭) -> EfficientNet(양안 순차 분류)로 분석
     
     Request:
         {
@@ -569,26 +786,23 @@ def analyze():
     
     Response:
         {
-            "result": "Normal|Cataract|...",
-            "confidence": 95.43,
-            "error": null
+            "status": "success|warning|error",
+            "message": "...",
+            "left_eye": {...},
+            "right_eye": {...},
+            "meta": {...}
         }
     """
     try:
-        data = request.json
+        data = request.json or {}
         if 'image' not in data:
             return jsonify({'error': '이미지 데이터가 없습니다'}), 400
-        
-        base64_image = data['image']
-        disease_label, confidence_score, error = analyze_eye_image(base64_image)
-        
-        if error:
-            return jsonify({'error': error}), 400
-        
-        return jsonify({
-            'result': disease_label,
-            'confidence': round(confidence_score, 2)
-        }), 200
+
+        analysis = analyze_bilateral_from_base64(data['image'])
+        if analysis.get('status') == 'error':
+            return jsonify(analysis), 400
+
+        return jsonify(analysis), 200
         
     except Exception as e:
         print(f"[ERROR] /analyze 라우트 실패: {e}")
@@ -793,19 +1007,23 @@ def initialize_on_first_request():
         
         print("\n✓ 서버 준비 완료! http://0.0.0.0:5000 에서 접속하세요\n")
 
+    # 디버그 리로더/예외 상황에서 카메라 스레드가 내려갔으면 재시작
+    if models_initialized and (not camera_running):
+        start_camera_thread()
 
-@app.teardown_appcontext
-def cleanup(exception=None):
-    """서버 종료 시 정리"""
-    global camera_running
-    
-    # 카메라 스레드 종료
-    camera_running = False
-    
+
+def cleanup_resources():
+    """프로세스 종료 시 자원 정리"""
+    stop_camera_thread()
+
     if LED_AVAILABLE:
         pwm_led.stop()
         GPIO.cleanup()
+
     print("[Shutdown] 서버 종료")
+
+
+atexit.register(cleanup_resources)
 
 
 if __name__ == '__main__':
@@ -813,6 +1031,7 @@ if __name__ == '__main__':
     
     # 서버 시작 전에 모델과 카메라 초기화
     if not models_initialized:
+        models_initialized = True
         print("\n" + "="*50)
         print("[Eye Disease Detection Server]")
         print("="*50)
@@ -827,5 +1046,6 @@ if __name__ == '__main__':
         host=config.SERVER_IP,
         port=config.SERVER_PORT,
         debug=config.DEBUG_MODE,
-        threaded=True
+        threaded=True,
+        use_reloader=False
     )
