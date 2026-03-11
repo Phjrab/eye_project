@@ -120,7 +120,72 @@ def create_session(conn, user_id: int, ai_reading: dict, pixel_metrics: dict, su
         )
     )
     return int(cur.lastrowid)
+    
+    def get_user_history_by_phone(conn, phone: str):
+    ph = phone_hash_id(phone)
 
+    user_row = conn.execute(
+        "SELECT id, display_name FROM users WHERE phone_hash=?",
+        (ph,)
+    ).fetchone()
+
+    if not user_row:
+        return None
+
+    user_id = user_row["id"]
+
+    rows = conn.execute(
+        """
+        SELECT id, diagnosed_at, status, impression, ai_reading_json, pixel_metrics_json
+        FROM diagnosis_sessions
+        WHERE user_id=?
+        ORDER BY diagnosed_at ASC
+        """,
+        (user_id,)
+    ).fetchall()
+
+    history = []
+    for row in rows:
+        ai_reading = json.loads(row["ai_reading_json"]) if row["ai_reading_json"] else {}
+        pixel_metrics = json.loads(row["pixel_metrics_json"]) if row["pixel_metrics_json"] else {}
+
+        history.append({
+            "session_id": row["id"],
+            "diagnosed_at": row["diagnosed_at"],
+            "status": row["status"],
+            "impression": row["impression"],
+            "ai_label": ai_reading.get("label"),
+            "ai_score": ai_reading.get("score"),
+            "redness_area": pixel_metrics.get("redness_area"),
+            "vessel_density": pixel_metrics.get("vessel_density"),
+        })
+
+    return {
+        "user_id": user_row["id"],
+        "display_name": user_row["display_name"],
+        "history": history
+    }
+
+    @app.get("/history")
+    def get_history():
+
+        phone = request.args.get("phone")
+
+        if not phone:
+            return jsonify({"error": "phone query required"}), 400
+
+        conn = get_conn()
+
+        try:
+            result = get_user_history_by_phone(conn, phone)
+
+            if not result:
+                return jsonify({"error": "user not found"}), 404
+
+            return jsonify(result)
+
+        finally:
+            conn.close()
 
 
 def add_asset(conn, session_id: int, asset_type: str, file_path: str, mime_type: str | None = None):
