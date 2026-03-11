@@ -8,7 +8,12 @@ import sqlite3
 import requests
 import qrcode
 from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
+app = Flask(__name__)
+CORS(app)
 _PHONE_RE = re.compile(r"\D+")
+
+
 
 def get_lan_ip() -> str:
     """
@@ -121,7 +126,7 @@ def create_session(conn, user_id: int, ai_reading: dict, pixel_metrics: dict, su
     )
     return int(cur.lastrowid)
     
-    def get_user_history_by_phone(conn, phone: str):
+def get_user_history_by_phone(conn, phone: str):
     ph = phone_hash_id(phone)
 
     user_row = conn.execute(
@@ -166,26 +171,26 @@ def create_session(conn, user_id: int, ai_reading: dict, pixel_metrics: dict, su
         "history": history
     }
 
-    @app.get("/history")
-    def get_history():
+@app.get("/history")
+def get_history():
 
-        phone = request.args.get("phone")
+    phone = request.args.get("phone")
 
-        if not phone:
-            return jsonify({"error": "phone query required"}), 400
+    if not phone:
+        return jsonify({"error": "phone query required"}), 400
 
-        conn = get_conn()
+    conn = get_conn()
 
-        try:
-            result = get_user_history_by_phone(conn, phone)
+    try:
+        result = get_user_history_by_phone(conn, phone)
 
-            if not result:
-                return jsonify({"error": "user not found"}), 404
+        if not result:
+            return jsonify({"error": "user not found"}), 404
 
-            return jsonify(result)
+        return jsonify(result)
 
-        finally:
-            conn.close()
+    finally:
+        conn.close()
 
 
 def add_asset(conn, session_id: int, asset_type: str, file_path: str, mime_type: str | None = None):
