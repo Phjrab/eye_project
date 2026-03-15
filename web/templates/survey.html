@@ -134,38 +134,38 @@
                 </div>
                 <div class="field">
                     <label>성별</label>
-                    <select>
-                        <option>남성</option>
-                        <option>여성</option>
+                    <select id="user-gender">
+                        <option value="남성">남성</option>
+                        <option value="여성">여성</option>
                     </select>
                 </div>
             </div>
             <div class="field" style="margin-bottom:15px;">
                 <label>안경/렌즈 착용 유무</label>
-                <select>
-                    <option>미착용</option>
-                    <option>안경 착용</option>
-                    <option>콘택트렌즈 착용</option>
+                <select id="user-wearing">
+                    <option value="미착용">미착용</option>
+                    <option value="안경 착용">안경 착용</option>
+                    <option value="콘택트렌즈 착용">콘택트렌즈 착용</option>
                 </select>
             </div>
 
             <h2>🏥 병력 및 생활 습관</h2>
             <div class="field" style="margin-bottom:10px;">
                 <label>기저질환 (당뇨, 고혈압 등)</label>
-                <textarea rows="2" placeholder="예: 당뇨(5년차), 고혈압 약 복용 중"></textarea>
+                <textarea id="user-conditions" rows="2" placeholder="예: 당뇨(5년차), 고혈압 약 복용 중"></textarea>
             </div>
             <div class="field" style="margin-bottom:10px;">
                 <label>안구 수술 이력</label>
-                <input type="text" placeholder="수술명 및 시기 작성">
+                <input id="user-surgery" type="text" placeholder="수술명 및 시기 작성">
             </div>
             <div class="input-row">
                 <div class="field">
                     <label>흡연 유무</label>
-                    <select><option>비흡연</option><option>흡연</option></select>
+                    <select id="user-smoking"><option value="비흡연">비흡연</option><option value="흡연">흡연</option></select>
                 </div>
                 <div class="field">
                     <label>음주 빈도</label>
-                    <select><option>안함</option><option>가끔</option><option>자주</option></select>
+                    <select id="user-drinking"><option value="안함">안함</option><option value="가끔">가끔</option><option value="자주">자주</option></select>
                 </div>
             </div>
         </div>
@@ -173,23 +173,23 @@
         <div class="card">
             <h2>👁️ 현재 안구 증상 (해당되는 항목 모두 체크)</h2>
             <div class="symptom-grid">
-                <label class="check-item"><input type="checkbox"> 시력이 예전보다 잘 안 보임</label>
-                <label class="check-item"><input type="checkbox"> 사물이 흐리거나 흔들려 보임</label>
-                <label class="check-item"><input type="checkbox"> 선이나 사물이 휘어 보임</label>
-                <label class="check-item"><input type="checkbox"> 사물이 겹쳐서(둘로) 보임</label>
-                <label class="check-item"><input type="checkbox"> 눈앞에 벌레 같은 게 떠다님</label>
-                <label class="check-item"><input type="checkbox"> 시야의 일부가 가려져 보임</label>
-                <label class="check-item"><input type="checkbox"> 눈이 시리고 통증이 느껴짐</label>
-                <label class="check-item"><input type="checkbox"> 눈이 너무 건조하고 뻑뻑함</label>
-                <label class="check-item"><input type="checkbox"> 이유 없이 눈물이 자주 남</label>
-                <label class="check-item"><input type="checkbox"> 눈이 가렵거나 자주 충혈됨</label>
-                <label class="check-item"><input type="checkbox"> 자고 나면 눈꼽이 많이 생김</label>
-                <label class="check-item"><input type="checkbox"> 빛이 번져 보이거나 눈부심이 심함</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="시력이 예전보다 잘 안 보임"> 시력이 예전보다 잘 안 보임</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="사물이 흐리거나 흔들려 보임"> 사물이 흐리거나 흔들려 보임</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="선이나 사물이 휘어 보임"> 선이나 사물이 휘어 보임</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="사물이 겹쳐서(둘로) 보임"> 사물이 겹쳐서(둘로) 보임</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="눈앞에 벌레 같은 게 떠다님"> 눈앞에 벌레 같은 게 떠다님</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="시야의 일부가 가려져 보임"> 시야의 일부가 가려져 보임</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="눈이 시리고 통증이 느껴짐"> 눈이 시리고 통증이 느껴짐</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="눈이 너무 건조하고 뻑뻑함"> 눈이 너무 건조하고 뻑뻑함</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="이유 없이 눈물이 자주 남"> 이유 없이 눈물이 자주 남</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="눈이 가렵거나 자주 충혈됨"> 눈이 가렵거나 자주 충혈됨</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="자고 나면 눈꼽이 많이 생김"> 자고 나면 눈꼽이 많이 생김</label>
+                <label class="check-item"><input type="checkbox" class="symptom-check" value="빛이 번져 보이거나 눈부심이 심함"> 빛이 번져 보이거나 눈부심이 심함</label>
             </div>
             
             <div class="field" style="margin-top:20px;">
                 <label>기타 불편한 점</label>
-                <textarea rows="2" placeholder="위 항목 외에 불편한 점이 있다면 적어주세요."></textarea>
+                <textarea id="user-other-notes" rows="2" placeholder="위 항목 외에 불편한 점이 있다면 적어주세요."></textarea>
             </div>
         </div>
     </div>
@@ -200,8 +200,9 @@
     </div>
 
     <script>
-        function submitSurvey() {
+        async function submitSurvey() {
             const ageInput = document.getElementById('user-age');
+            const userId = (localStorage.getItem('user_id') || '').trim();
             
             // 나이 입력 여부 검사
             if (!ageInput.value) {
@@ -210,10 +211,46 @@
                 return;
             }
 
+            if (!userId) {
+                alert("사용자 인증 정보가 없습니다. 다시 로그인해 주세요.");
+                location.href = '/login';
+                return;
+            }
+
             if(confirm("문진 내용을 저장하고 AI 검사 단계로 이동하시겠습니까?")) {
-                // 입력된 나이를 로컬 스토리지에 저장 (나중에 결과 리포트에서 활용 가능)
-                localStorage.setItem('user_age', ageInput.value);
-                location.href = '/capture'; 
+                const surveyPayload = {
+                    age: ageInput.value,
+                    gender: document.getElementById('user-gender').value,
+                    wearing: document.getElementById('user-wearing').value,
+                    conditions: document.getElementById('user-conditions').value,
+                    surgery_history: document.getElementById('user-surgery').value,
+                    smoking: document.getElementById('user-smoking').value,
+                    drinking: document.getElementById('user-drinking').value,
+                    symptoms: Array.from(document.querySelectorAll('.symptom-check:checked')).map(el => el.value),
+                    other_notes: document.getElementById('user-other-notes').value
+                };
+
+                try {
+                    const res = await fetch('/api/survey', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: userId,
+                            survey: surveyPayload
+                        })
+                    });
+
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.status !== 'ok') {
+                        throw new Error(data.message || '문진 저장 실패');
+                    }
+
+                    // 결과 리포트 표시용 로컬 저장
+                    localStorage.setItem('user_age', String(surveyPayload.age));
+                    location.href = '/capture';
+                } catch (error) {
+                    alert(`문진 저장에 실패했습니다.\n${error.message || error}`);
+                }
             }
         }
     </script>

@@ -5,3 +5,6 @@ __pycache__/
 logs/
 *.pt
 *.pth
+database/history.db
+eye_photo/
+web/static/captures/users/

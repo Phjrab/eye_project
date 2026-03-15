@@ -14,6 +14,8 @@ import base64
 import threading
 import atexit
 import gc
+import sqlite3
+import re
 from datetime import datetime
 from PIL import Image
 
@@ -35,6 +37,8 @@ camera_thread = None  # 카메라 스레드
 camera_running = False  # 카메라 스레드 실행 상태
 debug_boxes_cache = []
 debug_frame_counter = 0
+
+HISTORY_DB_PATH = os.path.join(config.BASE_DIR, 'database', 'history.db')
 
 # ========================================
 # [2] 촬영 상태 관리 (왼쪽/오른쪽 눈 시퀀스)
@@ -79,6 +83,203 @@ class CaptureState:
     def mark_captured(cls, eye_type):
         """촬영 완료 표시"""
         cls.captured_eyes[eye_type] = True
+
+
+def init_history_db():
+    """사용자별 진단 히스토리 DB 초기화"""
+    os.makedirs(os.path.dirname(HISTORY_DB_PATH), exist_ok=True)
+
+    conn = sqlite3.connect(HISTORY_DB_PATH)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS diagnosis_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                image_path TEXT NOT NULL,
+                image_url TEXT NOT NULL,
+                analysis_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_history_user_time
+            ON diagnosis_history(user_id, created_at DESC)
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS survey_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                survey_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_survey_user_time
+            ON survey_history(user_id, created_at DESC)
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def normalize_user_id(user_id):
+    """파일 시스템/DB 저장용 사용자 식별자 정규화"""
+    if not user_id:
+        return 'anonymous'
+
+    value = str(user_id).strip()
+    if not value:
+        return 'anonymous'
+
+    normalized = re.sub(r'[^0-9A-Za-z가-힣._-]+', '_', value)
+    return normalized[:80] if normalized else 'anonymous'
+
+
+def save_history_record(user_id, source_image_bgr, analysis):
+    """분석 결과와 원본 이미지를 사용자별로 로컬 저장 + DB 기록"""
+    safe_user_id = normalize_user_id(user_id)
+
+    user_dir = os.path.join(config.IMAGE_SAVE_DIR, 'users', safe_user_id)
+    os.makedirs(user_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    filename = f'diagnosis_{timestamp}.jpg'
+    image_path = os.path.join(user_dir, filename)
+
+    write_ok = cv2.imwrite(image_path, source_image_bgr)
+    if not write_ok:
+        raise RuntimeError('로컬 이미지 저장 실패')
+
+    image_url = f"/static/captures/users/{safe_user_id}/{filename}"
+
+    conn = sqlite3.connect(HISTORY_DB_PATH)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO diagnosis_history (user_id, image_path, image_url, analysis_json)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                safe_user_id,
+                image_path,
+                image_url,
+                json.dumps(analysis, ensure_ascii=False)
+            )
+        )
+        conn.commit()
+        return int(cur.lastrowid), image_url
+    finally:
+        conn.close()
+
+
+def list_history_records(user_id, limit=10):
+    """사용자별 최근 히스토리 조회"""
+    safe_user_id = normalize_user_id(user_id)
+    conn = sqlite3.connect(HISTORY_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, user_id, image_path, image_url, analysis_json, created_at
+            FROM diagnosis_history
+            WHERE user_id=?
+            ORDER BY datetime(created_at) DESC, id DESC
+            LIMIT ?
+            """,
+            (safe_user_id, int(limit))
+        ).fetchall()
+
+        history = []
+        for row in rows:
+            analysis = {}
+            try:
+                analysis = json.loads(row['analysis_json']) if row['analysis_json'] else {}
+            except Exception:
+                analysis = {}
+
+            history.append({
+                'id': row['id'],
+                'user_id': row['user_id'],
+                'image_url': row['image_url'],
+                'created_at': row['created_at'],
+                'analysis': analysis
+            })
+
+        return history
+    finally:
+        conn.close()
+
+
+def normalize_survey_payload(payload):
+    """설문 payload를 저장 가능한 형태로 정규화"""
+    payload = payload or {}
+
+    age_value = payload.get('age')
+    age = None
+    try:
+        if age_value not in (None, ''):
+            age = max(1, min(120, int(age_value)))
+    except Exception:
+        age = None
+
+    symptoms = payload.get('symptoms')
+    if not isinstance(symptoms, list):
+        symptoms = []
+
+    normalized_symptoms = []
+    for symptom in symptoms[:30]:
+        text = str(symptom).strip()
+        if text:
+            normalized_symptoms.append(text[:120])
+
+    def clean_text(field_name, max_len=200):
+        value = payload.get(field_name, '')
+        return str(value).strip()[:max_len]
+
+    return {
+        'age': age,
+        'gender': clean_text('gender', 30),
+        'wearing': clean_text('wearing', 40),
+        'conditions': clean_text('conditions', 500),
+        'surgery_history': clean_text('surgery_history', 300),
+        'smoking': clean_text('smoking', 20),
+        'drinking': clean_text('drinking', 20),
+        'symptoms': normalized_symptoms,
+        'other_notes': clean_text('other_notes', 500)
+    }
+
+
+def save_survey_record(user_id, survey_payload):
+    """사용자 설문 기록 저장"""
+    safe_user_id = normalize_user_id(user_id)
+    normalized_payload = normalize_survey_payload(survey_payload)
+
+    conn = sqlite3.connect(HISTORY_DB_PATH)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO survey_history (user_id, survey_json)
+            VALUES (?, ?)
+            """,
+            (
+                safe_user_id,
+                json.dumps(normalized_payload, ensure_ascii=False)
+            )
+        )
+        conn.commit()
+        return int(cur.lastrowid), normalized_payload
+    finally:
+        conn.close()
 
 
 # ========================================
@@ -282,24 +483,18 @@ def upscale_eye_crop_for_classifier(eye_crop):
     return cv2.resize(eye_crop, config.CLASSIFIER_INPUT_SIZE, interpolation=cv2.INTER_CUBIC)
 
 
-def analyze_bilateral_from_base64(base64_image_data):
+def analyze_bilateral_from_image(img_bgr):
     """
     단일 캡처 이미지(양안 포함) 분석
     1) YOLO 검출/크롭
     2) 메모리 정리
     3) EfficientNet 양안 순차 분류
     """
-    img_bgr, decode_error = decode_base64_image(base64_image_data)
-    if decode_error:
-        return {
-            'status': 'error',
-            'message': decode_error
-        }
-
     try:
         manager = get_models()
         detector = manager.get_detector()
         classifier = manager.get_classifier()
+        analyzer = manager.get_analyzer()
 
         source_h, source_w = img_bgr.shape[:2]
 
@@ -370,12 +565,14 @@ def analyze_bilateral_from_base64(base64_image_data):
                 continue
 
             classification = classifier.classify(prepared_eye)
+            eye_analysis = analyzer.analyze(prepared_eye)
             cls_elapsed_ms = (time.time() - cls_start) * 1000.0
 
             result[side] = {
                 'disease': classification['disease'],
                 'class': classification['class'],
                 'confidence': round(float(classification['confidence']) * 100.0, 2),
+                'redness': round(float(eye_analysis.get('redness', 0.0)), 4),
                 'bbox': eye_item['bbox'],
                 'detection_confidence': round(float(eye_item['confidence']) * 100.0, 2),
                 'process_time_ms': round(cls_elapsed_ms, 1)
@@ -394,6 +591,106 @@ def analyze_bilateral_from_base64(base64_image_data):
             'status': 'error',
             'message': str(e)
         }
+
+
+def analyze_bilateral_from_base64(base64_image_data):
+    img_bgr, decode_error = decode_base64_image(base64_image_data)
+    if decode_error:
+        return {
+            'status': 'error',
+            'message': decode_error
+        }
+
+    return analyze_bilateral_from_image(img_bgr)
+
+
+def build_ai_guide(analysis):
+    """분석 결과 기반 리포트 가이드 생성"""
+    left = analysis.get('left_eye') or {}
+    right = analysis.get('right_eye') or {}
+
+    candidates = []
+    if left.get('disease'):
+        candidates.append({'side': 'left', 'disease': left.get('disease', ''), 'confidence': float(left.get('confidence', 0))})
+    if right.get('disease'):
+        candidates.append({'side': 'right', 'disease': right.get('disease', ''), 'confidence': float(right.get('confidence', 0))})
+
+    if not candidates:
+        return {
+            'risk_level': 'safe',
+            'tag_text': '안내: 유효한 분석 데이터 없음',
+            'summary': '눈 영역 분석 데이터가 부족합니다. 조명을 보강하고 다시 촬영해 주세요.',
+            'recommended_departments': ['일반 안과'],
+            'daily_care': [
+                '촬영 시 정면 응시 및 충분한 조명을 확보하세요.',
+                '눈 자극(손 비비기, 렌즈 장시간 착용)을 피하세요.'
+            ]
+        }
+
+    top = max(candidates, key=lambda x: x['confidence'])
+    disease = str(top['disease'])
+    conf = float(top['confidence'])
+
+    if conf >= 80:
+        risk_level = 'danger'
+    elif conf >= 60:
+        risk_level = 'warning'
+    else:
+        risk_level = 'safe'
+
+    rule = {
+        'tag': f'분석 결과: {disease} ({conf:.1f}%)',
+        'summary': f"{top['side']} 눈에서 {disease} 가능성이 관측되었습니다.",
+        'dept': ['일반 안과'],
+        'care': [
+            '건조한 환경을 피하고 실내 습도를 유지하세요.',
+            '눈 비비기를 피하고 필요 시 인공눈물을 사용하세요.'
+        ]
+    }
+
+    if '결막염' in disease or 'Conjunctivitis' in disease:
+        rule = {
+            'tag': f'주의: 결막염 의심 ({conf:.1f}%)',
+            'summary': '충혈/가려움 등 결막염 관련 징후가 관찰되었습니다. 증상이 지속되면 진료를 권장합니다.',
+            'dept': ['일반 안과', '안구건조증 클리닉'],
+            'care': ['손 위생을 철저히 하고 눈 비비기를 피하세요.', '화면 사용 중 20-20-20 규칙으로 눈 피로를 줄이세요.']
+        }
+    elif '백내장' in disease or 'Cataract' in disease:
+        rule = {
+            'tag': f'주의: 백내장 징후 ({conf:.1f}%)',
+            'summary': '수정체 혼탁 관련 징후가 감지되었습니다. 시야 흐림이 느껴지면 정밀검사가 필요합니다.',
+            'dept': ['백내장/망막 전문 안과', '일반 안과'],
+            'care': ['야간 눈부심/시야 흐림 증상을 기록해 진료 시 전달하세요.', '정기적인 시력검사 일정을 권장합니다.']
+        }
+    elif '포도막염' in disease or 'Uveitis' in disease:
+        rule = {
+            'tag': f'주의: 포도막염 의심 ({conf:.1f}%)',
+            'summary': '염증성 징후가 관측되었습니다. 통증/광과민이 있으면 빠른 진료가 필요합니다.',
+            'dept': ['염증성 안질환 클리닉', '일반 안과'],
+            'care': ['강한 빛 노출을 줄이고 선글라스를 사용하세요.', '통증/충혈 악화 시 즉시 병원 방문을 권장합니다.']
+        }
+    elif '다래끼' in disease or 'Eyelid' in disease:
+        rule = {
+            'tag': f'주의: 다래끼 가능성 ({conf:.1f}%)',
+            'summary': '눈꺼풀 주변 염증 징후가 감지되었습니다. 증상 지속 시 진료를 권장합니다.',
+            'dept': ['일반 안과'],
+            'care': ['눈꺼풀을 청결하게 유지하고 화장품 사용을 줄이세요.', '온찜질을 짧게 하루 1~2회 적용하세요.']
+        }
+    elif '일반' in disease or 'Normal' in disease:
+        rule = {
+            'tag': f'정상 소견 우세 ({conf:.1f}%)',
+            'summary': '현재 촬영 기준으로 특이 소견이 상대적으로 낮습니다.',
+            'dept': ['정기 검진용 일반 안과'],
+            'care': ['장시간 화면 사용 시 주기적 휴식을 취하세요.', '충혈/통증이 생기면 조기 검진을 권장합니다.']
+        }
+
+    return {
+        'risk_level': risk_level,
+        'tag_text': rule['tag'],
+        'summary': rule['summary'],
+        'recommended_departments': rule['dept'],
+        'daily_care': rule['care']
+    }
 
 
 # ========================================
@@ -798,15 +1095,81 @@ def analyze():
         if 'image' not in data:
             return jsonify({'error': '이미지 데이터가 없습니다'}), 400
 
-        analysis = analyze_bilateral_from_base64(data['image'])
+        user_id = normalize_user_id(data.get('user_id'))
+        img_bgr, decode_error = decode_base64_image(data['image'])
+        if decode_error:
+            return jsonify({'status': 'error', 'message': decode_error}), 400
+
+        analysis = analyze_bilateral_from_image(img_bgr)
         if analysis.get('status') == 'error':
             return jsonify(analysis), 400
+
+        analysis['guide'] = build_ai_guide(analysis)
+
+        try:
+            history_id, image_url = save_history_record(user_id, img_bgr, analysis)
+            analysis['history_id'] = history_id
+            analysis['saved_image_url'] = image_url
+            analysis['user_id'] = user_id
+        except Exception as save_error:
+            analysis['save_warning'] = f'히스토리 저장 실패: {save_error}'
 
         return jsonify(analysis), 200
         
     except Exception as e:
         print(f"[ERROR] /analyze 라우트 실패: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/history', methods=['GET'])
+def api_history():
+    """사용자별 진단 히스토리 조회"""
+    try:
+        user_id = normalize_user_id(request.args.get('user_id'))
+        limit = int(request.args.get('limit', 10))
+        limit = max(1, min(limit, 50))
+
+        history = list_history_records(user_id, limit)
+        return jsonify({
+            'status': 'ok',
+            'user_id': user_id,
+            'count': len(history),
+            'history': history
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/survey', methods=['POST'])
+def api_survey():
+    """사용자 문진 데이터 저장"""
+    try:
+        data = request.json or {}
+        user_id = data.get('user_id')
+        survey = data.get('survey')
+
+        safe_user_id = normalize_user_id(user_id)
+        if safe_user_id == 'anonymous':
+            return jsonify({
+                'status': 'error',
+                'message': '사용자 식별자가 필요합니다.'
+            }), 400
+
+        row_id, normalized_survey = save_survey_record(safe_user_id, survey)
+        return jsonify({
+            'status': 'ok',
+            'survey_id': row_id,
+            'user_id': safe_user_id,
+            'survey': normalized_survey
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 
 @app.route('/diagnose', methods=['POST'])
@@ -981,6 +1344,12 @@ def result():
     return render_template('result.html')
 
 
+@app.route('/report')
+def report():
+    """리포트 페이지"""
+    return render_template('report.html')
+
+
 @app.route('/survey')
 def survey():
     """설문조사 페이지"""
@@ -997,6 +1366,7 @@ def initialize_on_first_request():
     global model_manager, models_initialized, camera_running
     if not models_initialized:
         models_initialized = True
+        init_history_db()
         print("\n" + "="*50)
         print("[Eye Disease Detection Server]")
         print("="*50)
@@ -1032,6 +1402,7 @@ if __name__ == '__main__':
     # 서버 시작 전에 모델과 카메라 초기화
     if not models_initialized:
         models_initialized = True
+        init_history_db()
         print("\n" + "="*50)
         print("[Eye Disease Detection Server]")
         print("="*50)
