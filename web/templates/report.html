@@ -115,6 +115,7 @@
             margin-bottom: 10px;
         }
         .tag-danger { background: #ffe5e5; color: var(--danger); }
+        .tag-warning { background: #fff4e5; color: #b45309; }
         .tag-safe { background: #e5f9e5; color: var(--accent); }
 
         .method-list {
@@ -124,21 +125,56 @@
             line-height: 1.6;
         }
 
+        .redness-graph {
+            display: grid;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .graph-row {
+            display: grid;
+            grid-template-columns: 90px 1fr 76px;
+            gap: 10px;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+
+        .bar-track {
+            width: 100%;
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #34d399, #f59e0b, #ef4444);
+        }
+
+        .red-level-normal { color: #16a34a; font-weight: 700; }
+        .red-level-mild { color: #ca8a04; font-weight: 700; }
+        .red-level-severe { color: #ea580c; font-weight: 700; }
+        .red-level-very-severe { color: #dc2626; font-weight: 800; }
+
         /* 하단 버튼 */
         .footer-btns {
             margin-top: auto;
             display: flex;
             justify-content: center;
             gap: 15px;
+            flex-wrap: nowrap;
         }
 
         .btn {
-            padding: 15px 40px;
+            padding: 13px 28px;
             border-radius: 12px;
             border: none;
-            font-size: 1.1rem;
+            font-size: 0.98rem;
             font-weight: 700;
             cursor: pointer;
+            white-space: nowrap;
+            letter-spacing: -0.2px;
         }
         .btn-home { background: var(--primary); color: white; }
         .btn-print { background: #1d1d1f; color: white; }
@@ -203,32 +239,39 @@
             <h2>🔬 AI 진단 및 관리 가이드</h2>
             
             <div class="summary-box">
-                <span class="result-tag tag-danger">주의: 결막염 및 초기 충혈 의심</span>
-                <p style="margin: 0; font-size: 1rem; line-height: 1.5;">
-                    지난 검사 대비 <b>왼쪽 안구의 충혈도</b>가 약 15% 증가했습니다. <br>
-                    지속적인 가려움증이 동반될 경우 전염성 결막염일 가능성이 높습니다.
+                <span id="guide-tag" class="result-tag tag-safe">분석 대기</span>
+                <p id="guide-summary" style="margin: 0; font-size: 1rem; line-height: 1.5;">
+                    AI 분석 데이터가 준비되면 이 영역에 요약이 표시됩니다.
                 </p>
             </div>
 
             <div class="summary-box">
                 <strong style="color:var(--primary)">👨‍⚕️ 권장 진료 과목</strong>
-                <ul class="method-list">
-                    <li><b>일반 안과:</b> 세극등 현미경 검사를 통한 염증 확인</li>
-                    <li><b>안구건조증 클리닉:</b> 눈물막 파괴 시간(TBUT) 측정</li>
+                <ul id="guide-departments" class="method-list">
+                    <li>분석 대기 중...</li>
                 </ul>
             </div>
 
             <div class="summary-box">
                 <strong style="color:var(--accent)">🌿 일상 관리 방법</strong>
-                <ul class="method-list">
-                    <li><b>냉찜질:</b> 하루 2회, 5분간 눈 주변 열감 식히기</li>
-                    <li><b>환경 개선:</b> 실내 습도 50~60% 유지 및 블루라이트 차단</li>
-                    <li><b>청결 유지:</b> 손으로 눈을 비비지 마시고 일회용 인공눈물 사용</li>
+                <ul id="guide-care" class="method-list">
+                    <li>분석 대기 중...</li>
                 </ul>
+            </div>
+
+            <div class="summary-box">
+                <strong style="color:var(--primary)">📊 충혈도 비교 (현재 vs 과거)</strong>
+                <div style="font-size:0.8rem; color:#64748b; margin-top:6px;">
+                    기준: 정상(&lt;0.08) · 경미(0.08~&lt;0.14) · 심함(0.14~&lt;0.22) · 매우심함(≥0.22)
+                </div>
+                <div id="redness-graph" class="redness-graph">
+                    <div style="font-size:0.9rem; color:#64748b; margin-top:8px;">비교 데이터 준비 중...</div>
+                </div>
             </div>
 
             <div class="footer-btns">
                 <button class="btn btn-home" onclick="location.href='/'">메인으로</button>
+                <button class="btn btn-home" onclick="location.href='/result'">결과로 돌아가기</button>
                 <button class="btn btn-print" onclick="window.print()">📥 리포트 저장</button>
             </div>
         </div>
@@ -239,30 +282,148 @@
     </div>
 
     <script>
-        window.onload = function() {
-            // 1. 현재 촬영한 이미지 불러오기 (localStorage)
-            const currL = localStorage.getItem('eye_photo_L');
-            const currR = localStorage.getItem('eye_photo_R');
-            const age = localStorage.getItem('user_age') || "24";
-            const userId = localStorage.getItem('user_id') || "하준";
+        let historyRecords = [];
 
-            if(currL) document.getElementById('img-curr-L').src = currL;
-            if(currR) document.getElementById('img-curr-R').src = currR;
-            
+        window.onload = async function() {
+            const age = localStorage.getItem('user_age') || "24";
+            const userId = localStorage.getItem('user_id') || "anonymous";
             document.getElementById('user-display').innerText = `사용자: ${userId} 님 (${age}세)`;
 
-            // 2. 과거 데이터는 나중에 나은율 팀원의 DB(API)에서 받아와야 합니다.
-            // 현재는 시연을 위해 placeholder 이미지가 적용되어 있습니다.
+            await loadHistory(userId);
         };
+
+        async function loadHistory(userId) {
+            try {
+                const res = await fetch(`/api/history?user_id=${encodeURIComponent(userId)}&limit=2`);
+                const data = await res.json();
+
+                if (!res.ok || data.status !== 'ok') {
+                    return;
+                }
+
+                historyRecords = data.history || [];
+                applyHistoryToUI(historyRecords);
+            } catch (err) {
+                console.error('[report history fetch error]', err);
+            }
+        }
+
+        function applyHistoryToUI(records) {
+            const curr = records[0] || null;
+            const past = records[1] || null;
+
+            if (curr && curr.image_url) {
+                document.getElementById('img-curr-L').src = curr.image_url;
+                document.getElementById('img-curr-R').src = curr.image_url;
+                document.querySelectorAll('.date-badge[style*="var(--primary)"]').forEach(el => {
+                    const dateLabel = curr.created_at ? curr.created_at.split(' ')[0].replace(/-/g, '.') : '오늘';
+                    el.textContent = `현재 (${dateLabel})`;
+                });
+            }
+
+            if (past && past.image_url) {
+                document.getElementById('img-past-L').src = past.image_url;
+                document.getElementById('img-past-R').src = past.image_url;
+                const badges = document.querySelectorAll('.date-badge:not([style*="var(--primary)"])');
+                const dateLabel = past.created_at ? past.created_at.split(' ')[0].replace(/-/g, '.') : '과거';
+                badges.forEach(el => {
+                    el.textContent = `과거 (${dateLabel})`;
+                });
+            }
+
+            renderGuide(curr ? curr.analysis : null);
+            renderRednessGraph(curr ? curr.analysis : null, past ? past.analysis : null);
+        }
+
+        function getRednessLevel(redness) {
+            const value = Number(redness || 0);
+            if (value < 0.08) return { text: '정상', className: 'red-level-normal' };
+            if (value < 0.14) return { text: '경미', className: 'red-level-mild' };
+            if (value < 0.22) return { text: '심함', className: 'red-level-severe' };
+            return { text: '매우심함', className: 'red-level-very-severe' };
+        }
+
+        function makeGraphRow(title, value) {
+            const safe = Number(value || 0);
+            const level = getRednessLevel(safe);
+            const percent = Math.max(0, Math.min(100, safe * 350));
+            return `
+                <div class="graph-row">
+                    <span>${title}</span>
+                    <div class="bar-track"><div class="bar-fill" style="width:${percent.toFixed(1)}%"></div></div>
+                    <span class="${level.className}">${safe.toFixed(4)} (${level.text})</span>
+                </div>
+            `;
+        }
+
+        function renderRednessGraph(currentAnalysis, pastAnalysis) {
+            const graph = document.getElementById('redness-graph');
+            const currLeft = currentAnalysis?.left_eye?.redness;
+            const currRight = currentAnalysis?.right_eye?.redness;
+            const pastLeft = pastAnalysis?.left_eye?.redness;
+            const pastRight = pastAnalysis?.right_eye?.redness;
+
+            const rows = [];
+            if (typeof currLeft === 'number') rows.push(makeGraphRow('현재 좌안', currLeft));
+            if (typeof pastLeft === 'number') rows.push(makeGraphRow('과거 좌안', pastLeft));
+            if (typeof currRight === 'number') rows.push(makeGraphRow('현재 우안', currRight));
+            if (typeof pastRight === 'number') rows.push(makeGraphRow('과거 우안', pastRight));
+
+            graph.innerHTML = rows.length
+                ? rows.join('')
+                : '<div style="font-size:0.9rem; color:#64748b; margin-top:8px;">충혈도 비교 데이터가 부족합니다.</div>';
+        }
+
+        function renderGuide(analysis) {
+            const guideTag = document.getElementById('guide-tag');
+            const guideSummary = document.getElementById('guide-summary');
+            const deptList = document.getElementById('guide-departments');
+            const careList = document.getElementById('guide-care');
+
+            const guide = analysis && analysis.guide ? analysis.guide : null;
+            if (!guide) {
+                guideTag.classList.remove('tag-danger', 'tag-warning', 'tag-safe');
+                guideTag.classList.add('tag-warning');
+                guideTag.textContent = '가이드 데이터 없음';
+                guideSummary.textContent = '분석 결과 기반 가이드가 아직 생성되지 않았습니다. 다시 검사 후 확인해 주세요.';
+                deptList.innerHTML = '<li>일반 안과 정기 검진을 권장합니다.</li>';
+                careList.innerHTML = '<li>증상 발생 시 조기 진료를 권장합니다.</li>';
+                return;
+            }
+
+            guideTag.classList.remove('tag-danger', 'tag-warning', 'tag-safe');
+            const levelClass = guide.risk_level === 'danger'
+                ? 'tag-danger'
+                : (guide.risk_level === 'warning' ? 'tag-warning' : 'tag-safe');
+            guideTag.classList.add(levelClass);
+            guideTag.textContent = guide.tag_text || 'AI 가이드';
+            guideSummary.textContent = guide.summary || '';
+
+            const departments = Array.isArray(guide.recommended_departments) ? guide.recommended_departments : [];
+            const dailyCare = Array.isArray(guide.daily_care) ? guide.daily_care : [];
+
+            deptList.innerHTML = departments.length
+                ? departments.map(item => `<li>${item}</li>`).join('')
+                : '<li>권장 진료 과목 정보 없음</li>';
+
+            careList.innerHTML = dailyCare.length
+                ? dailyCare.map(item => `<li>${item}</li>`).join('')
+                : '<li>권장 관리 방법 정보 없음</li>';
+        }
 
         function viewImage(type) {
             const modal = document.getElementById('imageModal');
             const modalImg = document.getElementById('modal-img');
             let source = "";
 
-            if(type === 'current_L') source = localStorage.getItem('eye_photo_L');
-            else if(type === 'current_R') source = localStorage.getItem('eye_photo_R');
-            else source = "https://via.placeholder.com/800x600/333/fff?text=Past+Record+Photo";
+            const curr = historyRecords[0] || null;
+            const past = historyRecords[1] || null;
+
+            if(type === 'current_L' || type === 'current_R') {
+                source = (curr && curr.image_url) ? curr.image_url : localStorage.getItem('bilateral_capture');
+            } else {
+                source = (past && past.image_url) ? past.image_url : "https://via.placeholder.com/800x600/333/fff?text=Past+Record+Photo";
+            }
 
             if(source) {
                 modalImg.src = source;

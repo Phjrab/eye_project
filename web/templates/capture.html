@@ -23,6 +23,9 @@
             width: 1280px; 
             height: 800px; 
             overflow: hidden; 
+            padding: 24px;
+            box-sizing: border-box;
+            gap: 24px;
         }
 
         /* 왼쪽: 카메라 섹션 */
@@ -30,9 +33,11 @@
             flex: 1.4; 
             display: flex; 
             flex-direction: column; 
-            background: #000; 
+            background: var(--card); 
             position: relative; 
             overflow: hidden;
+            border-radius: 18px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
 
         .video-container {
@@ -41,6 +46,8 @@
             position: relative;
             overflow: hidden;
             background: #222;
+            border-top-left-radius: 18px;
+            border-top-right-radius: 18px;
         }
 
         #video-feed { 
@@ -55,14 +62,21 @@
 
 
         /* 하단 및 우측 패널 스타일 유지 */
-        .camera-bottom-btns { height: 18%; background: #ffffff; display: flex; align-items: center; justify-content: center; gap: 20px; border-top: 1px solid var(--border); }
-        .right-panel { flex: 1; padding: 30px; display: flex; flex-direction: column; justify-content: flex-start; background: var(--bg); border-left: 1px solid var(--border); overflow-y: auto; }
+        .camera-bottom-btns { height: 18%; background: #ffffff; display: flex; align-items: center; justify-content: center; gap: 20px; border-top: 1px solid var(--border); padding: 0 20px; box-sizing: border-box; }
+        .right-panel { flex: 1; padding: 30px; display: flex; flex-direction: column; justify-content: flex-start; background: var(--card); border-radius: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow-y: auto; box-sizing: border-box; }
         .card { background: var(--card); padding: 25px; border-radius: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .btn-capture { width: 100%; padding: 25px; border-radius: 15px; background: var(--primary); color: white; font-weight: 800; border: none; font-size: 1.3rem; cursor: pointer; }
-        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
-        .result-eye { padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
-        .result-title { font-size: 0.9rem; color: #475569; margin-bottom: 6px; font-weight: 700; }
-        .result-value { font-size: 0.95rem; color: #0f172a; line-height: 1.35; }
+        .btn-upload { width: 100%; padding: 16px; border-radius: 12px; background: #eef2ff; color: #334155; font-weight: 700; border: 1px solid var(--border); font-size: 1rem; cursor: pointer; margin-top: 10px; }
+        .btn-restore { width: 100%; padding: 14px; border-radius: 12px; background: #f8fafc; color: #475569; font-weight: 700; border: 1px solid var(--border); font-size: 0.95rem; cursor: pointer; margin-top: 8px; }
+        .btn-go-result { width: 100%; padding: 18px; border-radius: 12px; background: #16a34a; color: #fff; font-weight: 800; border: none; font-size: 1.05rem; cursor: pointer; margin-top: 10px; }
+        .btn-go-result:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+        .eye-select-wrap { display:flex; gap:10px; }
+        .btn-eye { flex:1; padding:14px; border:1px solid var(--border); border-radius:10px; background:#fff; font-weight:700; cursor:pointer; }
+        .btn-eye.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+        .thumb-wrap { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+        .thumb-box { border:1px solid var(--border); border-radius:10px; padding:8px; background:#f8fafc; cursor:pointer; }
+        .thumb-title { font-size:0.8rem; color:#64748b; margin-bottom:6px; font-weight:700; }
+        .thumb-img { width:100%; height:70px; object-fit:cover; border-radius:8px; background:#e2e8f0; }
     </style>
 </head>
 <body>
@@ -93,7 +107,26 @@
         </div>
 
         <div class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 1. 자동셔터 / 디지털 줌</h2>
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 1. 좌/우 눈 선택</h2>
+            <div class="eye-select-wrap">
+                <button id="btn-eye-L" class="btn-eye active" onclick="selectEye('L')">좌안 (L)</button>
+                <button id="btn-eye-R" class="btn-eye" onclick="selectEye('R')">우안 (R)</button>
+            </div>
+            <div style="margin-top:8px; font-size:0.85rem; color:#64748b;">현재 선택: <b id="current-eye-label">좌안 (L)</b></div>
+            <div class="thumb-wrap">
+                <div class="thumb-box" onclick="selectEye('L')">
+                    <div class="thumb-title">좌안 저장본</div>
+                    <img id="thumb-L" class="thumb-img" alt="left eye preview">
+                </div>
+                <div class="thumb-box" onclick="selectEye('R')">
+                    <div class="thumb-title">우안 저장본</div>
+                    <img id="thumb-R" class="thumb-img" alt="right eye preview">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 자동셔터 / 디지털 줌</h2>
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
                 <span style="font-size:0.95rem; color:#334155;">자동셔터</span>
                 <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; color:#64748b;">
@@ -111,34 +144,27 @@
         </div>
 
         <div class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 양안 1장 촬영 및 분석</h2>
-            <button class="btn-capture" onclick="takeSnapshot()">📸 양쪽 눈 한 번에 촬영</button>
-            <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;">안내: 양쪽 눈이 가이드에 모두 들어오도록 정렬해 주세요.</div>
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">선택한 눈 촬영/업로드</h2>
+            <button class="btn-capture" onclick="takeSnapshot()">📸 선택한 눈 촬영</button>
+            <button class="btn-upload" onclick="openImageUploader()">🖼️ 선택한 눈 사진 업로드</button>
+            <button class="btn-restore" onclick="restoreCameraPreview()">↩️ 실시간 카메라로 복귀</button>
+            <button id="btn-go-result" class="btn-go-result" onclick="goToResult()" disabled>✅ 양안 결과 보기</button>
+            <input id="upload-image-input" type="file" accept="image/*" style="display:none;" onchange="handleUploadedImage(event)">
+            <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;">안내: 선택한 눈(좌/우)을 촬영 또는 업로드하세요. 양안 저장 후 결과 보기 버튼이 활성화됩니다.</div>
         </div>
 
-        <div class="card">
-            <h2 style="margin:0 0 10px 0; font-size: 1.2rem; color: var(--primary);">Step 3. 분석 결과</h2>
-            <div id="analysis-summary" style="font-size:0.95rem; color:#64748b;">아직 분석 결과가 없습니다.</div>
-            <div class="result-grid">
-                <div class="result-eye">
-                    <div class="result-title">왼쪽 눈</div>
-                    <div class="result-value" id="left-eye-result">-</div>
-                </div>
-                <div class="result-eye">
-                    <div class="result-title">오른쪽 눈</div>
-                    <div class="result-value" id="right-eye-result">-</div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script>
+        let currentEye = 'L';
+        const eyePhotos = { L: null, R: null };
         let capturedPhoto = null;
         let detectionPollingInterval = null;
         let digitalZoom = 1.0;
         let autoShutterEnabled = true;
         let isCapturing = false;
         let autoCooldownUntil = 0;
+        let previewMode = 'camera'; // 'camera' | 'upload'
         const AUTO_SHUTTER_CONF_THRESHOLD = 0.70; // 70%
 
         // ==========================================
@@ -180,7 +206,10 @@
             const videoImg = document.getElementById('video-feed');
             const zoomValue = document.getElementById('zoom-value');
 
-            videoImg.style.transform = `scaleX(-1) scale(${digitalZoom})`;
+            if (previewMode === 'camera') {
+                videoImg.style.objectFit = 'cover';
+                videoImg.style.transform = `scaleX(-1) scale(${digitalZoom})`;
+            }
             zoomValue.textContent = `${digitalZoom.toFixed(1)}x`;
         }
 
@@ -189,6 +218,11 @@
 
             if (!autoShutterEnabled) {
                 statusEl.textContent = '자동셔터 꺼짐';
+                return;
+            }
+
+            if (previewMode !== 'camera') {
+                statusEl.textContent = '업로드 이미지 분석 모드';
                 return;
             }
 
@@ -208,6 +242,191 @@
                 statusEl.textContent = `자동셔터 촬영 중... (${confPct}%)`;
                 autoCooldownUntil = Date.now() + 1500;
                 takeSnapshot(true);
+            }
+        }
+
+        function openImageUploader() {
+            document.getElementById('upload-image-input').click();
+        }
+
+        function restoreCameraPreview() {
+            const videoImg = document.getElementById('video-feed');
+            const captureMessage = document.getElementById('capture-message');
+            previewMode = 'camera';
+            videoImg.src = '/video_feed';
+            videoImg.style.objectFit = 'cover';
+            videoImg.style.transform = `scaleX(-1) scale(${digitalZoom})`;
+            captureMessage.textContent = '실시간 카메라 모드로 복귀했습니다.';
+        }
+
+        function loadImageElement(dataUrl) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = dataUrl;
+            });
+        }
+
+        function showSelectedPreview(side = currentEye) {
+            const videoImg = document.getElementById('video-feed');
+            const savedPhoto = eyePhotos[side];
+
+            if (savedPhoto) {
+                previewMode = 'upload';
+                videoImg.src = savedPhoto;
+                videoImg.style.objectFit = 'contain';
+                videoImg.style.transform = 'none';
+                return true;
+            }
+
+            return false;
+        }
+
+        function setResultButtonState(enabled) {
+            const btn = document.getElementById('btn-go-result');
+            btn.disabled = !enabled;
+        }
+
+        function selectEye(side) {
+            currentEye = side;
+            document.getElementById('btn-eye-L').classList.toggle('active', side === 'L');
+            document.getElementById('btn-eye-R').classList.toggle('active', side === 'R');
+            document.getElementById('current-eye-label').textContent = side === 'L' ? '좌안 (L)' : '우안 (R)';
+            showSelectedPreview(side);
+        }
+
+        function updateEyeThumbs() {
+            const leftThumb = document.getElementById('thumb-L');
+            const rightThumb = document.getElementById('thumb-R');
+
+            leftThumb.src = eyePhotos.L || '';
+            rightThumb.src = eyePhotos.R || '';
+
+            leftThumb.style.visibility = eyePhotos.L ? 'visible' : 'hidden';
+            rightThumb.style.visibility = eyePhotos.R ? 'visible' : 'hidden';
+        }
+
+        function hasBothEyes() {
+            return !!eyePhotos.L && !!eyePhotos.R;
+        }
+
+        function saveCurrentEyePhoto(dataUrl) {
+            eyePhotos[currentEye] = dataUrl;
+            localStorage.setItem(`eye_photo_${currentEye}`, dataUrl);
+            updateEyeThumbs();
+            showSelectedPreview(currentEye);
+            setResultButtonState(hasBothEyes());
+        }
+
+        function goToResult() {
+            if (!hasBothEyes()) {
+                alert('좌안/우안 사진을 모두 촬영 또는 업로드해 주세요.');
+                return;
+            }
+
+            syncCombinedAnalysisToLocalStorage();
+            window.location.href = '/result';
+        }
+
+        function parseStoredJson(key) {
+            const raw = localStorage.getItem(key);
+            if (!raw) return null;
+            try {
+                return JSON.parse(raw);
+            } catch (error) {
+                console.warn(`[Storage Parse Error] ${key}`, error);
+                return null;
+            }
+        }
+
+        function normalizeConfidencePercent(value) {
+            const num = Number(value);
+            if (!Number.isFinite(num)) return 0;
+            return num <= 1 ? num * 100 : num;
+        }
+
+        function pickDetectedEye(result, selectedEye) {
+            const left = result?.left_eye || null;
+            const right = result?.right_eye || null;
+
+            if (left && right) {
+                return selectedEye === 'L' ? left : right;
+            }
+
+            return left || right || null;
+        }
+
+        function getCombinedAnalysis() {
+            const stored = parseStoredJson('bilateral_analysis') || {};
+            const leftStored = parseStoredJson('eye_analysis_L');
+            const rightStored = parseStoredJson('eye_analysis_R');
+
+            return {
+                ...stored,
+                status: (leftStored || stored.left_eye || rightStored || stored.right_eye) ? 'success' : (stored.status || 'idle'),
+                left_eye: leftStored || stored.left_eye || null,
+                right_eye: rightStored || stored.right_eye || null
+            };
+        }
+
+        function syncCombinedAnalysisToLocalStorage(extra = {}) {
+            const combined = {
+                ...getCombinedAnalysis(),
+                ...extra
+            };
+            localStorage.setItem('bilateral_analysis', JSON.stringify(combined));
+            return combined;
+        }
+
+        async function handleUploadedImage(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const captureMessage = document.getElementById('capture-message');
+            const videoImg = document.getElementById('video-feed');
+
+            try {
+                captureMessage.textContent = '업로드 이미지 처리 중...';
+                const rawDataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+
+                const srcImg = await loadImageElement(rawDataUrl);
+
+                const maxW = 1920;
+                const maxH = 1080;
+                const scale = Math.min(maxW / srcImg.width, maxH / srcImg.height, 1);
+                const outW = Math.max(1, Math.round(srcImg.width * scale));
+                const outH = Math.max(1, Math.round(srcImg.height * scale));
+
+                const canvas = document.createElement('canvas');
+                canvas.width = outW;
+                canvas.height = outH;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(srcImg, 0, 0, outW, outH);
+
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+                previewMode = 'upload';
+                videoImg.src = dataUrl;
+                videoImg.style.objectFit = 'contain';
+                videoImg.style.transform = 'none';
+
+                capturedPhoto = dataUrl;
+                saveCurrentEyePhoto(dataUrl);
+                await analyzeWithServer(dataUrl);
+                captureMessage.textContent = `${currentEye === 'L' ? '좌안' : '우안'} 업로드/분석 완료`;
+            } catch (error) {
+                console.error('[Upload Analyze Error]', error);
+                captureMessage.textContent = '업로드 이미지 분석 실패. 다시 시도해 주세요.';
+            } finally {
+                event.target.value = '';
             }
         }
 
@@ -245,10 +464,11 @@
                 // 3. 이미지를 Base64 데이터로 변환
                 const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);
                 capturedPhoto = dataUrl;
+                saveCurrentEyePhoto(dataUrl);
 
                 // 서버로 전송
                 await analyzeWithServer(dataUrl);
-                captureMessage.textContent = '촬영/분석 완료';
+                captureMessage.textContent = `${currentEye === 'L' ? '좌안' : '우안'} 촬영/분석 완료`;
             } catch (error) {
                 captureMessage.textContent = '촬영/분석 실패. 다시 시도해 주세요.';
                 console.error('[Capture Error]', error);
@@ -262,58 +482,74 @@
         // ==========================================
         async function analyzeWithServer(base64Image) {
             try {
+                const userId = localStorage.getItem('user_id') || 'anonymous';
                 const response = await fetch('/analyze', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        image: base64Image
+                        image: base64Image,
+                        user_id: userId
                     })
                 });
 
                 const result = await response.json();
                 
                 if (response.ok) {
-                    updateAnalysisResult(result);
-                    localStorage.setItem('bilateral_analysis', JSON.stringify(result));
+                    const detectedEye = pickDetectedEye(result, currentEye);
+                    if (detectedEye) {
+                        const storageKey = currentEye === 'L' ? 'eye_analysis_L' : 'eye_analysis_R';
+                        localStorage.setItem(storageKey, JSON.stringify(detectedEye));
+                    }
+
+                    const combinedResult = syncCombinedAnalysisToLocalStorage({
+                        guide: result.guide,
+                        meta: result.meta,
+                        message: result.message,
+                        user_id: result.user_id,
+                        saved_image_url: result.saved_image_url
+                    });
+
+                    updateAnalysisResult(combinedResult);
                     if (capturedPhoto) {
                         localStorage.setItem('bilateral_capture', capturedPhoto);
                     }
+                    setResultButtonState(hasBothEyes());
                 } else {
                     console.error(`[Analysis Error] ${result.error}`);
-                    const summary = document.getElementById('analysis-summary');
-                    summary.textContent = result.error || '분석 중 오류가 발생했습니다.';
+                    const captureMessage = document.getElementById('capture-message');
+                    captureMessage.textContent = result.error || '분석 중 오류가 발생했습니다.';
+                    setResultButtonState(hasBothEyes());
                 }
             } catch (error) {
                 console.error('[Server Analysis Error]', error);
-                const summary = document.getElementById('analysis-summary');
-                summary.textContent = '서버 통신 오류가 발생했습니다.';
+                const captureMessage = document.getElementById('capture-message');
+                captureMessage.textContent = '서버 통신 오류가 발생했습니다.';
+                setResultButtonState(hasBothEyes());
             }
         }
 
         function updateAnalysisResult(result) {
-            const summary = document.getElementById('analysis-summary');
-            const leftResult = document.getElementById('left-eye-result');
-            const rightResult = document.getElementById('right-eye-result');
-
-            if (result.status !== 'success') {
-                summary.textContent = result.message || '분석 실패';
-                leftResult.textContent = '-';
-                rightResult.textContent = '-';
-                return;
-            }
-
-            const left = result.left_eye;
-            const right = result.right_eye;
-
-            summary.textContent = '양안 분석 완료';
-            leftResult.textContent = left ? `${left.disease} (${left.confidence.toFixed(1)}%)` : '검출 실패';
-            rightResult.textContent = right ? `${right.disease} (${right.confidence.toFixed(1)}%)` : '검출 실패';
+            return result;
         }
 
         // 화면 로딩 시 프레임 스트리밍 및 감지 폴링 시작
         window.onload = () => {
+            const videoImg = document.getElementById('video-feed');
+            videoImg.style.objectFit = 'cover';
+            videoImg.style.transform = `scaleX(-1) scale(${digitalZoom})`;
+
+            eyePhotos.L = localStorage.getItem('eye_photo_L');
+            eyePhotos.R = localStorage.getItem('eye_photo_R');
+            updateEyeThumbs();
+            selectEye('L');
+            if (!showSelectedPreview('L')) {
+                restoreCameraPreview();
+            }
+            setResultButtonState(hasBothEyes());
+            updateAnalysisResult(getCombinedAnalysis());
+
             // 감지 상태 즉시 조회 & 주기적으로 폴링 (500ms)
             pollDetectionStatus();
             detectionPollingInterval = setInterval(pollDetectionStatus, 500);

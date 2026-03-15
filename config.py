@@ -53,11 +53,11 @@ CLASSIFIER_CONFIDENCE_THRESHOLD = 0.7    # 분류 신뢰도 임계값
 # [6] 질환 분류 클래스 (5개)
 # ========================================
 DISEASE_CLASSES = {
-    0: '일반 (Normal)',
-    1: '결막염 (Conjunctivitis)',
-    2: '포도막염 (Uveitis)',
-    3: '백내장 (Cataract)',
-    4: '다래끼 (Eyelid)'
+    0: '결막염 (Conjunctivitis)',
+    1: '다래끼 (Eyelid)',
+    2: '백내장 (Cataract)',
+    3: '일반 (Normal)',
+    4: '포도막염 (Uveitis)'
 }
 
 # ========================================
