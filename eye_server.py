@@ -16,6 +16,7 @@ import atexit
 import gc
 import sqlite3
 import re
+import sys
 from datetime import datetime
 from PIL import Image
 
@@ -300,6 +301,45 @@ def list_history_records(user_id, limit=10):
         conn.close()
 
 
+def delete_history_record(user_id, history_id):
+    """사용자별 히스토리 단건 삭제 (+ 로컬 이미지 파일 삭제)"""
+    safe_user_id = normalize_user_id(user_id)
+    conn = sqlite3.connect(HISTORY_DB_PATH)
+    try:
+        row = conn.execute(
+            """
+            SELECT id, image_path
+            FROM diagnosis_history
+            WHERE id=? AND user_id=?
+            """,
+            (int(history_id), safe_user_id)
+        ).fetchone()
+
+        if row is None:
+            return False
+
+        image_path = row[1]
+
+        conn.execute(
+            """
+            DELETE FROM diagnosis_history
+            WHERE id=? AND user_id=?
+            """,
+            (int(history_id), safe_user_id)
+        )
+        conn.commit()
+
+        try:
+            if image_path and os.path.exists(image_path):
+                os.remove(image_path)
+        except Exception as file_error:
+            print(f"[WARNING] 히스토리 이미지 삭제 실패(id={history_id}): {file_error}")
+
+        return True
+    finally:
+        conn.close()
+
+
 def normalize_survey_payload(payload):
     """설문 payload를 저장 가능한 형태로 정규화"""
     payload = payload or {}
@@ -359,6 +399,62 @@ def save_survey_record(user_id, survey_payload):
         )
         conn.commit()
         return int(cur.lastrowid), normalized_payload
+    finally:
+        conn.close()
+
+
+def list_survey_records(user_id, limit=50):
+    """사용자별 최근 설문 기록 조회"""
+    safe_user_id = normalize_user_id(user_id)
+    conn = sqlite3.connect(HISTORY_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, user_id, survey_json, created_at
+            FROM survey_history
+            WHERE user_id=?
+            ORDER BY datetime(created_at) DESC, id DESC
+            LIMIT ?
+            """,
+            (safe_user_id, int(limit))
+        ).fetchall()
+
+        surveys = []
+        for row in rows:
+            survey = {}
+            try:
+                survey = json.loads(row['survey_json']) if row['survey_json'] else {}
+            except Exception:
+                survey = {}
+
+            surveys.append({
+                'id': row['id'],
+                'user_id': row['user_id'],
+                'created_at': row['created_at'],
+                'survey': survey
+            })
+
+        return surveys
+    finally:
+        conn.close()
+
+
+def delete_survey_record(user_id, survey_id):
+    """사용자별 설문 단건 삭제"""
+    safe_user_id = normalize_user_id(user_id)
+    conn = sqlite3.connect(HISTORY_DB_PATH)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            DELETE FROM survey_history
+            WHERE id=? AND user_id=?
+            """,
+            (int(survey_id), safe_user_id)
+        )
+        conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
 
@@ -1224,6 +1320,23 @@ def api_history():
         }), 500
 
 
+@app.route('/api/history/<int:history_id>', methods=['DELETE'])
+def api_history_delete(history_id):
+    """사용자별 진단 히스토리 삭제"""
+    try:
+        user_id = normalize_user_id(request.args.get('user_id'))
+        if user_id == 'anonymous':
+            return jsonify({'status': 'error', 'message': '사용자 식별자가 필요합니다.'}), 400
+
+        deleted = delete_history_record(user_id, history_id)
+        if not deleted:
+            return jsonify({'status': 'error', 'message': '삭제할 기록을 찾지 못했습니다.'}), 404
+
+        return jsonify({'status': 'ok', 'deleted_id': history_id}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @app.route('/api/survey', methods=['POST'])
 def api_survey():
     """사용자 문진 데이터 저장"""
@@ -1251,6 +1364,45 @@ def api_survey():
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+@app.route('/api/survey', methods=['GET'])
+def api_survey_list():
+    """사용자 문진 데이터 조회"""
+    try:
+        user_id = normalize_user_id(request.args.get('user_id'))
+        if user_id == 'anonymous':
+            return jsonify({'status': 'error', 'message': '사용자 식별자가 필요합니다.'}), 400
+
+        limit = int(request.args.get('limit', 50))
+        limit = max(1, min(limit, 500))
+
+        surveys = list_survey_records(user_id, limit)
+        return jsonify({
+            'status': 'ok',
+            'user_id': user_id,
+            'count': len(surveys),
+            'surveys': surveys
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/survey/<int:survey_id>', methods=['DELETE'])
+def api_survey_delete(survey_id):
+    """사용자 문진 데이터 삭제"""
+    try:
+        user_id = normalize_user_id(request.args.get('user_id'))
+        if user_id == 'anonymous':
+            return jsonify({'status': 'error', 'message': '사용자 식별자가 필요합니다.'}), 400
+
+        deleted = delete_survey_record(user_id, survey_id)
+        if not deleted:
+            return jsonify({'status': 'error', 'message': '삭제할 설문을 찾지 못했습니다.'}), 404
+
+        return jsonify({'status': 'ok', 'deleted_id': survey_id}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/diagnose', methods=['POST'])
@@ -1484,6 +1636,55 @@ def api_admin_config_update():
         }), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+def schedule_server_action(action):
+    thread = threading.Thread(target=action, daemon=True)
+    thread.start()
+
+
+def shutdown_process_delayed():
+    time.sleep(1.0)
+    try:
+        cleanup_resources()
+    finally:
+        os._exit(0)
+
+
+def restart_process_delayed():
+    time.sleep(1.0)
+    try:
+        cleanup_resources()
+    except Exception as error:
+        print(f"[WARNING] 재시작 전 리소스 정리 중 오류: {error}")
+
+    python_exec = sys.executable
+    args = [python_exec] + sys.argv
+    os.execv(python_exec, args)
+
+
+@app.route('/api/admin/server/restart', methods=['POST'])
+def api_admin_server_restart():
+    if not is_admin_session():
+        return jsonify({'status': 'error', 'message': '관리자 권한이 필요합니다.'}), 403
+
+    schedule_server_action(restart_process_delayed)
+    return jsonify({
+        'status': 'ok',
+        'message': '서버 재시작 요청이 접수되었습니다. 잠시 후 다시 연결됩니다.'
+    }), 200
+
+
+@app.route('/api/admin/server/shutdown', methods=['POST'])
+def api_admin_server_shutdown():
+    if not is_admin_session():
+        return jsonify({'status': 'error', 'message': '관리자 권한이 필요합니다.'}), 403
+
+    schedule_server_action(shutdown_process_delayed)
+    return jsonify({
+        'status': 'ok',
+        'message': '서버 종료 요청이 접수되었습니다.'
+    }), 200
 
 
 @app.route('/capture')

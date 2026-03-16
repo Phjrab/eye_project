@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>안구 건강 추적 리포트</title>
+    <script>
+        (function () {
+            try {
+                var savedTheme = localStorage.getItem('theme');
+                var theme = (savedTheme === 'dark' || savedTheme === 'light') ? savedTheme : 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
     <style>
         :root {
             --primary: #007AFF;
@@ -14,6 +25,59 @@
             --accent: #28cd41;
             --danger: #ff3b30;
         }
+
+        [data-theme="dark"] {
+            --primary: #4ea1ff;
+            --bg: #0f1115;
+            --card: #161a22;
+            --text: #e5e7eb;
+            --border: #2a3240;
+            --accent: #34d399;
+            --danger: #f87171;
+        }
+
+        .theme-toggle-floating {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 3000;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--text);
+            border-radius: 999px;
+            min-height: 44px;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            font-weight: 800;
+            letter-spacing: -0.2px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 20px rgba(15,23,42,0.16);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
+        }
+
+        .theme-toggle-floating:hover { transform: translateY(-1px); }
+        .theme-toggle-floating:active { transform: scale(0.98); }
+
+        [data-theme="dark"] .summary-box { background: #0f172a; }
+        [data-theme="dark"] .bar-track,
+        [data-theme="dark"] .trend-track { background: #334155; }
+        [data-theme="dark"] .history-item,
+        [data-theme="dark"] .survey-item,
+        [data-theme="dark"] .line-chart-wrap,
+        [data-theme="dark"] .line-svg { background: #0f172a; }
+        [data-theme="dark"] .line-chart-title,
+        [data-theme="dark"] .line-legend,
+        [data-theme="dark"] .history-date,
+        [data-theme="dark"] .trend-date,
+        [data-theme="dark"] .trend-label,
+        [data-theme="dark"] .trend-value,
+        [data-theme="dark"] .survey-meta,
+        [data-theme="dark"] .history-desc,
+        [data-theme="dark"] .survey-summary,
+        [data-theme="dark"] .user-info { color: #cbd5e1; }
 
         body {
             font-family: 'Pretendard', sans-serif;
@@ -182,7 +246,7 @@
             border-radius: 10px;
             padding: 8px 10px;
             display: grid;
-            grid-template-columns: 92px 1fr auto auto;
+            grid-template-columns: 92px 1fr auto auto auto;
             gap: 8px;
             align-items: center;
             font-size: 0.82rem;
@@ -214,6 +278,61 @@
 
         .history-view-btn.right {
             background: #0f172a;
+        }
+
+        .history-delete-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 6px 8px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #fff;
+            background: #ef4444;
+            cursor: pointer;
+        }
+
+        .survey-list {
+            margin-top: 8px;
+            display: grid;
+            gap: 8px;
+            max-height: 180px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .survey-item {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            background: #fff;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .survey-meta {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+
+        .survey-summary {
+            font-size: 0.85rem;
+            color: #334155;
+            line-height: 1.4;
+        }
+
+        .survey-delete-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #fff;
+            background: #ef4444;
+            cursor: pointer;
+            white-space: nowrap;
         }
 
         .trend-rows {
@@ -383,6 +502,57 @@
             align-items: center;
         }
         .modal-content { max-width: 90%; max-height: 90%; border-radius: 10px; }
+
+        .confirm-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%);
+            width: min(92vw, 520px);
+            background: #1f2937;
+            color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 26px rgba(0,0,0,0.28);
+            padding: 14px;
+            z-index: 1200;
+            display: none;
+        }
+
+        .confirm-toast.show {
+            display: block;
+        }
+
+        .confirm-toast-message {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin-bottom: 10px;
+            word-break: keep-all;
+        }
+
+        .confirm-toast-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .toast-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .toast-btn-cancel {
+            background: #64748b;
+            color: #fff;
+        }
+
+        .toast-btn-confirm {
+            background: #ef4444;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -468,6 +638,13 @@
             </div>
 
             <div class="summary-box">
+                <strong style="color:var(--primary)">📝 검사 시 작성한 설문</strong>
+                <div id="survey-history-list" class="survey-list">
+                    <div style="font-size:0.85rem; color:#64748b;">설문 기록 불러오는 중...</div>
+                </div>
+            </div>
+
+            <div class="summary-box">
                 <strong style="color:var(--primary)">📊 충혈도 비교 (현재 vs 과거)</strong>
                 <div style="font-size:0.8rem; color:#64748b; margin-top:6px;">
                     기준: 정상(&lt;0.08) · 경미(0.08~&lt;0.14) · 심함(0.14~&lt;0.22) · 매우심함(≥0.22)
@@ -522,16 +699,28 @@
         <img class="modal-content" id="modal-img">
     </div>
 
+    <div id="confirm-toast" class="confirm-toast" role="dialog" aria-modal="true" aria-live="assertive">
+        <div id="confirm-toast-message" class="confirm-toast-message"></div>
+        <div class="confirm-toast-actions">
+            <button id="confirm-toast-cancel" class="toast-btn toast-btn-cancel">취소</button>
+            <button id="confirm-toast-ok" class="toast-btn toast-btn-confirm">삭제</button>
+        </div>
+    </div>
+
     <script>
         let historyRecords = [];
         let historySessions = [];
+        let surveyRecords = [];
+        let activeUserId = 'anonymous';
 
         window.onload = async function() {
             const age = localStorage.getItem('user_age') || "24";
             const userId = localStorage.getItem('user_id') || "anonymous";
+            activeUserId = userId;
             document.getElementById('user-display').innerText = `사용자: ${userId} 님 (${age}세)`;
 
             await loadHistory(userId);
+            await loadSurveyHistory(userId);
         };
 
         async function loadHistory(userId) {
@@ -548,6 +737,73 @@
             } catch (err) {
                 console.error('[report history fetch error]', err);
             }
+        }
+
+        async function loadSurveyHistory(userId) {
+            try {
+                const res = await fetch(`/api/survey?user_id=${encodeURIComponent(userId)}&limit=100`);
+                const data = await res.json();
+
+                if (!res.ok || data.status !== 'ok') {
+                    renderSurveyHistoryList([]);
+                    return;
+                }
+
+                surveyRecords = data.surveys || [];
+                renderSurveyHistoryList(surveyRecords);
+            } catch (err) {
+                console.error('[report survey fetch error]', err);
+                renderSurveyHistoryList([]);
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function buildSurveySummaryText(survey) {
+            if (!survey || typeof survey !== 'object') return '설문 내용 없음';
+
+            const age = survey.age ? `${survey.age}세` : null;
+            const gender = survey.gender || null;
+            const symptoms = Array.isArray(survey.symptoms) ? survey.symptoms.filter(Boolean) : [];
+            const symptomsText = symptoms.length ? symptoms.slice(0, 3).join(', ') : null;
+
+            const chunks = [];
+            if (age) chunks.push(age);
+            if (gender) chunks.push(gender);
+            if (symptomsText) chunks.push(`증상: ${symptomsText}`);
+
+            return chunks.length ? chunks.join(' · ') : '설문 내용 없음';
+        }
+
+        function renderSurveyHistoryList(records) {
+            const target = document.getElementById('survey-history-list');
+            if (!target) return;
+
+            if (!records || !records.length) {
+                target.innerHTML = '<div style="font-size:0.85rem; color:#64748b;">저장된 설문 기록이 없습니다.</div>';
+                return;
+            }
+
+            target.innerHTML = records.map((item) => {
+                const dateText = formatShortDateTime(item.created_at);
+                const summary = buildSurveySummaryText(item.survey || {});
+                return `
+                    <div class="survey-item">
+                        <div>
+                            <div class="survey-meta">${escapeHtml(dateText)}</div>
+                            <div class="survey-summary">${escapeHtml(summary)}</div>
+                        </div>
+                        <button class="survey-delete-btn" onclick="deleteSurveyRecord(${Number(item.id)})">삭제</button>
+                    </div>
+                `;
+            }).join('');
         }
 
         function parseDateToMs(value) {
@@ -762,9 +1018,94 @@
                         <div class="history-desc">${desc}</div>
                         <button class="history-view-btn" onclick="viewHistoryImage(${index}, 'L')">좌안</button>
                         <button class="history-view-btn right" onclick="viewHistoryImage(${index}, 'R')">우안</button>
+                        <button class="history-delete-btn" onclick="deleteHistorySession(${index})">삭제</button>
                     </div>
                 `;
             }).join('');
+        }
+
+        function requestDeleteConfirm(message) {
+            return new Promise((resolve) => {
+                const toast = document.getElementById('confirm-toast');
+                const msgEl = document.getElementById('confirm-toast-message');
+                const okBtn = document.getElementById('confirm-toast-ok');
+                const cancelBtn = document.getElementById('confirm-toast-cancel');
+
+                if (!toast || !msgEl || !okBtn || !cancelBtn) {
+                    resolve(window.confirm(message));
+                    return;
+                }
+
+                msgEl.textContent = message;
+                toast.classList.add('show');
+
+                const cleanup = (result) => {
+                    toast.classList.remove('show');
+                    okBtn.onclick = null;
+                    cancelBtn.onclick = null;
+                    resolve(result);
+                };
+
+                okBtn.onclick = () => cleanup(true);
+                cancelBtn.onclick = () => cleanup(false);
+            });
+        }
+
+        async function deleteHistorySession(index) {
+            const session = historySessions[index] || null;
+            if (!session || !Array.isArray(session.records) || !session.records.length) {
+                return;
+            }
+
+            const dateText = formatShortDateTime(session.created_at);
+            const safeDateText = (dateText && dateText !== '-') ? dateText : '해당 시점';
+            const ok = await requestDeleteConfirm(`${safeDateText}에 촬영한 사진과 분석 결과를 정말 삭제할까요?`);
+            if (!ok) return;
+
+            const uniqueIds = [...new Set(session.records.map(item => Number(item.id)).filter(Number.isFinite))];
+            if (!uniqueIds.length) return;
+
+            try {
+                for (const recordId of uniqueIds) {
+                    const res = await fetch(`/api/history/${recordId}?user_id=${encodeURIComponent(activeUserId)}`, {
+                        method: 'DELETE'
+                    });
+                    if (!res.ok) {
+                        const data = await res.json().catch(() => ({}));
+                        throw new Error(data.message || `기록 삭제 실패 (id=${recordId})`);
+                    }
+                }
+
+                await loadHistory(activeUserId);
+                alert('검사 기록이 삭제되었습니다.');
+            } catch (error) {
+                console.error('[history delete error]', error);
+                alert(`검사 기록 삭제 실패: ${error.message || error}`);
+            }
+        }
+
+        async function deleteSurveyRecord(surveyId) {
+            const target = (surveyRecords || []).find(item => Number(item.id) === Number(surveyId));
+            const dateText = formatShortDateTime(target?.created_at);
+            const safeDateText = (dateText && dateText !== '-') ? dateText : '해당 시점';
+            const ok = await requestDeleteConfirm(`${safeDateText}에 작성한 설문을 정말 삭제할까요?`);
+            if (!ok) return;
+
+            try {
+                const res = await fetch(`/api/survey/${Number(surveyId)}?user_id=${encodeURIComponent(activeUserId)}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.status !== 'ok') {
+                    throw new Error(data.message || '설문 삭제 실패');
+                }
+
+                await loadSurveyHistory(activeUserId);
+                alert('설문 기록이 삭제되었습니다.');
+            } catch (error) {
+                console.error('[survey delete error]', error);
+                alert(`설문 삭제 실패: ${error.message || error}`);
+            }
         }
 
         function renderLineChart(svgId, labels, datasets, options = {}) {
@@ -1104,9 +1445,13 @@
             const past = historySessions[1] || null;
 
             if(type === 'current_L' || type === 'current_R') {
-                await openEyeImageFromRecord(curr, type.endsWith('_L') ? 'L' : 'R');
+                const record = curr?.records?.[0] || null;
+                if (!record) return;
+                await openEyeImageFromRecord(record, type.endsWith('_L') ? 'L' : 'R');
             } else {
-                await openEyeImageFromRecord(past, type.endsWith('_L') ? 'L' : 'R');
+                const record = past?.records?.[0] || null;
+                if (!record) return;
+                await openEyeImageFromRecord(record, type.endsWith('_L') ? 'L' : 'R');
             }
         }
 
@@ -1116,6 +1461,48 @@
             if (!eye || !eye.record) return;
             await openEyeImageFromRecord(eye.record, side || 'L');
         }
+
+        (function () {
+            const root = document.documentElement;
+            function currentTheme() {
+                const t = root.getAttribute('data-theme');
+                return (t === 'dark' || t === 'light') ? t : 'light';
+            }
+            function applyTheme(theme, persist) {
+                root.setAttribute('data-theme', theme);
+                if (persist) {
+                    try { localStorage.setItem('theme', theme); } catch (e) {}
+                }
+                const btn = document.getElementById('global-theme-toggle');
+                if (!btn) return;
+                const icon = btn.querySelector('[data-role="icon"]');
+                const label = btn.querySelector('[data-role="label"]');
+                if (theme === 'dark') {
+                    if (icon) icon.textContent = '☀️';
+                    if (label) label.textContent = '라이트 모드';
+                } else {
+                    if (icon) icon.textContent = '🌙';
+                    if (label) label.textContent = '다크 모드';
+                }
+            }
+            function ensureToggleButton() {
+                let btn = document.getElementById('global-theme-toggle');
+                if (btn) return btn;
+                btn = document.createElement('button');
+                btn.id = 'global-theme-toggle';
+                btn.className = 'theme-toggle-floating';
+                btn.type = 'button';
+                btn.innerHTML = '<span data-role="icon">🌙</span><span data-role="label">다크 모드</span>';
+                document.body.appendChild(btn);
+                return btn;
+            }
+            const btn = ensureToggleButton();
+            applyTheme(currentTheme(), false);
+            btn.addEventListener('click', function () {
+                const next = currentTheme() === 'dark' ? 'light' : 'dark';
+                applyTheme(next, true);
+            });
+        })();
     </script>
 </body>
 </html>

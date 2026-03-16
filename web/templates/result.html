@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 안구 건강 스크리닝 결과</title>
+    <script>
+        (function () {
+            try {
+                var savedTheme = localStorage.getItem('theme');
+                var theme = (savedTheme === 'dark' || savedTheme === 'light') ? savedTheme : 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
     <style>
         :root { 
             --primary: #007AFF; 
@@ -15,6 +26,52 @@
             --warning: #ff9500; 
             --border: #d2d2d7; 
         }
+
+        [data-theme="dark"] {
+            --primary: #4ea1ff;
+            --bg: #0f1115;
+            --card: #161a22;
+            --text: #e5e7eb;
+            --accent: #34d399;
+            --danger: #f87171;
+            --warning: #fbbf24;
+            --border: #2a3240;
+        }
+
+        .theme-toggle-floating {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 3000;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--text);
+            border-radius: 999px;
+            min-height: 44px;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            font-weight: 800;
+            letter-spacing: -0.2px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 20px rgba(15,23,42,0.16);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
+        }
+
+        .theme-toggle-floating:hover { transform: translateY(-1px); }
+        .theme-toggle-floating:active { transform: scale(0.98); }
+
+        [data-theme="dark"] .left-panel { background: #020617; }
+        [data-theme="dark"] #captured-image { background: #0b1220; }
+        [data-theme="dark"] .camera-bottom-btns { background: #111827; }
+        [data-theme="dark"] .btn-camera-sub { background: #334155; color: #e2e8f0; }
+        [data-theme="dark"] .status-item { border-bottom-color: #334155; }
+        [data-theme="dark"] .map-panel,
+        [data-theme="dark"] .map-frame { background: #0f172a; }
+        [data-theme="dark"] .map-header { background: #111827; }
+        [data-theme="dark"] .map-title { color: #cbd5e1; }
 
         body { 
             font-family: 'Pretendard', sans-serif; 
@@ -538,4 +595,47 @@
         };
     </script>
 </body>
+<script>
+    (function () {
+        const root = document.documentElement;
+        function currentTheme() {
+            const t = root.getAttribute('data-theme');
+            return (t === 'dark' || t === 'light') ? t : 'light';
+        }
+        function applyTheme(theme, persist) {
+            root.setAttribute('data-theme', theme);
+            if (persist) {
+                try { localStorage.setItem('theme', theme); } catch (e) {}
+            }
+            const btn = document.getElementById('global-theme-toggle');
+            if (!btn) return;
+            const icon = btn.querySelector('[data-role="icon"]');
+            const label = btn.querySelector('[data-role="label"]');
+            if (theme === 'dark') {
+                if (icon) icon.textContent = '☀️';
+                if (label) label.textContent = '라이트 모드';
+            } else {
+                if (icon) icon.textContent = '🌙';
+                if (label) label.textContent = '다크 모드';
+            }
+        }
+        function ensureToggleButton() {
+            let btn = document.getElementById('global-theme-toggle');
+            if (btn) return btn;
+            btn = document.createElement('button');
+            btn.id = 'global-theme-toggle';
+            btn.className = 'theme-toggle-floating';
+            btn.type = 'button';
+            btn.innerHTML = '<span data-role="icon">🌙</span><span data-role="label">다크 모드</span>';
+            document.body.appendChild(btn);
+            return btn;
+        }
+        const btn = ensureToggleButton();
+        applyTheme(currentTheme(), false);
+        btn.addEventListener('click', function () {
+            const next = currentTheme() === 'dark' ? 'light' : 'dark';
+            applyTheme(next, true);
+        });
+    })();
+</script>
 </html>
