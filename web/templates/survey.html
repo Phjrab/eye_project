@@ -37,7 +37,8 @@
         .theme-toggle-floating {
             position: fixed;
             top: 18px;
-            right: 18px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 3000;
             border: 1px solid var(--border);
             background: var(--card);
@@ -56,8 +57,57 @@
             transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
         }
 
-        .theme-toggle-floating:hover { transform: translateY(-1px); }
-        .theme-toggle-floating:active { transform: scale(0.98); }
+        .theme-toggle-floating:hover { transform: translateX(-50%) translateY(-1px); }
+        .theme-toggle-floating:active { transform: translateX(-50%) scale(0.98); }
+
+        .confirm-toast {
+            position: fixed;
+            left: 50%;
+            top: 24px;
+            transform: translateX(-50%);
+            width: min(92vw, 520px);
+            background: #1f2937;
+            color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 26px rgba(0,0,0,0.28);
+            padding: 14px;
+            z-index: 4000;
+            display: none;
+        }
+
+        .confirm-toast.show { display: block; }
+
+        .confirm-toast-message {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin-bottom: 10px;
+            word-break: keep-all;
+        }
+
+        .confirm-toast-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .toast-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .toast-btn-cancel {
+            background: #64748b;
+            color: #fff;
+        }
+
+        .toast-btn-confirm {
+            background: #ef4444;
+            color: #fff;
+        }
 
         body {
             font-family: 'Pretendard', sans-serif;
@@ -253,6 +303,14 @@
         <button class="btn btn-next" onclick="submitSurvey()">문진 완료 및 AI 검사 시작</button>
     </div>
 
+    <div id="confirm-toast" class="confirm-toast" role="dialog" aria-modal="true" aria-live="assertive">
+        <div id="confirm-toast-message" class="confirm-toast-message"></div>
+        <div class="confirm-toast-actions">
+            <button id="confirm-toast-cancel" class="toast-btn toast-btn-cancel">취소</button>
+            <button id="confirm-toast-ok" class="toast-btn toast-btn-confirm">확인</button>
+        </div>
+    </div>
+
     <script>
         (function () {
             const root = document.documentElement;
@@ -298,24 +356,73 @@
     </script>
 
     <script>
+        function showToastPopup(message, options = {}) {
+            return new Promise((resolve) => {
+                const toast = document.getElementById('confirm-toast');
+                const msgEl = document.getElementById('confirm-toast-message');
+                const okBtn = document.getElementById('confirm-toast-ok');
+                const cancelBtn = document.getElementById('confirm-toast-cancel');
+
+                if (!toast || !msgEl || !okBtn || !cancelBtn) {
+                    if (options.hideCancel) {
+                        window.alert(message);
+                        resolve(true);
+                    } else {
+                        resolve(window.confirm(message));
+                    }
+                    return;
+                }
+
+                const confirmText = options.confirmText || '확인';
+                const cancelText = options.cancelText || '취소';
+                const hideCancel = !!options.hideCancel;
+
+                msgEl.textContent = message;
+                okBtn.textContent = confirmText;
+                cancelBtn.textContent = cancelText;
+                cancelBtn.style.display = hideCancel ? 'none' : 'inline-block';
+
+                toast.classList.add('show');
+
+                const cleanup = (result) => {
+                    toast.classList.remove('show');
+                    okBtn.onclick = null;
+                    cancelBtn.onclick = null;
+                    resolve(result);
+                };
+
+                okBtn.onclick = () => cleanup(true);
+                cancelBtn.onclick = () => cleanup(false);
+            });
+        }
+
+        async function showAlert(message) {
+            await showToastPopup(message, { hideCancel: true, confirmText: '확인' });
+        }
+
+        async function showConfirm(message, confirmText = '확인') {
+            return showToastPopup(message, { hideCancel: false, confirmText, cancelText: '취소' });
+        }
+
         async function submitSurvey() {
             const ageInput = document.getElementById('user-age');
             const userId = (localStorage.getItem('user_id') || '').trim();
             
             // 나이 입력 여부 검사
             if (!ageInput.value) {
-                alert("정확한 분석을 위해 나이를 입력해 주세요.");
+                await showAlert("정확한 분석을 위해 나이를 입력해 주세요.");
                 ageInput.focus();
                 return;
             }
 
             if (!userId) {
-                alert("사용자 인증 정보가 없습니다. 다시 로그인해 주세요.");
+                await showAlert("사용자 인증 정보가 없습니다. 다시 로그인해 주세요.");
                 location.href = '/login';
                 return;
             }
 
-            if(confirm("문진 내용을 저장하고 AI 검사 단계로 이동하시겠습니까?")) {
+            const ok = await showConfirm("문진 내용을 저장하고 AI 검사 단계로 이동하시겠습니까?", '이동');
+            if (ok) {
                 const surveyPayload = {
                     age: ageInput.value,
                     gender: document.getElementById('user-gender').value,
@@ -347,7 +454,7 @@
                     localStorage.setItem('user_age', String(surveyPayload.age));
                     location.href = '/capture';
                 } catch (error) {
-                    alert(`문진 저장에 실패했습니다.\n${error.message || error}`);
+                    await showAlert(`문진 저장에 실패했습니다.\n${error.message || error}`);
                 }
             }
         }

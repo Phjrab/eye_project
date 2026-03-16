@@ -8,3 +8,4 @@ logs/
 database/history.db
 eye_photo/
 web/static/captures/users/
+web/static/reports/

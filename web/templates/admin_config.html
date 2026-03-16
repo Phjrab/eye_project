@@ -37,7 +37,8 @@
         .theme-toggle-floating {
             position: fixed;
             top: 18px;
-            right: 18px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 3000;
             border: 1px solid var(--border);
             background: var(--card);
@@ -56,8 +57,57 @@
             transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
         }
 
-        .theme-toggle-floating:hover { transform: translateY(-1px); }
-        .theme-toggle-floating:active { transform: scale(0.98); }
+        .theme-toggle-floating:hover { transform: translateX(-50%) translateY(-1px); }
+        .theme-toggle-floating:active { transform: translateX(-50%) scale(0.98); }
+
+        .confirm-toast {
+            position: fixed;
+            left: 50%;
+            top: 24px;
+            transform: translateX(-50%);
+            width: min(92vw, 520px);
+            background: #1f2937;
+            color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 26px rgba(0,0,0,0.28);
+            padding: 14px;
+            z-index: 4000;
+            display: none;
+        }
+
+        .confirm-toast.show { display: block; }
+
+        .confirm-toast-message {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin-bottom: 10px;
+            word-break: keep-all;
+        }
+
+        .confirm-toast-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .toast-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .toast-btn-cancel {
+            background: #64748b;
+            color: #fff;
+        }
+
+        .toast-btn-confirm {
+            background: #ef4444;
+            color: #fff;
+        }
 
         [data-theme="dark"] .field {
             background: #111827;
@@ -262,6 +312,14 @@
     </div>
 </div>
 
+<div id="confirm-toast" class="confirm-toast" role="dialog" aria-modal="true" aria-live="assertive">
+    <div id="confirm-toast-message" class="confirm-toast-message"></div>
+    <div class="confirm-toast-actions">
+        <button id="confirm-toast-cancel" class="toast-btn toast-btn-cancel">취소</button>
+        <button id="confirm-toast-ok" class="toast-btn toast-btn-confirm">확인</button>
+    </div>
+</div>
+
 <script>
     const configState = { values: {}, keys: [] };
     const CONFIG_HELP = {
@@ -434,6 +492,54 @@
         return updates;
     }
 
+    function showToastPopup(message, options = {}) {
+        return new Promise((resolve) => {
+            const toast = document.getElementById('confirm-toast');
+            const msgEl = document.getElementById('confirm-toast-message');
+            const okBtn = document.getElementById('confirm-toast-ok');
+            const cancelBtn = document.getElementById('confirm-toast-cancel');
+
+            if (!toast || !msgEl || !okBtn || !cancelBtn) {
+                if (options.hideCancel) {
+                    window.alert(message);
+                    resolve(true);
+                } else {
+                    resolve(window.confirm(message));
+                }
+                return;
+            }
+
+            const confirmText = options.confirmText || '확인';
+            const cancelText = options.cancelText || '취소';
+            const hideCancel = !!options.hideCancel;
+
+            msgEl.textContent = message;
+            okBtn.textContent = confirmText;
+            cancelBtn.textContent = cancelText;
+            cancelBtn.style.display = hideCancel ? 'none' : 'inline-block';
+
+            toast.classList.add('show');
+
+            const cleanup = (result) => {
+                toast.classList.remove('show');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+                resolve(result);
+            };
+
+            okBtn.onclick = () => cleanup(true);
+            cancelBtn.onclick = () => cleanup(false);
+        });
+    }
+
+    async function showAlert(message) {
+        await showToastPopup(message, { hideCancel: true, confirmText: '확인' });
+    }
+
+    async function showConfirm(message, confirmText = '확인') {
+        return showToastPopup(message, { hideCancel: false, confirmText, cancelText: '취소' });
+    }
+
     async function saveConfig() {
         try {
             const updates = collectUpdates();
@@ -465,7 +571,8 @@
             ? '서버를 재시작하시겠습니까?\n약 3~10초 동안 접속이 끊길 수 있습니다.'
             : '서버를 종료하시겠습니까?\n종료 후에는 수동으로 다시 실행해야 합니다.';
 
-        if (!window.confirm(confirmText)) {
+        const ok = await showConfirm(confirmText, label);
+        if (!ok) {
             return;
         }
 
@@ -479,10 +586,10 @@
             }
 
             setStatus(data.message || `서버 ${label} 요청 완료`);
-            alert(data.message || `서버 ${label} 요청이 처리되었습니다.`);
+            await showAlert(data.message || `서버 ${label} 요청이 처리되었습니다.`);
         } catch (error) {
             setStatus(`서버 ${label} 실패: ${error.message || error}`, true);
-            alert(`서버 ${label} 실패: ${error.message || error}`);
+            await showAlert(`서버 ${label} 실패: ${error.message || error}`);
         }
     }
 

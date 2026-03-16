@@ -37,7 +37,8 @@
         .theme-toggle-floating {
             position: fixed;
             top: 18px;
-            right: 18px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 3000;
             border: 1px solid var(--border);
             background: var(--card);
@@ -56,8 +57,57 @@
             transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
         }
 
-        .theme-toggle-floating:hover { transform: translateY(-1px); }
-        .theme-toggle-floating:active { transform: scale(0.98); }
+        .theme-toggle-floating:hover { transform: translateX(-50%) translateY(-1px); }
+        .theme-toggle-floating:active { transform: translateX(-50%) scale(0.98); }
+
+        .confirm-toast {
+            position: fixed;
+            left: 50%;
+            top: 24px;
+            transform: translateX(-50%);
+            width: min(92vw, 520px);
+            background: #1f2937;
+            color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 26px rgba(0,0,0,0.28);
+            padding: 14px;
+            z-index: 4000;
+            display: none;
+        }
+
+        .confirm-toast.show { display: block; }
+
+        .confirm-toast-message {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin-bottom: 10px;
+            word-break: keep-all;
+        }
+
+        .confirm-toast-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .toast-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .toast-btn-cancel {
+            background: #64748b;
+            color: #fff;
+        }
+
+        .toast-btn-confirm {
+            background: #ef4444;
+            color: #fff;
+        }
 
         body {
             font-family: 'Pretendard', -apple-system, sans-serif;
@@ -171,7 +221,63 @@
     </form>
 </div>
 
+<div id="confirm-toast" class="confirm-toast" role="dialog" aria-modal="true" aria-live="assertive">
+    <div id="confirm-toast-message" class="confirm-toast-message"></div>
+    <div class="confirm-toast-actions">
+        <button id="confirm-toast-cancel" class="toast-btn toast-btn-cancel">취소</button>
+        <button id="confirm-toast-ok" class="toast-btn toast-btn-confirm">확인</button>
+    </div>
+</div>
+
 <script>
+    function showToastPopup(message, options = {}) {
+        return new Promise((resolve) => {
+            const toast = document.getElementById('confirm-toast');
+            const msgEl = document.getElementById('confirm-toast-message');
+            const okBtn = document.getElementById('confirm-toast-ok');
+            const cancelBtn = document.getElementById('confirm-toast-cancel');
+
+            if (!toast || !msgEl || !okBtn || !cancelBtn) {
+                if (options.hideCancel) {
+                    window.alert(message);
+                    resolve(true);
+                } else {
+                    resolve(window.confirm(message));
+                }
+                return;
+            }
+
+            const confirmText = options.confirmText || '확인';
+            const cancelText = options.cancelText || '취소';
+            const hideCancel = !!options.hideCancel;
+
+            msgEl.textContent = message;
+            okBtn.textContent = confirmText;
+            cancelBtn.textContent = cancelText;
+            cancelBtn.style.display = hideCancel ? 'none' : 'inline-block';
+
+            toast.classList.add('show');
+
+            const cleanup = (result) => {
+                toast.classList.remove('show');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+                resolve(result);
+            };
+
+            okBtn.onclick = () => cleanup(true);
+            cancelBtn.onclick = () => cleanup(false);
+        });
+    }
+
+    async function showAlert(message) {
+        await showToastPopup(message, { hideCancel: true, confirmText: '확인' });
+    }
+
+    async function showConfirm(message, confirmText = '확인') {
+        return showToastPopup(message, { hideCancel: false, confirmText, cancelText: '취소' });
+    }
+
     async function handleLogin(event) {
         event.preventDefault(); 
         
@@ -194,11 +300,11 @@
 
                 localStorage.setItem('user_id', 'admin');
                 localStorage.setItem('user_role', 'admin');
-                alert('관리자 로그인 성공! 설정 페이지로 이동합니다.');
+                await showAlert('관리자 로그인 성공! 설정 페이지로 이동합니다.');
                 window.location.href = '/admin/config';
                 return false;
             } catch (error) {
-                alert(`관리자 로그인 실패: ${error.message || error}`);
+                await showAlert(`관리자 로그인 실패: ${error.message || error}`);
                 return false;
             }
         }
@@ -213,10 +319,10 @@
             localStorage.setItem('user_role', 'user');
             
             // 성공 알림 후 설문 페이지(survey)로 이동
-            alert("인증 성공! 사전 설문 페이지로 이동합니다.");
+            await showAlert("인증 성공! 사전 설문 페이지로 이동합니다.");
             window.location.href = '/survey'; 
         } else {
-            alert("올바른 전화번호(010-0000-0000) 또는 이메일 형식을 입력해주세요.");
+            await showAlert("올바른 전화번호(010-0000-0000) 또는 이메일 형식을 입력해주세요.");
         }
         
         return false;

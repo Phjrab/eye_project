@@ -41,7 +41,8 @@
         .theme-toggle-floating {
             position: fixed;
             top: 18px;
-            right: 18px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 3000;
             border: 1px solid var(--border);
             background: var(--card);
@@ -60,8 +61,57 @@
             transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
         }
 
-        .theme-toggle-floating:hover { transform: translateY(-1px); }
-        .theme-toggle-floating:active { transform: scale(0.98); }
+        .theme-toggle-floating:hover { transform: translateX(-50%) translateY(-1px); }
+        .theme-toggle-floating:active { transform: translateX(-50%) scale(0.98); }
+
+        .confirm-toast {
+            position: fixed;
+            left: 50%;
+            top: 24px;
+            transform: translateX(-50%);
+            width: min(92vw, 520px);
+            background: #1f2937;
+            color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 26px rgba(0,0,0,0.28);
+            padding: 14px;
+            z-index: 3500;
+            display: none;
+        }
+
+        .confirm-toast.show { display: block; }
+
+        .confirm-toast-message {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin-bottom: 10px;
+            word-break: keep-all;
+        }
+
+        .confirm-toast-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .toast-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .toast-btn-cancel {
+            background: #64748b;
+            color: #fff;
+        }
+
+        .toast-btn-confirm {
+            background: #ef4444;
+            color: #fff;
+        }
 
         [data-theme="dark"] .left-panel { background: #020617; }
         [data-theme="dark"] #captured-image { background: #0b1220; }
@@ -316,7 +366,63 @@
         </div>
     </div>
 
+    <div id="confirm-toast" class="confirm-toast" role="dialog" aria-modal="true" aria-live="assertive">
+        <div id="confirm-toast-message" class="confirm-toast-message"></div>
+        <div class="confirm-toast-actions">
+            <button id="confirm-toast-cancel" class="toast-btn toast-btn-cancel">취소</button>
+            <button id="confirm-toast-ok" class="toast-btn toast-btn-confirm">확인</button>
+        </div>
+    </div>
+
     <script>
+        function showToastPopup(message, options = {}) {
+            return new Promise((resolve) => {
+                const toast = document.getElementById('confirm-toast');
+                const msgEl = document.getElementById('confirm-toast-message');
+                const okBtn = document.getElementById('confirm-toast-ok');
+                const cancelBtn = document.getElementById('confirm-toast-cancel');
+
+                if (!toast || !msgEl || !okBtn || !cancelBtn) {
+                    if (options.hideCancel) {
+                        window.alert(message);
+                        resolve(true);
+                    } else {
+                        resolve(window.confirm(message));
+                    }
+                    return;
+                }
+
+                const confirmText = options.confirmText || '확인';
+                const cancelText = options.cancelText || '취소';
+                const hideCancel = !!options.hideCancel;
+
+                msgEl.textContent = message;
+                okBtn.textContent = confirmText;
+                cancelBtn.textContent = cancelText;
+                cancelBtn.style.display = hideCancel ? 'none' : 'inline-block';
+
+                toast.classList.add('show');
+
+                const cleanup = (result) => {
+                    toast.classList.remove('show');
+                    okBtn.onclick = null;
+                    cancelBtn.onclick = null;
+                    resolve(result);
+                };
+
+                okBtn.onclick = () => cleanup(true);
+                cancelBtn.onclick = () => cleanup(false);
+            });
+        }
+
+        async function showAlert(message) {
+            await showToastPopup(message, { hideCancel: true, confirmText: '확인' });
+        }
+
+        async function showConfirm(message, confirmText = '확인') {
+            return showToastPopup(message, { hideCancel: false, confirmText, cancelText: '취소' });
+        }
+
         function setStatusTag(el, level, text) {
             el.classList.remove('tag-normal', 'tag-warning', 'tag-danger');
             el.classList.add(level);
@@ -543,8 +649,9 @@
         }
 
         // 2. 재촬영 로직
-        function retakePhotos() {
-            if (confirm("현재 화면의 임시 촬영/분석 데이터만 초기화하고 다시 촬영하시겠습니까?\n이미 저장된 DB 이력과 기존 리포트 기록은 삭제되지 않습니다.")) {
+        async function retakePhotos() {
+            const ok = await showConfirm("현재 화면의 임시 촬영/분석 데이터만 초기화하고 다시 촬영하시겠습니까?\n이미 저장된 DB 이력과 기존 리포트 기록은 삭제되지 않습니다.", '재촬영');
+            if (ok) {
                 localStorage.removeItem('eye_photo_L');
                 localStorage.removeItem('eye_photo_R');
                 localStorage.removeItem('eye_analysis_L');
@@ -557,27 +664,27 @@
         }
 
         // 3. 최신 데이터 상태 확인
-        function updateData() {
+        async function updateData() {
             refreshReportAvailability();
 
             if (isLatestDataReady()) {
                 localStorage.setItem('data_updated', 'true');
-                alert("최신 분석 데이터가 확인되었습니다. 바로 리포트를 발행할 수 있습니다.");
+                await showAlert("최신 분석 데이터가 확인되었습니다. 바로 리포트를 발행할 수 있습니다.");
             } else {
                 localStorage.setItem('data_updated', 'false');
-                alert("아직 최신 분석 데이터가 없습니다. 좌/우 눈 분석을 먼저 완료해 주세요.");
+                await showAlert("아직 최신 분석 데이터가 없습니다. 좌/우 눈 분석을 먼저 완료해 주세요.");
             }
         }
 
         // 4. 리포트 발행 및 페이지 이동 (report.html 연결)
-        function generateReport() {
+        async function generateReport() {
             if (isLatestDataReady()) {
                 localStorage.setItem('data_updated', 'true');
                 window.location.href = '/report';
             } else {
                 localStorage.setItem('data_updated', 'false');
                 refreshReportAvailability();
-                alert("리포트 발행에 필요한 최신 분석 데이터가 없습니다.");
+                await showAlert("리포트 발행에 필요한 최신 분석 데이터가 없습니다.");
             }
         }
 

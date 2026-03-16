@@ -89,7 +89,8 @@
         .theme-toggle-floating {
             position: fixed;
             top: 18px;
-            right: 18px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 3000;
             border: 1px solid var(--theme-btn-border);
             background: var(--theme-btn-bg);
@@ -109,12 +110,12 @@
         }
 
         .theme-toggle-floating:hover {
-            transform: translateY(-1px);
+            transform: translateX(-50%) translateY(-1px);
             background: var(--theme-btn-active);
         }
 
         .theme-toggle-floating:active {
-            transform: scale(0.98);
+            transform: translateX(-50%) scale(0.98);
         }
 
         /* 메인 비주얼 아이콘 */

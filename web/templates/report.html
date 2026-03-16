@@ -39,7 +39,8 @@
         .theme-toggle-floating {
             position: fixed;
             top: 18px;
-            right: 18px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 3000;
             border: 1px solid var(--border);
             background: var(--card);
@@ -58,10 +59,11 @@
             transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
         }
 
-        .theme-toggle-floating:hover { transform: translateY(-1px); }
-        .theme-toggle-floating:active { transform: scale(0.98); }
+        .theme-toggle-floating:hover { transform: translateX(-50%) translateY(-1px); }
+        .theme-toggle-floating:active { transform: translateX(-50%) scale(0.98); }
 
         [data-theme="dark"] .summary-box { background: #0f172a; }
+        [data-theme="dark"] .action-box { background: #0f172a; border-color: var(--border); }
         [data-theme="dark"] .bar-track,
         [data-theme="dark"] .trend-track { background: #334155; }
         [data-theme="dark"] .history-item,
@@ -78,6 +80,18 @@
         [data-theme="dark"] .history-desc,
         [data-theme="dark"] .survey-summary,
         [data-theme="dark"] .user-info { color: #cbd5e1; }
+        [data-theme="dark"] .btn-home {
+            background: var(--primary);
+            color: #ffffff;
+        }
+        [data-theme="dark"] .btn-print {
+            background: #334155;
+            color: #e5e7eb;
+        }
+        [data-theme="dark"] .btn-kakao {
+            background: #1e293b;
+            color: #e5e7eb;
+        }
 
         body {
             font-family: 'Pretendard', sans-serif;
@@ -309,6 +323,12 @@
             grid-template-columns: 1fr auto;
             gap: 8px;
             align-items: center;
+            cursor: pointer;
+        }
+
+        .survey-item:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0,122,255,0.10);
         }
 
         .survey-meta {
@@ -490,6 +510,215 @@
         }
         .btn-home { background: var(--primary); color: white; }
         .btn-print { background: #1d1d1f; color: white; }
+        .btn-kakao { background: #334155; color: #fff; }
+
+        .pdf-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 1300;
+            background: rgba(15, 23, 42, 0.65);
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            box-sizing: border-box;
+        }
+
+        .pdf-panel {
+            width: min(1200px, 100%);
+            height: min(760px, 100%);
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 12px 40px rgba(15, 23, 42, 0.35);
+        }
+
+        .pdf-header {
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--border);
+            background: #f8fafc;
+        }
+
+        .pdf-title {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .pdf-close-btn {
+            border: none;
+            background: #e2e8f0;
+            color: #1e293b;
+            font-weight: 700;
+            font-size: 0.9rem;
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .pdf-frame {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: #fff;
+        }
+
+        [data-theme="dark"] .pdf-panel,
+        [data-theme="dark"] .pdf-frame { background: #0f172a; }
+        [data-theme="dark"] .pdf-header { background: #111827; }
+        [data-theme="dark"] .pdf-title { color: #cbd5e1; }
+        [data-theme="dark"] .pdf-close-btn {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .survey-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 1350;
+            background: rgba(15, 23, 42, 0.65);
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            box-sizing: border-box;
+        }
+
+        .survey-panel {
+            width: min(1180px, 100%);
+            height: min(700px, 100%);
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 12px 40px rgba(15, 23, 42, 0.35);
+        }
+
+        .survey-header {
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 14px;
+            border-bottom: 1px solid var(--border);
+            background: #f8fafc;
+        }
+
+        .survey-title {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .survey-close-btn {
+            border: none;
+            background: #e2e8f0;
+            color: #1e293b;
+            font-weight: 700;
+            font-size: 0.9rem;
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .survey-body {
+            flex: 1;
+            overflow: auto;
+            padding: 10px 12px;
+            box-sizing: border-box;
+            background: var(--bg);
+        }
+
+        .survey-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 10px;
+            align-items: start;
+            align-content: start;
+        }
+
+        .survey-card {
+            background: var(--card);
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            padding: 10px 12px;
+            box-sizing: border-box;
+            height: fit-content;
+        }
+
+        .survey-card h3 {
+            font-size: 1rem;
+            margin: 0 0 6px 0;
+            color: var(--primary);
+        }
+
+        .survey-row {
+            display: grid;
+            grid-template-columns: 118px 1fr;
+            gap: 6px;
+            align-items: start;
+            margin-bottom: 5px;
+            font-size: 0.86rem;
+        }
+
+        .survey-label {
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .survey-value {
+            color: #334155;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .survey-symptom-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .survey-symptom-item {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #f8fafc;
+            padding: 8px 10px;
+            font-size: 0.86rem;
+            color: #334155;
+        }
+
+        .survey-empty {
+            font-size: 0.86rem;
+            color: #64748b;
+            padding: 8px 9px;
+            border: 1px dashed var(--border);
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        [data-theme="dark"] .survey-panel,
+        [data-theme="dark"] .survey-body { background: #0f172a; }
+        [data-theme="dark"] .survey-header { background: #111827; }
+        [data-theme="dark"] .survey-title { color: #cbd5e1; }
+        [data-theme="dark"] .survey-close-btn {
+            background: #334155;
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .survey-label { color: #94a3b8; }
+        [data-theme="dark"] .survey-value { color: #e2e8f0; }
+        [data-theme="dark"] .survey-symptom-item,
+        [data-theme="dark"] .survey-empty {
+            background: #111827;
+            color: #e2e8f0;
+            border-color: var(--border);
+        }
 
         /* 팝업 모달 */
         .modal {
@@ -506,7 +735,7 @@
         .confirm-toast {
             position: fixed;
             left: 50%;
-            bottom: 24px;
+            top: 24px;
             transform: translateX(-50%);
             width: min(92vw, 520px);
             background: #1f2937;
@@ -559,7 +788,7 @@
 
     <header>
         <h1>👁️ 안구 건강 종합 리포트</h1>
-        <div class="user-info" id="user-display">사용자: 하준 님 (24세)</div>
+        <div class="user-info" id="user-display">사용자 정보 불러오는 중...</div>
     </header>
 
     <div class="main-grid">
@@ -613,6 +842,7 @@
                     <button class="btn btn-home" onclick="location.href='/'">메인으로</button>
                     <button class="btn btn-home" onclick="location.href='/result'">결과로 돌아가기</button>
                     <button id="btn-share-report" class="btn btn-print" onclick="generateShareReport()">📄 보고서</button>
+                    <button id="btn-send-kakao" class="btn btn-kakao" onclick="sendReportToKakao()">💬 카카오로 보내기</button>
                 </div>
             </div>
             
@@ -699,6 +929,26 @@
         <img class="modal-content" id="modal-img">
     </div>
 
+    <div id="pdf-overlay" class="pdf-overlay" onclick="closeReportPdfModal(event)">
+        <div class="pdf-panel" onclick="event.stopPropagation()">
+            <div class="pdf-header">
+                <div class="pdf-title">📄 보고서 미리보기</div>
+                <button class="pdf-close-btn" onclick="closeReportPdfModal()">리포트로 돌아가기</button>
+            </div>
+            <iframe id="pdf-frame" class="pdf-frame" src="about:blank" title="PDF 보고서"></iframe>
+        </div>
+    </div>
+
+    <div id="survey-overlay" class="survey-overlay" onclick="closeSurveyPreviewModal(event)">
+        <div class="survey-panel" onclick="event.stopPropagation()">
+            <div class="survey-header">
+                <div class="survey-title">📝 작성한 설문 상세 보기</div>
+                <button class="survey-close-btn" onclick="closeSurveyPreviewModal()">리포트로 돌아가기</button>
+            </div>
+            <div class="survey-body" id="survey-preview-body"></div>
+        </div>
+    </div>
+
     <div id="confirm-toast" class="confirm-toast" role="dialog" aria-modal="true" aria-live="assertive">
         <div id="confirm-toast-message" class="confirm-toast-message"></div>
         <div class="confirm-toast-actions">
@@ -713,7 +963,7 @@
         let surveyRecords = [];
         let activeUserId = 'anonymous';
 
-        window.onload = async function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             const age = localStorage.getItem('user_age') || "24";
             const userId = localStorage.getItem('user_id') || "anonymous";
             activeUserId = userId;
@@ -721,7 +971,7 @@
 
             await loadHistory(userId);
             await loadSurveyHistory(userId);
-        };
+        });
 
         async function loadHistory(userId) {
             try {
@@ -795,15 +1045,80 @@
                 const dateText = formatShortDateTime(item.created_at);
                 const summary = buildSurveySummaryText(item.survey || {});
                 return `
-                    <div class="survey-item">
+                    <div class="survey-item" onclick="openSurveyPreviewById(${Number(item.id)})">
                         <div>
                             <div class="survey-meta">${escapeHtml(dateText)}</div>
                             <div class="survey-summary">${escapeHtml(summary)}</div>
                         </div>
-                        <button class="survey-delete-btn" onclick="deleteSurveyRecord(${Number(item.id)})">삭제</button>
+                        <button class="survey-delete-btn" onclick="event.stopPropagation(); deleteSurveyRecord(${Number(item.id)})">삭제</button>
                     </div>
                 `;
             }).join('');
+        }
+
+        function normalizeSurveyValue(value, fallback = '-') {
+            const text = String(value ?? '').trim();
+            return text ? text : fallback;
+        }
+
+        function normalizeSurveySymptoms(survey) {
+            const symptoms = Array.isArray(survey?.symptoms) ? survey.symptoms.filter(Boolean) : [];
+            return symptoms.length ? symptoms : [];
+        }
+
+        function openSurveyPreviewById(surveyId) {
+            const target = (surveyRecords || []).find(item => Number(item.id) === Number(surveyId));
+            if (!target) return;
+            openSurveyPreviewModal(target);
+        }
+
+        function openSurveyPreviewModal(record) {
+            const overlay = document.getElementById('survey-overlay');
+            const body = document.getElementById('survey-preview-body');
+            if (!overlay || !body) return;
+
+            const survey = record?.survey || {};
+            const createdAt = formatShortDateTime(record?.created_at);
+            const symptoms = normalizeSurveySymptoms(survey);
+            const symptomHtml = symptoms.length
+                ? `<div class="survey-symptom-list">${symptoms.map((item) => `<div class="survey-symptom-item">${escapeHtml(item)}</div>`).join('')}</div>`
+                : '<div class="survey-empty">선택한 증상이 없습니다.</div>';
+
+            body.innerHTML = `
+                <div class="survey-grid">
+                    <div class="survey-card">
+                        <h3>👤 기본 정보</h3>
+                        <div class="survey-row"><div class="survey-label">작성 시각</div><div class="survey-value">${escapeHtml(createdAt)}</div></div>
+                        <div class="survey-row"><div class="survey-label">나이</div><div class="survey-value">${escapeHtml(normalizeSurveyValue(survey.age ? `${survey.age}세` : ''))}</div></div>
+                        <div class="survey-row"><div class="survey-label">성별</div><div class="survey-value">${escapeHtml(normalizeSurveyValue(survey.gender))}</div></div>
+                        <div class="survey-row"><div class="survey-label">안경/렌즈</div><div class="survey-value">${escapeHtml(normalizeSurveyValue(survey.wearing))}</div></div>
+                    </div>
+                    <div class="survey-card">
+                        <h3>🏥 병력 및 생활 습관</h3>
+                        <div class="survey-row"><div class="survey-label">기저질환</div><div class="survey-value">${escapeHtml(normalizeSurveyValue(survey.conditions, '기록 없음'))}</div></div>
+                        <div class="survey-row"><div class="survey-label">수술 이력</div><div class="survey-value">${escapeHtml(normalizeSurveyValue(survey.surgery_history, '기록 없음'))}</div></div>
+                        <div class="survey-row"><div class="survey-label">흡연</div><div class="survey-value">${escapeHtml(normalizeSurveyValue(survey.smoking))}</div></div>
+                        <div class="survey-row"><div class="survey-label">음주 빈도</div><div class="survey-value">${escapeHtml(normalizeSurveyValue(survey.drinking))}</div></div>
+                        <div class="survey-row"><div class="survey-label">기타 메모</div><div class="survey-value">${escapeHtml(normalizeSurveyValue(survey.other_notes, '기록 없음'))}</div></div>
+                    </div>
+                </div>
+                <div class="survey-card" style="margin-top:6px;">
+                    <h3>👁️ 현재 안구 증상</h3>
+                    ${symptomHtml}
+                </div>
+            `;
+
+            overlay.style.display = 'flex';
+        }
+
+        function closeSurveyPreviewModal(event) {
+            if (event && event.target && event.target.id !== 'survey-overlay') {
+                return;
+            }
+            const overlay = document.getElementById('survey-overlay');
+            const body = document.getElementById('survey-preview-body');
+            if (overlay) overlay.style.display = 'none';
+            if (body) body.innerHTML = '';
         }
 
         function parseDateToMs(value) {
@@ -1025,6 +1340,10 @@
         }
 
         function requestDeleteConfirm(message) {
+            return showConfirm(message, { confirmText: '삭제', cancelText: '취소', hideCancel: false });
+        }
+
+        function showConfirm(message, options = {}) {
             return new Promise((resolve) => {
                 const toast = document.getElementById('confirm-toast');
                 const msgEl = document.getElementById('confirm-toast-message');
@@ -1032,11 +1351,24 @@
                 const cancelBtn = document.getElementById('confirm-toast-cancel');
 
                 if (!toast || !msgEl || !okBtn || !cancelBtn) {
-                    resolve(window.confirm(message));
+                    if (options.hideCancel) {
+                        window.alert(message);
+                        resolve(true);
+                    } else {
+                        resolve(window.confirm(message));
+                    }
                     return;
                 }
 
+                const confirmText = options.confirmText || '확인';
+                const cancelText = options.cancelText || '취소';
+                const hideCancel = !!options.hideCancel;
+
                 msgEl.textContent = message;
+                okBtn.textContent = confirmText;
+                cancelBtn.textContent = cancelText;
+                cancelBtn.style.display = hideCancel ? 'none' : 'inline-block';
+
                 toast.classList.add('show');
 
                 const cleanup = (result) => {
@@ -1049,6 +1381,10 @@
                 okBtn.onclick = () => cleanup(true);
                 cancelBtn.onclick = () => cleanup(false);
             });
+        }
+
+        async function showAlert(message) {
+            await showConfirm(message, { confirmText: '확인', hideCancel: true });
         }
 
         async function deleteHistorySession(index) {
@@ -1077,10 +1413,10 @@
                 }
 
                 await loadHistory(activeUserId);
-                alert('검사 기록이 삭제되었습니다.');
+                await showAlert('검사 기록이 삭제되었습니다.');
             } catch (error) {
                 console.error('[history delete error]', error);
-                alert(`검사 기록 삭제 실패: ${error.message || error}`);
+                await showAlert(`검사 기록 삭제 실패: ${error.message || error}`);
             }
         }
 
@@ -1101,16 +1437,51 @@
                 }
 
                 await loadSurveyHistory(activeUserId);
-                alert('설문 기록이 삭제되었습니다.');
+                await showAlert('설문 기록이 삭제되었습니다.');
             } catch (error) {
                 console.error('[survey delete error]', error);
-                alert(`설문 삭제 실패: ${error.message || error}`);
+                await showAlert(`설문 삭제 실패: ${error.message || error}`);
             }
         }
 
+        function openReportPdfModal(pdfUrl) {
+            const overlay = document.getElementById('pdf-overlay');
+            const frame = document.getElementById('pdf-frame');
+            if (!overlay || !frame || !pdfUrl) return;
+            frame.src = pdfUrl;
+            overlay.style.display = 'flex';
+        }
+
+        function closeReportPdfModal(event) {
+            if (event && event.target && event.target.id !== 'pdf-overlay') {
+                return;
+            }
+            const overlay = document.getElementById('pdf-overlay');
+            const frame = document.getElementById('pdf-frame');
+            if (overlay) overlay.style.display = 'none';
+            if (frame) frame.src = 'about:blank';
+        }
+
+        async function requestReportShare(sendKakao) {
+            const res = await fetch('/api/report/share', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: activeUserId,
+                    send_kakao: !!sendKakao
+                })
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.status !== 'ok') {
+                throw new Error(data.message || '보고서 생성 실패');
+            }
+            return data;
+        }
+
         // report 페이지 "보고서" 버튼 동작
-        // - 메인 서버(/api/report/share)에서 최신 세션 기준 PDF 생성
-        // - 카카오 전송 결과를 함께 사용자에게 안내
+        // - 최신 세션 기준 PDF 생성
+        // - 새 탭 대신 팝업(모달)로 PDF를 표시
         async function generateShareReport() {
             const button = document.getElementById('btn-share-report');
             const originalText = button ? button.textContent : '📄 보고서';
@@ -1121,34 +1492,49 @@
                     button.textContent = '보고서 생성 중...';
                 }
 
-                const res = await fetch('/api/report/share', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: activeUserId,
-                        send_kakao: true
-                    })
-                });
-
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok || data.status !== 'ok') {
-                    throw new Error(data.message || '보고서 생성 실패');
-                }
+                const data = await requestReportShare(false);
 
                 const pdfUrl = data.pdf_url || null;
                 if (pdfUrl) {
-                    window.open(pdfUrl, '_blank', 'noopener');
+                    openReportPdfModal(pdfUrl);
+                }
+
+                await showAlert('보고서가 생성되었습니다. 팝업에서 확인해 주세요.');
+            } catch (error) {
+                await showAlert(`보고서 처리 실패: ${error.message || error}`);
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = originalText;
+                }
+            }
+        }
+
+        async function sendReportToKakao() {
+            const button = document.getElementById('btn-send-kakao');
+            const originalText = button ? button.textContent : '💬 카카오로 보내기';
+
+            try {
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = '카카오 전송 중...';
+                }
+
+                const data = await requestReportShare(true);
+                const pdfUrl = data.pdf_url || null;
+                if (pdfUrl) {
+                    openReportPdfModal(pdfUrl);
                 }
 
                 if (data.kakao_sent) {
-                    alert('보고서 생성 완료 및 카카오톡 전송 성공');
+                    await showAlert('보고서 생성 완료 및 카카오톡 전송 성공');
                 } else if (data.kakao_error) {
-                    alert(`보고서는 생성되었습니다.\n카카오 전송 실패: ${data.kakao_error}`);
+                    await showAlert(`보고서는 생성되었습니다.\n카카오 전송 실패: ${data.kakao_error}`);
                 } else {
-                    alert('보고서가 생성되었습니다.');
+                    await showAlert('보고서는 생성되었지만 카카오 전송 결과를 확인할 수 없습니다.');
                 }
             } catch (error) {
-                alert(`보고서 처리 실패: ${error.message || error}`);
+                await showAlert(`카카오 전송 처리 실패: ${error.message || error}`);
             } finally {
                 if (button) {
                     button.disabled = false;

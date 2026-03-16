@@ -37,7 +37,8 @@
         .theme-toggle-floating {
             position: fixed;
             top: 18px;
-            right: 18px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 3000;
             border: 1px solid var(--border);
             background: var(--card);
@@ -56,8 +57,57 @@
             transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
         }
 
-        .theme-toggle-floating:hover { transform: translateY(-1px); }
-        .theme-toggle-floating:active { transform: scale(0.98); }
+        .theme-toggle-floating:hover { transform: translateX(-50%) translateY(-1px); }
+        .theme-toggle-floating:active { transform: translateX(-50%) scale(0.98); }
+
+        .confirm-toast {
+            position: fixed;
+            left: 50%;
+            top: 24px;
+            transform: translateX(-50%);
+            width: min(92vw, 520px);
+            background: #1f2937;
+            color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 26px rgba(0,0,0,0.28);
+            padding: 14px;
+            z-index: 4000;
+            display: none;
+        }
+
+        .confirm-toast.show { display: block; }
+
+        .confirm-toast-message {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin-bottom: 10px;
+            word-break: keep-all;
+        }
+
+        .confirm-toast-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .toast-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .toast-btn-cancel {
+            background: #64748b;
+            color: #fff;
+        }
+
+        .toast-btn-confirm {
+            background: #ef4444;
+            color: #fff;
+        }
 
         [data-theme="dark"] .video-container,
         [data-theme="dark"] #video-feed { background: #0b1220; }
@@ -67,6 +117,8 @@
         [data-theme="dark"] .btn-upload,
         [data-theme="dark"] .btn-restore,
         [data-theme="dark"] #detection-status { background: #1f2937; color: var(--text); }
+        [data-theme="dark"] .status-message { color: #cbd5e1 !important; }
+        [data-theme="dark"] .confidence-text { color: #94a3b8 !important; }
 
         body { 
             font-family: 'Pretendard', sans-serif; 
@@ -131,6 +183,26 @@
         .thumb-box { border:1px solid var(--border); border-radius:10px; padding:8px; background:#f8fafc; cursor:pointer; }
         .thumb-title { font-size:0.8rem; color:#64748b; margin-bottom:6px; font-weight:700; }
         .thumb-img { width:100%; height:70px; object-fit:cover; border-radius:8px; background:#e2e8f0; }
+
+        .detection-status-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 10px;
+        }
+
+        .status-message {
+            font-size: 0.95rem;
+            color: #64748b;
+        }
+
+        .confidence-text {
+            font-size: 0.85rem;
+            color: #999;
+            margin-top: 3px;
+        }
     </style>
 </head>
 <body>
@@ -151,11 +223,11 @@
     <div class="right-panel">
         <div class="card">
             <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 0. 눈 감지 상태</h2>
-            <div id="detection-status" style="display: flex; align-items: center; gap: 10px; padding: 15px; background: #f0f0f0; border-radius: 10px;">
+            <div id="detection-status" class="detection-status-box">
                 <div id="status-dot" style="width: 12px; height: 12px; border-radius: 50%; background: #ccc;"></div>
                 <div>
-                    <div id="status-message" style="font-size: 0.95rem; color: #64748b;">카메라 연결 중...</div>
-                    <div id="confidence-text" style="font-size: 0.85rem; color: #999; margin-top: 3px;"></div>
+                    <div id="status-message" class="status-message">카메라 연결 중...</div>
+                    <div id="confidence-text" class="confidence-text"></div>
                 </div>
             </div>
         </div>
@@ -209,6 +281,14 @@
 
     </div>
 
+    <div id="confirm-toast" class="confirm-toast" role="dialog" aria-modal="true" aria-live="assertive">
+        <div id="confirm-toast-message" class="confirm-toast-message"></div>
+        <div class="confirm-toast-actions">
+            <button id="confirm-toast-cancel" class="toast-btn toast-btn-cancel" style="display:none;">취소</button>
+            <button id="confirm-toast-ok" class="toast-btn toast-btn-confirm">확인</button>
+        </div>
+    </div>
+
     <script>
         let currentEye = 'L';
         const eyePhotos = { L: null, R: null };
@@ -220,6 +300,31 @@
         let autoCooldownUntil = 0;
         let previewMode = 'camera'; // 'camera' | 'upload'
         const AUTO_SHUTTER_CONF_THRESHOLD = 0.70; // 70%
+
+        function showToastPopup(message) {
+            return new Promise((resolve) => {
+                const toast = document.getElementById('confirm-toast');
+                const msgEl = document.getElementById('confirm-toast-message');
+                const okBtn = document.getElementById('confirm-toast-ok');
+                const cancelBtn = document.getElementById('confirm-toast-cancel');
+
+                if (!toast || !msgEl || !okBtn || !cancelBtn) {
+                    window.alert(message);
+                    resolve(true);
+                    return;
+                }
+
+                msgEl.textContent = message;
+                cancelBtn.style.display = 'none';
+                toast.classList.add('show');
+
+                okBtn.onclick = () => {
+                    toast.classList.remove('show');
+                    okBtn.onclick = null;
+                    resolve(true);
+                };
+            });
+        }
 
         function clearSessionCaptureData() {
             localStorage.removeItem('eye_photo_L');
@@ -396,7 +501,7 @@
 
         function goToResult() {
             if (!hasBothEyes()) {
-                alert('좌안/우안 사진을 모두 촬영 또는 업로드해 주세요.');
+                showToastPopup('좌안/우안 사진을 모두 촬영 또는 업로드해 주세요.');
                 return;
             }
 
