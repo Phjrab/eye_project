@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 설정 - Eye Project</title>
+    <style>
+        :root {
+            --primary: #007AFF;
+            --bg: #f5f5f7;
+            --card: #ffffff;
+            --text: #1d1d1f;
+            --border: #d2d2d7;
+            --muted: #64748b;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            width: 1280px;
+            height: 800px;
+            overflow: hidden;
+            box-sizing: border-box;
+            padding: 24px;
+        }
+
+        .layout {
+            height: 100%;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 16px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .desc {
+            color: var(--muted);
+            font-size: 0.92rem;
+            margin-top: 6px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+            overflow: auto;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .field {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px;
+            background: #fff;
+        }
+
+        .field label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: #334155;
+        }
+
+        .field input,
+        .field select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: 0.95rem;
+        }
+
+        .actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 10px;
+            padding: 11px 16px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .status {
+            font-size: 0.88rem;
+            color: var(--muted);
+            margin-right: auto;
+            align-self: center;
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <div class="header">
+        <div>
+            <h1>⚙️ 관리자 Config 설정</h1>
+            <div class="desc">admin 로그인 상태에서만 접근 가능합니다. 저장 시 일부 항목은 서버 재시작 후 완전 적용됩니다.</div>
+        </div>
+        <button class="btn btn-secondary" onclick="location.href='/'">메인으로</button>
+    </div>
+
+    <div class="card">
+        <div id="config-grid" class="config-grid"></div>
+    </div>
+
+    <div class="actions">
+        <div id="status" class="status">설정을 불러오는 중...</div>
+        <button class="btn btn-secondary" onclick="loadConfig()">새로고침</button>
+        <button class="btn btn-primary" onclick="saveConfig()">저장</button>
+    </div>
+</div>
+
+<script>
+    const configState = { values: {}, keys: [] };
+
+    function setStatus(text, isError = false) {
+        const el = document.getElementById('status');
+        el.textContent = text;
+        el.style.color = isError ? '#dc2626' : '#64748b';
+    }
+
+    function renderConfigFields() {
+        const grid = document.getElementById('config-grid');
+        if (!configState.keys.length) {
+            grid.innerHTML = '<div style="color:#64748b;">표시할 설정이 없습니다.</div>';
+            return;
+        }
+
+        grid.innerHTML = configState.keys.map((key) => {
+            const value = configState.values[key];
+            const type = typeof value;
+
+            if (type === 'boolean') {
+                return `
+                    <div class="field">
+                        <label>${key}</label>
+                        <select data-key="${key}">
+                            <option value="true" ${value ? 'selected' : ''}>True</option>
+                            <option value="false" ${!value ? 'selected' : ''}>False</option>
+                        </select>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="field">
+                    <label>${key}</label>
+                    <input data-key="${key}" value="${String(value ?? '')}">
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function loadConfig() {
+        try {
+            setStatus('설정을 불러오는 중...');
+            const res = await fetch('/api/admin/config');
+            const data = await res.json();
+
+            if (!res.ok || data.status !== 'ok') {
+                throw new Error(data.message || '설정 조회 실패');
+            }
+
+            configState.values = data.config || {};
+            configState.keys = data.editable_keys || Object.keys(configState.values);
+            renderConfigFields();
+            setStatus('설정 로드 완료');
+        } catch (error) {
+            setStatus(`조회 실패: ${error.message || error}`, true);
+        }
+    }
+
+    function collectUpdates() {
+        const updates = {};
+        document.querySelectorAll('[data-key]').forEach((el) => {
+            const key = el.dataset.key;
+            const original = configState.values[key];
+
+            let next = el.value;
+            if (typeof original === 'boolean') {
+                next = String(next).toLowerCase() === 'true';
+            }
+
+            updates[key] = next;
+        });
+        return updates;
+    }
+
+    async function saveConfig() {
+        try {
+            const updates = collectUpdates();
+            setStatus('설정 저장 중...');
+
+            const res = await fetch('/api/admin/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates })
+            });
+            const data = await res.json();
+
+            if (!res.ok || data.status !== 'ok') {
+                throw new Error(data.message || '설정 저장 실패');
+            }
+
+            setStatus(data.message || '저장 완료');
+            await loadConfig();
+        } catch (error) {
+            setStatus(`저장 실패: ${error.message || error}`, true);
+        }
+    }
+
+    window.onload = () => {
+        loadConfig();
+    };
+</script>
+</body>
+</html>

@@ -25,7 +25,8 @@
             height: 760px;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
             box-sizing: border-box;
         }
 
@@ -44,7 +45,8 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
-            height: 85%;
+            align-items: stretch;
+            margin-bottom: 26px;
         }
 
         .card {
@@ -54,6 +56,11 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             display: flex;
             flex-direction: column;
+            min-height: 0;
+        }
+
+        .guide-card {
+            padding-bottom: 24px;
         }
 
         h2 { font-size: 1.2rem; margin-bottom: 15px; border-left: 5px solid var(--primary); padding-left: 10px; }
@@ -64,6 +71,9 @@
             flex-direction: column;
             gap: 15px;
             flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 4px;
         }
 
         .eye-compare-box {
@@ -76,7 +86,7 @@
         .eye-frame {
             background: #000;
             border-radius: 15px;
-            height: 180px;
+            height: 156px;
             overflow: hidden;
             cursor: pointer;
             border: 3px solid transparent;
@@ -157,13 +167,196 @@
         .red-level-severe { color: #ea580c; font-weight: 700; }
         .red-level-very-severe { color: #dc2626; font-weight: 800; }
 
+        .all-history-list {
+            margin-top: 10px;
+            display: grid;
+            gap: 8px;
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .history-item {
+            border: 1px solid var(--border);
+            background: #fff;
+            border-radius: 10px;
+            padding: 8px 10px;
+            display: grid;
+            grid-template-columns: 92px 1fr auto auto;
+            gap: 8px;
+            align-items: center;
+            font-size: 0.82rem;
+        }
+
+        .history-date {
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .history-desc {
+            color: #334155;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-view-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 6px 8px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #fff;
+            background: var(--primary);
+            cursor: pointer;
+        }
+
+        .history-view-btn.right {
+            background: #0f172a;
+        }
+
+        .trend-rows {
+            margin-top: 8px;
+            display: grid;
+            gap: 6px;
+            max-height: 168px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .trend-row {
+            display: grid;
+            grid-template-columns: 92px 1fr 1fr;
+            gap: 8px;
+            align-items: center;
+            font-size: 0.78rem;
+        }
+
+        .trend-date {
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .trend-metric {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .trend-label {
+            min-width: 16px;
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .trend-track {
+            flex: 1;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .trend-fill-left {
+            height: 100%;
+            background: #3b82f6;
+        }
+
+        .trend-fill-right {
+            height: 100%;
+            background: #ef4444;
+        }
+
+        .trend-fill-health {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #f59e0b, #ef4444);
+        }
+
+        .trend-value {
+            min-width: 42px;
+            text-align: right;
+            color: #334155;
+            font-weight: 700;
+        }
+
+        .line-chart-wrap {
+            margin-top: 10px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px;
+            background: #fff;
+        }
+
+        .line-chart-title {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+
+        .line-svg {
+            width: 100%;
+            height: 180px;
+            display: block;
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+
+        .line-legend {
+            margin-top: 6px;
+            display: flex;
+            gap: 10px;
+            font-size: 0.76rem;
+            color: #475569;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
         /* 하단 버튼 */
         .footer-btns {
-            margin-top: auto;
             display: flex;
             justify-content: center;
             gap: 15px;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
+            margin: 0 0 14px 0;
+            padding-bottom: 2px;
+        }
+
+        .action-box {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .trend-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 34px;
+            padding: 0 2px 6px 2px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 14px;
+        }
+
+        .trend-card {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 16px 18px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         }
 
         .btn {
@@ -232,11 +425,26 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="summary-box" style="margin-top: 4px; margin-bottom: 0;">
+                    <strong style="color:var(--primary)">🗂️ 전체 검사 기록</strong>
+                    <div id="all-history-list" class="all-history-list">
+                        <div style="font-size:0.85rem; color:#64748b;">기록 불러오는 중...</div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card guide-card">
             <h2>🔬 AI 진단 및 관리 가이드</h2>
+
+            <div class="action-box">
+                <div class="footer-btns">
+                    <button class="btn btn-home" onclick="location.href='/'">메인으로</button>
+                    <button class="btn btn-home" onclick="location.href='/result'">결과로 돌아가기</button>
+                    <button class="btn btn-print" onclick="window.print()">📥 리포트 저장</button>
+                </div>
+            </div>
             
             <div class="summary-box">
                 <span id="guide-tag" class="result-tag tag-safe">분석 대기</span>
@@ -269,10 +477,43 @@
                 </div>
             </div>
 
-            <div class="footer-btns">
-                <button class="btn btn-home" onclick="location.href='/'">메인으로</button>
-                <button class="btn btn-home" onclick="location.href='/result'">결과로 돌아가기</button>
-                <button class="btn btn-print" onclick="window.print()">📥 리포트 저장</button>
+        </div>
+    </div>
+
+    <div class="trend-grid">
+        <div class="trend-card">
+            <strong style="color:var(--primary)">📈 충혈도 추이 (전체 기록)</strong>
+            <div style="font-size:0.8rem; color:#64748b; margin-top:6px;">
+                각 검사 시점의 좌/우 충혈도 변화를 막대 그래프로 표시합니다.
+            </div>
+            <div id="redness-trend-rows" class="trend-rows">
+                <div style="font-size:0.9rem; color:#64748b; margin-top:8px;">추이 데이터 준비 중...</div>
+            </div>
+            <div class="line-chart-wrap">
+                <div class="line-chart-title">라인 차트 보기</div>
+                <svg id="redness-line-chart" class="line-svg" viewBox="0 0 620 180" preserveAspectRatio="none"></svg>
+                <div class="line-legend">
+                    <span class="legend-item"><span class="legend-dot" style="background:#3b82f6;"></span>좌안</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#ef4444;"></span>우안</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="trend-card">
+            <strong style="color:var(--accent)">📉 눈건강 지표 추이 (확장 가능)</strong>
+            <div style="font-size:0.8rem; color:#64748b; margin-top:6px;">
+                현재는 AI 위험도/평균 충혈도로 표시되며, 추후 지표 추가 시 자동 확장됩니다.
+            </div>
+            <div id="health-metric-trend-rows" class="trend-rows">
+                <div style="font-size:0.9rem; color:#64748b; margin-top:8px;">지표 데이터 준비 중...</div>
+            </div>
+            <div class="line-chart-wrap">
+                <div class="line-chart-title">라인 차트 보기</div>
+                <svg id="health-line-chart" class="line-svg" viewBox="0 0 620 180" preserveAspectRatio="none"></svg>
+                <div class="line-legend">
+                    <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span>AI 위험도(0~100)</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#10b981;"></span>평균 충혈도 점수(0~100)</span>
+                </div>
             </div>
         </div>
     </div>
@@ -283,6 +524,7 @@
 
     <script>
         let historyRecords = [];
+        let historySessions = [];
 
         window.onload = async function() {
             const age = localStorage.getItem('user_age') || "24";
@@ -294,7 +536,7 @@
 
         async function loadHistory(userId) {
             try {
-                const res = await fetch(`/api/history?user_id=${encodeURIComponent(userId)}&limit=2`);
+                const res = await fetch(`/api/history?user_id=${encodeURIComponent(userId)}&limit=1000`);
                 const data = await res.json();
 
                 if (!res.ok || data.status !== 'ok') {
@@ -302,28 +544,141 @@
                 }
 
                 historyRecords = data.history || [];
-                applyHistoryToUI(historyRecords);
+                await applyHistoryToUI(historyRecords);
             } catch (err) {
                 console.error('[report history fetch error]', err);
             }
         }
 
-        function applyHistoryToUI(records) {
-            const curr = records[0] || null;
-            const past = records[1] || null;
+        function parseDateToMs(value) {
+            if (!value) return 0;
+            const parsed = Date.parse(String(value).replace(' ', 'T'));
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
 
-            if (curr && curr.image_url) {
-                document.getElementById('img-curr-L').src = curr.image_url;
-                document.getElementById('img-curr-R').src = curr.image_url;
+        function mergeAnalyses(baseAnalysis, nextAnalysis) {
+            const base = baseAnalysis || {};
+            const next = nextAnalysis || {};
+            return {
+                ...base,
+                ...next,
+                left_eye: base.left_eye || next.left_eye || null,
+                right_eye: base.right_eye || next.right_eye || null,
+                guide: base.guide || next.guide || null
+            };
+        }
+
+        function addRecordEyesToSession(session, record) {
+            const analysis = record?.analysis || {};
+
+            if (!session.eyes.L && analysis.left_eye) {
+                session.eyes.L = {
+                    image_url: record.image_url,
+                    bbox: analysis.left_eye.bbox || null,
+                    record
+                };
+            }
+            if (!session.eyes.R && analysis.right_eye) {
+                session.eyes.R = {
+                    image_url: record.image_url,
+                    bbox: analysis.right_eye.bbox || null,
+                    record
+                };
+            }
+
+            session.analysis = mergeAnalyses(session.analysis, analysis);
+            session.records.push(record);
+        }
+
+        function makeSessionFromRecord(record) {
+            const session = {
+                created_at: record?.created_at || null,
+                records: [],
+                analysis: {},
+                eyes: { L: null, R: null }
+            };
+            addRecordEyesToSession(session, record);
+
+            if (!session.eyes.L) {
+                session.eyes.L = {
+                    image_url: record?.image_url || '',
+                    bbox: null,
+                    record
+                };
+            }
+            if (!session.eyes.R) {
+                session.eyes.R = {
+                    image_url: record?.image_url || '',
+                    bbox: null,
+                    record
+                };
+            }
+
+            return session;
+        }
+
+        function buildHistorySessions(records) {
+            const sessions = [];
+            const maxMergeGapMs = 3 * 60 * 1000;
+
+            for (let index = 0; index < records.length; index += 1) {
+                const record = records[index];
+                const session = makeSessionFromRecord(record);
+
+                const hasBothEyes = !!(session.analysis?.left_eye && session.analysis?.right_eye);
+                if (!hasBothEyes && index + 1 < records.length) {
+                    const next = records[index + 1];
+                    const timeGap = Math.abs(parseDateToMs(record.created_at) - parseDateToMs(next.created_at));
+                    if (timeGap <= maxMergeGapMs) {
+                        addRecordEyesToSession(session, next);
+                        index += 1;
+                    }
+                }
+
+                sessions.push(session);
+            }
+
+            return sessions;
+        }
+
+        async function applyHistoryToUI(records) {
+            historySessions = buildHistorySessions(records);
+
+            const curr = historySessions[0] || null;
+            const past = historySessions[1] || null;
+
+            const emptyCurrent = 'https://via.placeholder.com/200x150/e2e8f0/64748b?text=No+Current';
+            const emptyPast = 'https://via.placeholder.com/200x150/e2e8f0/64748b?text=No+Past';
+            document.getElementById('img-curr-L').src = emptyCurrent;
+            document.getElementById('img-curr-R').src = emptyCurrent;
+            document.getElementById('img-past-L').src = emptyPast;
+            document.getElementById('img-past-R').src = emptyPast;
+
+            document.querySelectorAll('.date-badge[style*="var(--primary)"]').forEach(el => {
+                el.textContent = '현재 (기록 없음)';
+            });
+            document.querySelectorAll('.date-badge:not([style*="var(--primary)"])').forEach(el => {
+                el.textContent = '과거 (기록 없음)';
+            });
+
+            if (curr) {
+                const currLeft = await resolveSessionEyeImage(curr, 'L');
+                const currRight = await resolveSessionEyeImage(curr, 'R');
+
+                document.getElementById('img-curr-L').src = currLeft || emptyCurrent;
+                document.getElementById('img-curr-R').src = currRight || emptyCurrent;
                 document.querySelectorAll('.date-badge[style*="var(--primary)"]').forEach(el => {
-                    const dateLabel = curr.created_at ? curr.created_at.split(' ')[0].replace(/-/g, '.') : '오늘';
+                    const dateLabel = curr.created_at ? curr.created_at.split(' ')[0].replace(/-/g, '.') : '현재';
                     el.textContent = `현재 (${dateLabel})`;
                 });
             }
 
-            if (past && past.image_url) {
-                document.getElementById('img-past-L').src = past.image_url;
-                document.getElementById('img-past-R').src = past.image_url;
+            if (past) {
+                const pastLeft = await resolveSessionEyeImage(past, 'L');
+                const pastRight = await resolveSessionEyeImage(past, 'R');
+
+                document.getElementById('img-past-L').src = pastLeft || emptyPast;
+                document.getElementById('img-past-R').src = pastRight || emptyPast;
                 const badges = document.querySelectorAll('.date-badge:not([style*="var(--primary)"])');
                 const dateLabel = past.created_at ? past.created_at.split(' ')[0].replace(/-/g, '.') : '과거';
                 badges.forEach(el => {
@@ -333,6 +688,339 @@
 
             renderGuide(curr ? curr.analysis : null);
             renderRednessGraph(curr ? curr.analysis : null, past ? past.analysis : null);
+            renderAllHistoryList(historySessions);
+            renderRednessTrend(records);
+            renderHealthMetricTrend(records);
+        }
+
+        async function resolveSessionEyeImage(session, side) {
+            if (!session) return '';
+            const eye = side === 'L' ? session.eyes.L : session.eyes.R;
+            if (!eye || !eye.image_url) return '';
+
+            if (eye.bbox && Array.isArray(eye.bbox) && eye.bbox.length === 4) {
+                try {
+                    return await buildCroppedEyeDataUrl(eye.image_url, eye.bbox);
+                } catch (error) {
+                    return eye.image_url;
+                }
+            }
+
+            return eye.image_url;
+        }
+
+        function formatShortDateTime(createdAt) {
+            if (!createdAt) return '-';
+            const [datePart, timePart = ''] = String(createdAt).split(' ');
+            const shortDate = datePart.replace(/-/g, '.').slice(2);
+            const shortTime = timePart.slice(0, 5);
+            return `${shortDate} ${shortTime}`.trim();
+        }
+
+        function readNumber(value) {
+            const num = Number(value);
+            return Number.isFinite(num) ? num : null;
+        }
+
+        function clampPercent(value) {
+            const safe = Number(value || 0);
+            return Math.max(0, Math.min(100, safe));
+        }
+
+        function getTopDiseaseText(analysis) {
+            const left = analysis?.left_eye || null;
+            const right = analysis?.right_eye || null;
+            const candidates = [left, right].filter(Boolean);
+            if (!candidates.length) return '분석 정보 없음';
+
+            let top = null;
+            for (const item of candidates) {
+                const conf = Number(item.confidence || 0);
+                if (!top || conf > Number(top.confidence || 0)) {
+                    top = item;
+                }
+            }
+
+            if (!top) return '분석 정보 없음';
+            const confText = Number(top.confidence || 0).toFixed(1);
+            return `${top.disease || '미확인'} (${confText}%)`;
+        }
+
+        function renderAllHistoryList(sessions) {
+            const target = document.getElementById('all-history-list');
+            if (!sessions || !sessions.length) {
+                target.innerHTML = '<div style="font-size:0.85rem; color:#64748b;">저장된 과거 기록이 없습니다.</div>';
+                return;
+            }
+
+            target.innerHTML = sessions.map((session, index) => {
+                const dateText = formatShortDateTime(session.created_at);
+                const desc = getTopDiseaseText(session.analysis || {});
+                return `
+                    <div class="history-item">
+                        <div class="history-date">${dateText}</div>
+                        <div class="history-desc">${desc}</div>
+                        <button class="history-view-btn" onclick="viewHistoryImage(${index}, 'L')">좌안</button>
+                        <button class="history-view-btn right" onclick="viewHistoryImage(${index}, 'R')">우안</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderLineChart(svgId, labels, datasets, options = {}) {
+            const svg = document.getElementById(svgId);
+            if (!svg) return;
+
+            const width = 620;
+            const height = 180;
+            const padding = { top: 14, right: 14, bottom: 24, left: 36 };
+            const plotWidth = width - padding.left - padding.right;
+            const plotHeight = height - padding.top - padding.bottom;
+
+            const hasPoints = datasets.some(ds => (ds.values || []).some(v => v !== null && Number.isFinite(Number(v))));
+            if (!labels.length || !hasPoints) {
+                svg.innerHTML = `<text x="${width/2}" y="${height/2}" text-anchor="middle" fill="#64748b" font-size="12">라인 차트 데이터 부족</text>`;
+                return;
+            }
+
+            const allValues = datasets
+                .flatMap(ds => ds.values || [])
+                .map(v => Number(v))
+                .filter(v => Number.isFinite(v));
+
+            const yMin = Number.isFinite(options.yMin) ? options.yMin : 0;
+            const dynamicMax = allValues.length ? Math.max(...allValues) : 1;
+            const yMax = Number.isFinite(options.yMax)
+                ? options.yMax
+                : Math.max(dynamicMax * 1.15, 1);
+
+            const xStep = labels.length > 1 ? plotWidth / (labels.length - 1) : 0;
+            const mapX = (index) => padding.left + (xStep * index);
+            const mapY = (value) => {
+                const safe = Number(value);
+                const ratio = (safe - yMin) / Math.max(1e-9, (yMax - yMin));
+                return padding.top + (plotHeight * (1 - Math.max(0, Math.min(1, ratio))));
+            };
+
+            const gridLines = [0, 0.25, 0.5, 0.75, 1].map(r => {
+                const y = padding.top + plotHeight * r;
+                return `<line x1="${padding.left}" y1="${y.toFixed(1)}" x2="${(width-padding.right).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e2e8f0" stroke-width="1" />`;
+            }).join('');
+
+            const xTicks = labels.map((label, idx) => {
+                if (labels.length > 10 && (idx % Math.ceil(labels.length / 8) !== 0) && idx !== labels.length - 1) {
+                    return '';
+                }
+                const x = mapX(idx);
+                return `<text x="${x.toFixed(1)}" y="${(height-8)}" text-anchor="middle" font-size="10" fill="#64748b">${label}</text>`;
+            }).join('');
+
+            const seriesMarkup = datasets.map(ds => {
+                const points = (ds.values || []).map((v, idx) => {
+                    if (v === null || v === undefined || !Number.isFinite(Number(v))) return null;
+                    return { x: mapX(idx), y: mapY(Number(v)), v: Number(v) };
+                });
+
+                const polylinePoints = points
+                    .filter(Boolean)
+                    .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+                    .join(' ');
+
+                const circles = points
+                    .filter(Boolean)
+                    .map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.8" fill="${ds.color}"><title>${(ds.name || '')}: ${p.v.toFixed(3)}</title></circle>`)
+                    .join('');
+
+                if (!polylinePoints) return '';
+                return `
+                    <polyline fill="none" stroke="${ds.color}" stroke-width="2.2" points="${polylinePoints}" />
+                    ${circles}
+                `;
+            }).join('');
+
+            svg.innerHTML = `
+                <rect x="0" y="0" width="${width}" height="${height}" fill="#f8fafc" rx="8" ry="8"></rect>
+                ${gridLines}
+                <line x1="${padding.left}" y1="${(height-padding.bottom)}" x2="${width-padding.right}" y2="${(height-padding.bottom)}" stroke="#94a3b8" stroke-width="1" />
+                <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height-padding.bottom}" stroke="#94a3b8" stroke-width="1" />
+                ${seriesMarkup}
+                ${xTicks}
+            `;
+        }
+
+        function renderRednessTrend(records) {
+            const target = document.getElementById('redness-trend-rows');
+            if (!records || records.length < 2) {
+                target.innerHTML = '<div style="font-size:0.9rem; color:#64748b; margin-top:8px;">최소 2회 이상 기록이 있어야 추이를 볼 수 있습니다.</div>';
+                renderLineChart('redness-line-chart', [], []);
+                return;
+            }
+
+            const chronological = [...records].reverse();
+            const rows = chronological.map((record) => {
+                const analysis = record.analysis || {};
+                const left = readNumber(analysis?.left_eye?.redness);
+                const right = readNumber(analysis?.right_eye?.redness);
+                const leftPct = clampPercent((left || 0) * 350);
+                const rightPct = clampPercent((right || 0) * 350);
+
+                return `
+                    <div class="trend-row">
+                        <div class="trend-date">${formatShortDateTime(record.created_at)}</div>
+                        <div class="trend-metric">
+                            <span class="trend-label">L</span>
+                            <div class="trend-track"><div class="trend-fill-left" style="width:${leftPct.toFixed(1)}%"></div></div>
+                            <span class="trend-value">${left !== null ? left.toFixed(3) : '-'}</span>
+                        </div>
+                        <div class="trend-metric">
+                            <span class="trend-label">R</span>
+                            <div class="trend-track"><div class="trend-fill-right" style="width:${rightPct.toFixed(1)}%"></div></div>
+                            <span class="trend-value">${right !== null ? right.toFixed(3) : '-'}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            target.innerHTML = rows.join('');
+
+            const labels = chronological.map(record => {
+                const t = formatShortDateTime(record.created_at);
+                return t.slice(0, 8);
+            });
+            const leftSeries = chronological.map(record => readNumber(record.analysis?.left_eye?.redness));
+            const rightSeries = chronological.map(record => readNumber(record.analysis?.right_eye?.redness));
+            renderLineChart('redness-line-chart', labels, [
+                { name: '좌안', color: '#3b82f6', values: leftSeries },
+                { name: '우안', color: '#ef4444', values: rightSeries }
+            ], { yMin: 0, yMax: 0.28 });
+        }
+
+        function getRiskScore(analysis) {
+            const guide = analysis?.guide || null;
+            if (guide && guide.risk_level) {
+                if (guide.risk_level === 'danger') return 90;
+                if (guide.risk_level === 'warning') return 65;
+                return 25;
+            }
+
+            const left = Number(analysis?.left_eye?.confidence || 0);
+            const right = Number(analysis?.right_eye?.confidence || 0);
+            return clampPercent(Math.max(left, right));
+        }
+
+        function getAverageRednessScore(analysis) {
+            const left = readNumber(analysis?.left_eye?.redness);
+            const right = readNumber(analysis?.right_eye?.redness);
+            const values = [left, right].filter(v => v !== null);
+            if (!values.length) return null;
+            return values.reduce((sum, value) => sum + value, 0) / values.length;
+        }
+
+        function renderHealthMetricTrend(records) {
+            const target = document.getElementById('health-metric-trend-rows');
+            if (!records || records.length < 2) {
+                target.innerHTML = '<div style="font-size:0.9rem; color:#64748b; margin-top:8px;">지표 추이를 만들기 위한 기록이 부족합니다.</div>';
+                renderLineChart('health-line-chart', [], []);
+                return;
+            }
+
+            const chronological = [...records].reverse();
+            const rows = chronological.map((record) => {
+                const analysis = record.analysis || {};
+                const riskScore = clampPercent(getRiskScore(analysis));
+                const avgRedness = getAverageRednessScore(analysis);
+                const rednessScorePct = avgRedness !== null ? clampPercent(avgRedness * 350) : 0;
+
+                return `
+                    <div class="trend-row">
+                        <div class="trend-date">${formatShortDateTime(record.created_at)}</div>
+                        <div class="trend-metric">
+                            <span class="trend-label">위험</span>
+                            <div class="trend-track"><div class="trend-fill-health" style="width:${riskScore.toFixed(1)}%"></div></div>
+                            <span class="trend-value">${riskScore.toFixed(0)}</span>
+                        </div>
+                        <div class="trend-metric">
+                            <span class="trend-label">평균</span>
+                            <div class="trend-track"><div class="trend-fill-health" style="width:${rednessScorePct.toFixed(1)}%"></div></div>
+                            <span class="trend-value">${avgRedness !== null ? avgRedness.toFixed(3) : '-'}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            target.innerHTML = rows.join('');
+
+            const labels = chronological.map(record => {
+                const t = formatShortDateTime(record.created_at);
+                return t.slice(0, 8);
+            });
+            const riskSeries = chronological.map(record => clampPercent(getRiskScore(record.analysis || {})));
+            const avgRedSeries = chronological.map(record => {
+                const avg = getAverageRednessScore(record.analysis || {});
+                return avg === null ? null : clampPercent(avg * 350);
+            });
+
+            renderLineChart('health-line-chart', labels, [
+                { name: 'AI 위험도', color: '#f59e0b', values: riskSeries },
+                { name: '평균 충혈도 점수', color: '#10b981', values: avgRedSeries }
+            ], { yMin: 0, yMax: 100 });
+        }
+
+        function getEyeBBox(analysis, side) {
+            const eye = side === 'L' ? (analysis?.left_eye || null) : (analysis?.right_eye || null);
+            const bbox = eye?.bbox;
+            if (!Array.isArray(bbox) || bbox.length !== 4) {
+                return null;
+            }
+
+            const nums = bbox.map(v => Number(v));
+            if (nums.some(v => !Number.isFinite(v))) return null;
+            return nums;
+        }
+
+        function buildCroppedEyeDataUrl(imageUrl, bbox) {
+            return new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => {
+                    const [x1, y1, x2, y2] = bbox;
+                    const ix1 = Math.max(0, Math.floor(Math.min(x1, x2)));
+                    const iy1 = Math.max(0, Math.floor(Math.min(y1, y2)));
+                    const ix2 = Math.min(image.width, Math.ceil(Math.max(x1, x2)));
+                    const iy2 = Math.min(image.height, Math.ceil(Math.max(y1, y2)));
+                    const cropW = Math.max(1, ix2 - ix1);
+                    const cropH = Math.max(1, iy2 - iy1);
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = cropW;
+                    canvas.height = cropH;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(image, ix1, iy1, cropW, cropH, 0, 0, cropW, cropH);
+                    resolve(canvas.toDataURL('image/jpeg', 0.92));
+                };
+                image.onerror = reject;
+                image.src = imageUrl;
+            });
+        }
+
+        async function openEyeImageFromRecord(record, side) {
+            if (!record || !record.image_url) {
+                return;
+            }
+
+            let source = record.image_url;
+            const bbox = getEyeBBox(record.analysis || {}, side);
+            if (bbox) {
+                try {
+                    source = await buildCroppedEyeDataUrl(record.image_url, bbox);
+                } catch (error) {
+                    source = record.image_url;
+                }
+            }
+
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modal-img');
+            modalImg.src = source;
+            modal.style.display = 'flex';
         }
 
         function getRednessLevel(redness) {
@@ -411,24 +1099,22 @@
                 : '<li>권장 관리 방법 정보 없음</li>';
         }
 
-        function viewImage(type) {
-            const modal = document.getElementById('imageModal');
-            const modalImg = document.getElementById('modal-img');
-            let source = "";
-
-            const curr = historyRecords[0] || null;
-            const past = historyRecords[1] || null;
+        async function viewImage(type) {
+            const curr = historySessions[0] || null;
+            const past = historySessions[1] || null;
 
             if(type === 'current_L' || type === 'current_R') {
-                source = (curr && curr.image_url) ? curr.image_url : localStorage.getItem('bilateral_capture');
+                await openEyeImageFromRecord(curr, type.endsWith('_L') ? 'L' : 'R');
             } else {
-                source = (past && past.image_url) ? past.image_url : "https://via.placeholder.com/800x600/333/fff?text=Past+Record+Photo";
+                await openEyeImageFromRecord(past, type.endsWith('_L') ? 'L' : 'R');
             }
+        }
 
-            if(source) {
-                modalImg.src = source;
-                modal.style.display = 'flex';
-            }
+        async function viewHistoryImage(index, side) {
+            const session = historySessions[index] || null;
+            const eye = side === 'R' ? session?.eyes?.R : session?.eyes?.L;
+            if (!eye || !eye.record) return;
+            await openEyeImageFromRecord(eye.record, side || 'L');
         }
     </script>
 </body>

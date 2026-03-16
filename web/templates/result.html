@@ -128,6 +128,63 @@
             letter-spacing: -0.5px;
         }
 
+        .map-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 2000;
+            background: rgba(15, 23, 42, 0.65);
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            box-sizing: border-box;
+        }
+
+        .map-panel {
+            width: min(1200px, 100%);
+            height: min(760px, 100%);
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 12px 40px rgba(15, 23, 42, 0.35);
+        }
+
+        .map-header {
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--border);
+            background: #f8fafc;
+        }
+
+        .map-title {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .map-close-btn {
+            border: none;
+            background: #e2e8f0;
+            color: #1e293b;
+            font-weight: 700;
+            font-size: 0.9rem;
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .map-frame {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: #fff;
+        }
+
         input[type="number"] { width: 40%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
     </style>
 </head>
@@ -144,7 +201,7 @@
         <div class="camera-bottom-btns">
             <button class="btn btn-camera-sub btn-retake" onclick="retakePhotos()">🔄 안구 재촬영</button>
             <button id="btn-generate-report" class="btn btn-camera-sub" onclick="generateReport()">📋 리포트 발행</button>
-            <button class="btn btn-camera-sub" onclick="window.open('https://map.naver.com/v5/search/안과')">📍 주변 안과</button>
+            <button class="btn btn-camera-sub" onclick="openNearbyClinicMap()">📍 주변 안과</button>
         </div>
     </div>
 
@@ -182,6 +239,23 @@
                 ※ 최신 분석 데이터 확인 중입니다.
             </p>
             <button id="btn-update-status" class="btn btn-main" onclick="updateData()">🔄 분석 데이터 상태 확인</button>
+        </div>
+    </div>
+
+    <div id="map-overlay" class="map-overlay" onclick="closeNearbyClinicMap(event)">
+        <div class="map-panel" onclick="event.stopPropagation()">
+            <div class="map-header">
+                <div class="map-title">📍 주변 안과 (네이버 지도)</div>
+                <button class="map-close-btn" onclick="closeNearbyClinicMap()">대시보드로 돌아가기</button>
+            </div>
+            <iframe
+                id="map-frame"
+                class="map-frame"
+                src="about:blank"
+                loading="lazy"
+                referrerpolicy="strict-origin-when-cross-origin"
+                title="네이버 지도"
+            ></iframe>
         </div>
     </div>
 
@@ -272,6 +346,22 @@
                 statusBtn.textContent = '🔄 분석 데이터 상태 확인';
                 statusBtn.style.background = '';
             }
+        }
+
+        function openNearbyClinicMap() {
+            const overlay = document.getElementById('map-overlay');
+            const frame = document.getElementById('map-frame');
+            if (!frame.src || frame.src === 'about:blank') {
+                frame.src = 'https://map.naver.com/v5/search/%EC%95%88%EA%B3%BC';
+            }
+            overlay.style.display = 'flex';
+        }
+
+        function closeNearbyClinicMap(event) {
+            if (event && event.target && event.target.id !== 'map-overlay') {
+                return;
+            }
+            document.getElementById('map-overlay').style.display = 'none';
         }
 
         function extractDiseaseScores(analysis) {
@@ -439,6 +529,12 @@
             renderAiResults();
             localStorage.setItem('data_updated', isLatestDataReady() ? 'true' : 'false');
             refreshReportAvailability();
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    closeNearbyClinicMap();
+                }
+            });
         };
     </script>
 </body>

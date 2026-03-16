@@ -124,10 +124,36 @@
 </div>
 
 <script>
-    function handleLogin(event) {
+    async function handleLogin(event) {
         event.preventDefault(); 
         
         const identifier = document.getElementById('identifier').value.trim();
+        const normalized = identifier.toLowerCase();
+
+        // 관리자 로그인 분기
+        if (normalized === 'admin') {
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: 'admin' })
+                });
+                const data = await res.json();
+
+                if (!res.ok || data.status !== 'ok' || data.role !== 'admin') {
+                    throw new Error(data.message || '관리자 로그인 실패');
+                }
+
+                localStorage.setItem('user_id', 'admin');
+                localStorage.setItem('user_role', 'admin');
+                alert('관리자 로그인 성공! 설정 페이지로 이동합니다.');
+                window.location.href = '/admin/config';
+                return false;
+            } catch (error) {
+                alert(`관리자 로그인 실패: ${error.message || error}`);
+                return false;
+            }
+        }
         
         // 유효성 검사 규칙
         const phoneRegex = /^010-\d{3,4}-\d{4}$|^010\d{8}$/;
@@ -136,6 +162,7 @@
         if (phoneRegex.test(identifier) || emailRegex.test(identifier)) {
             // 사용자 식별자를 로컬 스토리지에 저장하여 나중에 survey에서 활용
             localStorage.setItem('user_id', identifier);
+            localStorage.setItem('user_role', 'user');
             
             // 성공 알림 후 설문 페이지(survey)로 이동
             alert("인증 성공! 사전 설문 페이지로 이동합니다.");

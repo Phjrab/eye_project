@@ -167,6 +167,27 @@
         let previewMode = 'camera'; // 'camera' | 'upload'
         const AUTO_SHUTTER_CONF_THRESHOLD = 0.70; // 70%
 
+        function clearSessionCaptureData() {
+            localStorage.removeItem('eye_photo_L');
+            localStorage.removeItem('eye_photo_R');
+            localStorage.removeItem('eye_analysis_L');
+            localStorage.removeItem('eye_analysis_R');
+            localStorage.removeItem('bilateral_capture');
+            localStorage.removeItem('bilateral_analysis');
+            localStorage.removeItem('data_updated');
+        }
+
+        function syncUserScopedCaptureCache() {
+            const currentUserId = (localStorage.getItem('user_id') || 'anonymous').trim() || 'anonymous';
+            const lastUserId = localStorage.getItem('active_capture_user_id') || '';
+
+            if (lastUserId && lastUserId !== currentUserId) {
+                clearSessionCaptureData();
+            }
+
+            localStorage.setItem('active_capture_user_id', currentUserId);
+        }
+
         // ==========================================
         // 눈 감지 상태 폴링 (서버에서 감지 여부 조회)
         // ==========================================
@@ -536,6 +557,8 @@
 
         // 화면 로딩 시 프레임 스트리밍 및 감지 폴링 시작
         window.onload = () => {
+            syncUserScopedCaptureCache();
+
             const videoImg = document.getElementById('video-feed');
             videoImg.style.objectFit = 'cover';
             videoImg.style.transform = `scaleX(-1) scale(${digitalZoom})`;

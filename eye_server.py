@@ -3,7 +3,7 @@ Eye Disease Detection Server
 웹 인터페이스와 AI 파이프라인의 오케스트레이터
 """
 
-from flask import Flask, render_template, Response, jsonify, request
+from flask import Flask, render_template, Response, jsonify, request, session, redirect, url_for
 import cv2
 import numpy as np
 import torch
@@ -28,6 +28,7 @@ from utils.image_proc import resize_image, enhance_contrast
 # ========================================
 app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.secret_key = os.getenv('EYE_APP_SECRET_KEY', 'eye-project-admin-secret')
 
 # 전역 변수
 current_frame = None  # 실시간 카메라 프레임
@@ -39,6 +40,86 @@ debug_boxes_cache = []
 debug_frame_counter = 0
 
 HISTORY_DB_PATH = os.path.join(config.BASE_DIR, 'database', 'history.db')
+
+ADMIN_EDITABLE_CONFIG_KEYS = {
+    'SERVER_IP': str,
+    'SERVER_PORT': int,
+    'DEBUG_MODE': bool,
+    'CAMERA_DEVICE_INDEX': int,
+    'YOLO_CONF_THRESHOLD': float,
+    'YOLO_IOU_THRESHOLD': float,
+    'YOLO_STATUS_CONF_THRESHOLD': float,
+    'YOLO_INPUT_SIZE': int,
+    'CLASSIFIER_CONFIDENCE_THRESHOLD': float,
+    'IRIS_REMOVAL_ENABLED': bool,
+    'IRIS_THRESHOLD': float,
+    'AUTO_DIST_THRESHOLD': int,
+    'AUTO_SCALE_MIN': float,
+    'AUTO_SCALE_MAX': float,
+    'AUTO_CAPTURE_HOLD_FRAMES': int
+}
+
+
+def is_admin_session():
+    return bool(session.get('is_admin', False))
+
+
+def normalize_bool(value):
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in ('1', 'true', 'yes', 'y', 'on'):
+        return True
+    if text in ('0', 'false', 'no', 'n', 'off'):
+        return False
+    raise ValueError('bool 값이 아닙니다')
+
+
+def cast_config_value(key, value):
+    target_type = ADMIN_EDITABLE_CONFIG_KEYS.get(key)
+    if target_type is None:
+        raise ValueError(f'수정 불가 항목: {key}')
+
+    if target_type is bool:
+        return normalize_bool(value)
+    if target_type is int:
+        return int(value)
+    if target_type is float:
+        return float(value)
+    return str(value)
+
+
+def format_python_literal(value):
+    if isinstance(value, str):
+        return repr(value)
+    if isinstance(value, bool):
+        return 'True' if value else 'False'
+    return str(value)
+
+
+def update_config_file_values(updates):
+    config_file_path = os.path.join(config.BASE_DIR, 'config.py')
+    with open(config_file_path, 'r', encoding='utf-8') as file:
+        source = file.read()
+
+    updated_source = source
+    for key, value in updates.items():
+        pattern = rf'^{key}\s*=\s*.*$'
+        replacement = f"{key} = {format_python_literal(value)}"
+        new_source, count = re.subn(pattern, replacement, updated_source, flags=re.MULTILINE)
+        if count == 0:
+            raise ValueError(f'config.py에서 항목을 찾지 못했습니다: {key}')
+        updated_source = new_source
+
+    with open(config_file_path, 'w', encoding='utf-8') as file:
+        file.write(updated_source)
+
+
+def get_admin_config_snapshot():
+    snapshot = {}
+    for key in ADMIN_EDITABLE_CONFIG_KEYS:
+        snapshot[key] = getattr(config, key, None)
+    return snapshot
 
 # ========================================
 # [2] 촬영 상태 관리 (왼쪽/오른쪽 눈 시퀀스)
@@ -1126,8 +1207,8 @@ def api_history():
     """사용자별 진단 히스토리 조회"""
     try:
         user_id = normalize_user_id(request.args.get('user_id'))
-        limit = int(request.args.get('limit', 10))
-        limit = max(1, min(limit, 50))
+        limit = int(request.args.get('limit', 200))
+        limit = max(1, min(limit, 1000))
 
         history = list_history_records(user_id, limit)
         return jsonify({
@@ -1330,6 +1411,79 @@ def status():
 def login():
     """로그인 페이지"""
     return render_template('login.html')
+
+
+@app.route('/admin/config')
+def admin_config_page():
+    """관리자 설정 페이지"""
+    if not is_admin_session():
+        return redirect(url_for('login'))
+    return render_template('admin_config.html')
+
+
+@app.route('/api/admin/login', methods=['POST'])
+def api_admin_login():
+    """관리자 로그인 세션 발급"""
+    try:
+        data = request.json or {}
+        identifier = str(data.get('identifier', '')).strip().lower()
+
+        if identifier == 'admin':
+            session['is_admin'] = True
+            return jsonify({'status': 'ok', 'role': 'admin'}), 200
+
+        session['is_admin'] = False
+        return jsonify({'status': 'ok', 'role': 'user'}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/config', methods=['GET'])
+def api_admin_config_get():
+    """관리자 설정 조회"""
+    if not is_admin_session():
+        return jsonify({'status': 'error', 'message': '관리자 권한이 필요합니다.'}), 403
+
+    return jsonify({
+        'status': 'ok',
+        'config': get_admin_config_snapshot(),
+        'editable_keys': list(ADMIN_EDITABLE_CONFIG_KEYS.keys())
+    }), 200
+
+
+@app.route('/api/admin/config', methods=['POST'])
+def api_admin_config_update():
+    """관리자 설정 저장"""
+    if not is_admin_session():
+        return jsonify({'status': 'error', 'message': '관리자 권한이 필요합니다.'}), 403
+
+    try:
+        data = request.json or {}
+        updates_raw = data.get('updates') or {}
+        if not isinstance(updates_raw, dict) or not updates_raw:
+            return jsonify({'status': 'error', 'message': '저장할 설정값이 없습니다.'}), 400
+
+        casted_updates = {}
+        for key, raw_value in updates_raw.items():
+            if key not in ADMIN_EDITABLE_CONFIG_KEYS:
+                continue
+            casted_updates[key] = cast_config_value(key, raw_value)
+
+        if not casted_updates:
+            return jsonify({'status': 'error', 'message': '유효한 설정 항목이 없습니다.'}), 400
+
+        update_config_file_values(casted_updates)
+
+        for key, value in casted_updates.items():
+            setattr(config, key, value)
+
+        return jsonify({
+            'status': 'ok',
+            'message': '설정이 저장되었습니다. 일부 항목은 재시작 후 완전 적용됩니다.',
+            'updated': casted_updates
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/capture')

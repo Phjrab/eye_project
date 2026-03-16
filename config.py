@@ -38,16 +38,16 @@ CAMERA_DEVICE_INDEX = 0
 # ========================================
 # [4] YOLO 검출 임계값
 # ========================================
-YOLO_CONF_THRESHOLD = 0.5        # 신뢰도 임계값
-YOLO_IOU_THRESHOLD = 0.45        # IoU 임계값
-YOLO_INPUT_SIZE = 640            # 입력 이미지 크기
-YOLO_STATUS_CONF_THRESHOLD = 0.25  # 실시간 상태 패널 감지 임계값
+YOLO_CONF_THRESHOLD = 0.5
+YOLO_IOU_THRESHOLD = 0.45
+YOLO_INPUT_SIZE = 640
+YOLO_STATUS_CONF_THRESHOLD = 0.25
 
 # ========================================
 # [5] 분류 모델 설정
 # ========================================
 CLASSIFIER_INPUT_SIZE = (224, 224)       # EfficientNet 입력 크기
-CLASSIFIER_CONFIDENCE_THRESHOLD = 0.7    # 분류 신뢰도 임계값
+CLASSIFIER_CONFIDENCE_THRESHOLD = 0.7
 
 # ========================================
 # [6] 질환 분류 클래스 (5개)
@@ -63,8 +63,8 @@ DISEASE_CLASSES = {
 # ========================================
 # [7] 홍채 제거 설정
 # ========================================
-IRIS_REMOVAL_ENABLED = True      # 홍채 제거 활성화
-IRIS_THRESHOLD = 0.3             # 홍채 임계값
+IRIS_REMOVAL_ENABLED = True
+IRIS_THRESHOLD = 0.3
 
 # ========================================
 # [8] 로깅 설정
@@ -88,8 +88,8 @@ AUTO_DIST_THRESHOLD = 30
 
 # 눈 크기 비율 임계값: 가이드라인 대비 
 # 눈의 크기가 이 범위 내에 있을 때 적절한 위치로 판단
-AUTO_SCALE_MIN = 0.8    # 80% 이상
-AUTO_SCALE_MAX = 1.1    # 110% 이하
+AUTO_SCALE_MIN = 0.8
+AUTO_SCALE_MAX = 1.1
 
 # 자동 촬영 대기 프레임: 조건을 만족한 후 
 # 이 프레임 수만큼 유지되면 자동 촬영
