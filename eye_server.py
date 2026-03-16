@@ -17,6 +17,9 @@ import gc
 import sqlite3
 import re
 import sys
+import io
+import importlib
+import requests
 from datetime import datetime
 from PIL import Image
 
@@ -41,6 +44,7 @@ debug_boxes_cache = []
 debug_frame_counter = 0
 
 HISTORY_DB_PATH = os.path.join(config.BASE_DIR, 'database', 'history.db')
+REPORT_EXPORT_DIR = os.path.join(config.BASE_DIR, 'web', 'static', 'reports')
 
 ADMIN_EDITABLE_CONFIG_KEYS = {
     'SERVER_IP': str,
@@ -457,6 +461,296 @@ def delete_survey_record(user_id, survey_id):
         return cur.rowcount > 0
     finally:
         conn.close()
+
+
+def build_history_sessions(records):
+    """
+    report.html과 동일한 기준(3분 내 좌/우안 병합)으로 세션을 구성한다.
+    - 이유: 프론트에서 보이는 최신 검사 단위와 백엔드 PDF 기준을 일치시키기 위함
+    """
+    sessions = []
+    max_merge_gap_ms = 3 * 60 * 1000
+
+    def to_ms(value):
+        if not value:
+            return 0
+        try:
+            return int(datetime.fromisoformat(str(value).replace(' ', 'T')).timestamp() * 1000)
+        except Exception:
+            return 0
+
+    index = 0
+    while index < len(records):
+        first = records[index]
+        session = {
+            'created_at': first.get('created_at'),
+            'records': [first],
+            'analysis': first.get('analysis') or {}
+        }
+
+        has_left = bool((session['analysis'] or {}).get('left_eye'))
+        has_right = bool((session['analysis'] or {}).get('right_eye'))
+        needs_merge = not (has_left and has_right)
+
+        if needs_merge and (index + 1) < len(records):
+            second = records[index + 1]
+            if abs(to_ms(first.get('created_at')) - to_ms(second.get('created_at'))) <= max_merge_gap_ms:
+                session['records'].append(second)
+                merged = session['analysis'] or {}
+                second_analysis = second.get('analysis') or {}
+                if not merged.get('left_eye') and second_analysis.get('left_eye'):
+                    merged['left_eye'] = second_analysis.get('left_eye')
+                if not merged.get('right_eye') and second_analysis.get('right_eye'):
+                    merged['right_eye'] = second_analysis.get('right_eye')
+                if not merged.get('guide') and second_analysis.get('guide'):
+                    merged['guide'] = second_analysis.get('guide')
+                session['analysis'] = merged
+                index += 1
+
+        sessions.append(session)
+        index += 1
+
+    return sessions
+
+
+def summarize_session_analysis(analysis):
+    """PDF/카카오 메시지에 공통으로 쓰는 요약 문자열 생성"""
+    analysis = analysis or {}
+    left = analysis.get('left_eye') or {}
+    right = analysis.get('right_eye') or {}
+    guide = analysis.get('guide') or {}
+
+    def eye_text(label, eye_data):
+        if not eye_data:
+            return f"{label}: 데이터 없음"
+        disease = eye_data.get('disease', '미상')
+        confidence = eye_data.get('confidence', 0)
+        redness = eye_data.get('redness', None)
+        if isinstance(confidence, (int, float)) and confidence <= 1:
+            confidence = confidence * 100
+        conf_text = f"{float(confidence):.1f}%" if isinstance(confidence, (int, float)) else str(confidence)
+        red_text = f"{float(redness):.4f}" if isinstance(redness, (int, float)) else 'N/A'
+        return f"{label}: {disease} | 신뢰도 {conf_text} | 충혈도 {red_text}"
+
+    return {
+        'left_summary': eye_text('좌안', left),
+        'right_summary': eye_text('우안', right),
+        'guide_tag': guide.get('tag_text', '가이드 없음'),
+        'guide_summary': guide.get('summary', '가이드 요약 없음')
+    }
+
+
+def cleanup_old_report_exports(user_id, keep_count=10, max_age_hours=24):
+    """
+    PDF 파일 누적 방지를 위한 보관 정책
+    - 같은 사용자 파일은 최신 keep_count개만 유지
+    - max_age_hours 초과 파일은 추가 삭제
+    """
+    safe_user_id = normalize_user_id(user_id)
+    os.makedirs(REPORT_EXPORT_DIR, exist_ok=True)
+
+    prefix = f"report_{safe_user_id}_"
+    files = []
+    for name in os.listdir(REPORT_EXPORT_DIR):
+        if not name.startswith(prefix) or not name.endswith('.pdf'):
+            continue
+        path = os.path.join(REPORT_EXPORT_DIR, name)
+        try:
+            stat = os.stat(path)
+            files.append((path, stat.st_mtime))
+        except Exception:
+            continue
+
+    files.sort(key=lambda item: item[1], reverse=True)
+    now_ts = time.time()
+    ttl_seconds = max_age_hours * 3600
+
+    for index, (path, mtime) in enumerate(files):
+        over_count = index >= keep_count
+        over_ttl = (now_ts - mtime) > ttl_seconds
+        if over_count or over_ttl:
+            try:
+                os.remove(path)
+            except Exception as error:
+                print(f"[WARNING] 오래된 리포트 삭제 실패: {path} ({error})")
+
+
+def generate_session_pdf_report(user_id, session_data, latest_survey):
+    """
+    메인 서버 기준 PDF 생성
+    - reportlab이 설치되지 않은 환경에서도 명확한 오류를 반환하도록 지연 import 사용
+    """
+    try:
+        reportlab_pagesizes = importlib.import_module('reportlab.lib.pagesizes')
+        reportlab_utils = importlib.import_module('reportlab.lib.utils')
+        reportlab_canvas = importlib.import_module('reportlab.pdfgen.canvas')
+        A4 = reportlab_pagesizes.A4
+        ImageReader = reportlab_utils.ImageReader
+        canvas = reportlab_canvas
+    except Exception as import_error:
+        raise RuntimeError('PDF 기능을 사용하려면 reportlab 설치가 필요합니다. (pip install reportlab)') from import_error
+
+    safe_user_id = normalize_user_id(user_id)
+    os.makedirs(REPORT_EXPORT_DIR, exist_ok=True)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"report_{safe_user_id}_{timestamp}.pdf"
+    pdf_path = os.path.join(REPORT_EXPORT_DIR, filename)
+    pdf_url = f"/static/reports/{filename}"
+
+    session_created_at = session_data.get('created_at') or '-'
+    analysis = session_data.get('analysis') or {}
+    summary = summarize_session_analysis(analysis)
+
+    c = canvas.Canvas(pdf_path, pagesize=A4)
+    page_w, page_h = A4
+    y = page_h - 48
+
+    # 주석: 폰트는 환경 의존성을 줄이기 위해 기본 Helvetica를 사용한다.
+    c.setFont('Helvetica-Bold', 14)
+    c.drawString(36, y, 'Eye Project - Diagnosis Report')
+    y -= 20
+
+    c.setFont('Helvetica', 10)
+    c.drawString(36, y, f'User ID: {safe_user_id}')
+    y -= 14
+    c.drawString(36, y, f'Exam Time: {session_created_at}')
+    y -= 20
+
+    c.setFont('Helvetica-Bold', 11)
+    c.drawString(36, y, 'AI Summary')
+    y -= 14
+
+    c.setFont('Helvetica', 10)
+    c.drawString(44, y, summary['left_summary'])
+    y -= 14
+    c.drawString(44, y, summary['right_summary'])
+    y -= 14
+    c.drawString(44, y, f"Guide Tag: {summary['guide_tag']}")
+    y -= 14
+    c.drawString(44, y, f"Guide: {summary['guide_summary'][:120]}")
+    y -= 20
+
+    if latest_survey:
+        c.setFont('Helvetica-Bold', 11)
+        c.drawString(36, y, 'Latest Survey')
+        y -= 14
+        c.setFont('Helvetica', 10)
+        age_text = latest_survey.get('age') if latest_survey.get('age') is not None else '-'
+        c.drawString(44, y, f"Age: {age_text} | Gender: {latest_survey.get('gender', '-')}")
+        y -= 14
+        symptoms = latest_survey.get('symptoms') or []
+        symptom_text = ', '.join(symptoms[:5]) if isinstance(symptoms, list) and symptoms else '없음'
+        c.drawString(44, y, f"Symptoms: {symptom_text}")
+        y -= 22
+
+    c.setFont('Helvetica-Bold', 11)
+    c.drawString(36, y, 'Captured Images')
+    y -= 12
+
+    image_drawn = 0
+    for record in session_data.get('records', []):
+        image_path = record.get('image_path')
+        if not image_path or not os.path.exists(image_path):
+            continue
+        try:
+            with open(image_path, 'rb') as file:
+                image_reader = ImageReader(io.BytesIO(file.read()))
+
+            draw_w = 240
+            draw_h = 150
+            if y - draw_h < 40:
+                c.showPage()
+                y = page_h - 48
+            c.drawImage(image_reader, 44, y - draw_h, width=draw_w, height=draw_h, preserveAspectRatio=True, mask='auto')
+            y -= (draw_h + 14)
+            image_drawn += 1
+            if image_drawn >= 2:
+                break
+        except Exception as image_error:
+            print(f"[WARNING] PDF 이미지 삽입 실패: {image_path} ({image_error})")
+
+    if image_drawn == 0:
+        c.setFont('Helvetica', 10)
+        c.drawString(44, y, '이미지 파일을 찾지 못해 텍스트 요약만 포함되었습니다.')
+
+    c.showPage()
+    c.save()
+
+    cleanup_old_report_exports(safe_user_id)
+    return pdf_path, pdf_url
+
+
+def send_kakao_report_message(user_id, report_url):
+    """
+    카카오 나에게 보내기 API
+    - 토큰은 환경변수 KAKAO_ACCESS_TOKEN만 사용
+    - 코드/저장소에 토큰 하드코딩 금지
+    """
+    token = os.environ.get('KAKAO_ACCESS_TOKEN')
+    if not token:
+        raise RuntimeError('KAKAO_ACCESS_TOKEN 환경변수가 필요합니다.')
+
+    external_base_url = os.environ.get('EXTERNAL_BASE_URL', '').strip().rstrip('/')
+    if external_base_url:
+        open_url = f"{external_base_url}{report_url}"
+    else:
+        open_url = f"http://{config.SERVER_IP}:{config.SERVER_PORT}{report_url}"
+
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    template_object = {
+        'object_type': 'text',
+        'text': f"안구 진단 보고서가 생성되었습니다.\n사용자: {normalize_user_id(user_id)}\n\n보고서 열기: {open_url}",
+        'link': {
+            'web_url': open_url,
+            'mobile_web_url': open_url
+        },
+        'button_title': '보고서 열기'
+    }
+
+    response = requests.post(
+        'https://kapi.kakao.com/v2/api/talk/memo/default/send',
+        headers=headers,
+        data={'template_object': json.dumps(template_object, ensure_ascii=False)},
+        timeout=10
+    )
+
+    if response.status_code != 200:
+        raise RuntimeError(f"Kakao send failed: {response.status_code} {response.text}")
+
+    return {
+        'open_url': open_url,
+        'kakao_response': response.json() if response.text else {}
+    }
+
+
+def get_report_dependency_status():
+    """
+    보고서 기능 의존성 점검
+    - reportlab: PDF 생성 필수
+    - requests: 카카오 API 호출 필수
+    """
+    reportlab_installed = importlib.util.find_spec('reportlab') is not None
+    requests_installed = importlib.util.find_spec('requests') is not None
+    kakao_token_set = bool(os.environ.get('KAKAO_ACCESS_TOKEN'))
+
+    missing = []
+    if not reportlab_installed:
+        missing.append('reportlab')
+    if not requests_installed:
+        missing.append('requests')
+
+    return {
+        'reportlab_installed': reportlab_installed,
+        'requests_installed': requests_installed,
+        'kakao_token_configured': kakao_token_set,
+        'pdf_generation_ready': reportlab_installed,
+        'kakao_send_ready': requests_installed and kakao_token_set,
+        'missing_packages': missing
+    }
 
 
 # ========================================
@@ -1405,6 +1699,57 @@ def api_survey_delete(survey_id):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/report/share', methods=['POST'])
+def api_report_share():
+    """
+    report 페이지의 "보고서" 버튼용 API
+    1) 최신 검사 세션 기준 PDF 생성
+    2) 카카오톡 전송(옵션)
+    """
+    try:
+        data = request.json or {}
+        user_id = normalize_user_id(data.get('user_id'))
+        send_kakao = bool(data.get('send_kakao', True))
+
+        if user_id == 'anonymous':
+            return jsonify({'status': 'error', 'message': '사용자 식별자가 필요합니다.'}), 400
+
+        history = list_history_records(user_id, limit=200)
+        if not history:
+            return jsonify({'status': 'error', 'message': '보고서를 만들 검사 기록이 없습니다.'}), 404
+
+        sessions = build_history_sessions(history)
+        latest_session = sessions[0] if sessions else None
+        if not latest_session:
+            return jsonify({'status': 'error', 'message': '유효한 검사 세션을 찾지 못했습니다.'}), 404
+
+        surveys = list_survey_records(user_id, limit=1)
+        latest_survey = (surveys[0].get('survey') if surveys else None)
+
+        pdf_path, pdf_url = generate_session_pdf_report(user_id, latest_session, latest_survey)
+
+        kakao_result = None
+        kakao_error = None
+        if send_kakao:
+            try:
+                kakao_result = send_kakao_report_message(user_id, pdf_url)
+            except Exception as error:
+                kakao_error = str(error)
+
+        return jsonify({
+            'status': 'ok',
+            'user_id': user_id,
+            'pdf_path': pdf_path,
+            'pdf_url': pdf_url,
+            'kakao_sent': bool(kakao_result),
+            'kakao': kakao_result,
+            'kakao_error': kakao_error,
+            'message': '보고서 생성이 완료되었습니다.'
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @app.route('/diagnose', methods=['POST'])
 def diagnose():
     """
@@ -1539,6 +1884,18 @@ def reset_capture_state():
         }), 500
 
 
+@app.route('/api/report/dependencies', methods=['GET'])
+def api_report_dependencies():
+    """
+    보고서(PDF/카카오) 기능 의존성 상태 조회
+    운영 점검용 엔드포인트
+    """
+    return jsonify({
+        'status': 'ok',
+        'report_dependencies': get_report_dependency_status()
+    }), 200
+
+
 @app.route('/status')
 def status():
     """서버 상태 확인"""
@@ -1551,11 +1908,19 @@ def status():
             'reserved_memory_gb': f"{torch.cuda.memory_reserved(0) / 1e9:.2f}"
         }
     
+    report_dep = get_report_dependency_status()
+
     return jsonify({
         'status': 'running',
         'models_loaded': model_manager is not None,
         'camera_connected': current_frame is not None,
-        'gpu_info': gpu_info
+        'gpu_info': gpu_info,
+        'report_feature': {
+            'pdf_generation_ready': report_dep['pdf_generation_ready'],
+            'kakao_send_ready': report_dep['kakao_send_ready'],
+            'kakao_token_configured': report_dep['kakao_token_configured'],
+            'missing_packages': report_dep['missing_packages']
+        }
     })
 
 

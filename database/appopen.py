@@ -1,19 +1,14 @@
-서버 켜기 (토큰 포함)
-$env:HASH_PEPPER="my-secret-pepper"
-$env:KAKAO_ACCESS_TOKEN="09wZP9_vQHSJC2ArwoGhdMyn6raB_Ls-AAAAAQoNIdkAAAGcnYQR-yrXsvB0zxAC" 
-python app.py
+보안 실행 예시 (실토큰/실비밀값 하드코딩 금지)
+$env:HASH_PEPPER="your-secret-pepper"
+$env:KAKAO_ACCESS_TOKEN="your-kakao-access-token"
+python eye_server.py
 
 
-post 
-Invoke-RestMethod -Uri "http://127.0.0.1:5000/diagnosis" `
+보고서 생성 + 카카오 전송 테스트 (메인 서버 통합 API)
+Invoke-RestMethod -Uri "http://127.0.0.1:5000/api/report/share" `
   -Method Post `
   -ContentType "application/json" `
   -Body '{
-    "phone":"010-1234-5678",
-    "display_name":"테스트",
-    "ai_reading":{"label":"normal","score":0.92},
-    "pixel_metrics":{"redness_area":1234,"vessel_density":0.18},
-    "survey":{"dry_eye":true,"screen_time_hours":7},
-    "impression":"전반적으로 정상 범위입니다.",
-    "make_pdf":true
+    "user_id":"010-1234-5678",
+    "send_kakao":true
   }'

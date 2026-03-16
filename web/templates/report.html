@@ -612,7 +612,7 @@
                 <div class="footer-btns">
                     <button class="btn btn-home" onclick="location.href='/'">메인으로</button>
                     <button class="btn btn-home" onclick="location.href='/result'">결과로 돌아가기</button>
-                    <button class="btn btn-print" onclick="window.print()">📥 리포트 저장</button>
+                    <button id="btn-share-report" class="btn btn-print" onclick="generateShareReport()">📄 보고서</button>
                 </div>
             </div>
             
@@ -1105,6 +1105,55 @@
             } catch (error) {
                 console.error('[survey delete error]', error);
                 alert(`설문 삭제 실패: ${error.message || error}`);
+            }
+        }
+
+        // report 페이지 "보고서" 버튼 동작
+        // - 메인 서버(/api/report/share)에서 최신 세션 기준 PDF 생성
+        // - 카카오 전송 결과를 함께 사용자에게 안내
+        async function generateShareReport() {
+            const button = document.getElementById('btn-share-report');
+            const originalText = button ? button.textContent : '📄 보고서';
+
+            try {
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = '보고서 생성 중...';
+                }
+
+                const res = await fetch('/api/report/share', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: activeUserId,
+                        send_kakao: true
+                    })
+                });
+
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.status !== 'ok') {
+                    throw new Error(data.message || '보고서 생성 실패');
+                }
+
+                const pdfUrl = data.pdf_url || null;
+                if (pdfUrl) {
+                    window.open(pdfUrl, '_blank', 'noopener');
+                }
+
+                if (data.kakao_sent) {
+                    alert('보고서 생성 완료 및 카카오톡 전송 성공');
+                } else if (data.kakao_error) {
+                    alert(`보고서는 생성되었습니다.\n카카오 전송 실패: ${data.kakao_error}`);
+                } else {
+                    alert('보고서가 생성되었습니다.');
+                }
+            } catch (error) {
+                alert(`보고서 처리 실패: ${error.message || error}`);
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = originalText;
+                }
             }
         }
 
