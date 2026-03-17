@@ -1,8 +1,11 @@
 # db.py
 import sqlite3
 import json
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.security_utils import phone_hash_id
 from typing import Optional, Dict, Any, Tuple, List
-from security_utils import phone_hash_id
 
 # ✅ DDL(스키마) 전체 포함 버전
 SCHEMA_SQL = """

@@ -188,6 +188,45 @@
             font-size: 1.1rem;
             cursor: pointer;
         }
+
+        @media screen and (max-width: 768px) {
+            body {
+                width: 100%;
+                min-height: 100vh;
+                height: auto;
+                overflow-x: hidden;
+                overflow-y: auto;
+                display: block;
+                padding: 14px;
+                box-sizing: border-box;
+            }
+
+            .auth-container {
+                width: 100%;
+                max-width: 100%;
+                padding: 22px 16px;
+                border-radius: 18px;
+                box-sizing: border-box;
+            }
+
+            .auth-header h2 { font-size: 1.8rem; margin-bottom: 10px; }
+            .auth-header p { font-size: 0.98rem; margin-bottom: 24px; }
+            .input-group { margin-bottom: 18px; }
+            .input-group input {
+                min-height: 48px;
+                padding: 14px;
+                font-size: 1rem;
+            }
+
+            .btn-confirm {
+                min-height: 48px;
+                padding: 14px;
+                font-size: 1.06rem;
+                margin-bottom: 12px;
+            }
+
+            .btn-back { font-size: 0.96rem; }
+        }
     </style>
 </head>
 <body>
@@ -357,25 +396,7 @@
             }
         }
 
-        function ensureToggleButton() {
-            let btn = document.getElementById('global-theme-toggle');
-            if (btn) return btn;
-
-            btn = document.createElement('button');
-            btn.id = 'global-theme-toggle';
-            btn.className = 'theme-toggle-floating';
-            btn.type = 'button';
-            btn.innerHTML = '<span data-role="icon">🌙</span><span data-role="label">다크 모드</span>';
-            document.body.appendChild(btn);
-            return btn;
-        }
-
-        const btn = ensureToggleButton();
         applyTheme(currentTheme(), false);
-        btn.addEventListener('click', function () {
-            const next = currentTheme() === 'dark' ? 'light' : 'dark';
-            applyTheme(next, true);
-        });
     })();
 </script>
 

@@ -15,6 +15,7 @@
             }
         })();
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <style>
         :root {
             --primary: #007AFF;
@@ -176,6 +177,20 @@
             cursor: pointer;
         }
 
+        .start-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .start-section .btn-start,
+        .start-section .btn-mobile-access {
+            width: min(460px, 92vw);
+            text-align: center;
+            box-sizing: border-box;
+        }
+
         .btn-start:hover {
             transform: translateY(-5px);
             box-shadow: 0 20px 40px var(--btn-shadow-hover);
@@ -184,6 +199,133 @@
 
         .btn-start:active {
             transform: scale(0.96);
+        }
+
+        .btn-mobile-access {
+            margin-top: 0;
+            display: inline-block;
+            background: #e2e8f0;
+            color: #1e293b;
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-size: 1.02rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+        }
+
+        .mobile-o2o-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 2100;
+            background: rgba(15, 23, 42, 0.65);
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            box-sizing: border-box;
+        }
+
+        .mobile-o2o-panel {
+            width: min(760px, 100%);
+            background: var(--card-bg);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 12px 40px rgba(15, 23, 42, 0.35);
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+        }
+
+        .mobile-o2o-header {
+            height: 58px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--border);
+            background: #f8fafc;
+            box-sizing: border-box;
+        }
+
+        [data-theme="dark"] .mobile-o2o-header {
+            background: #111827;
+        }
+
+        .mobile-o2o-title {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text-dark);
+        }
+
+        .mobile-o2o-close {
+            border: none;
+            background: #e2e8f0;
+            color: #1e293b;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .mobile-o2o-body {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .mobile-step-note {
+            margin: 0 0 14px;
+            color: var(--text-sub);
+            font-size: 0.96rem;
+            line-height: 1.45;
+        }
+
+        #mobile-qr-wrap {
+            width: 220px;
+            height: 220px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #mobile-server-url {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            word-break: break-all;
+        }
+
+        .mobile-pin-box {
+            margin-top: 18px;
+            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #f8fafc;
+            display: none;
+        }
+
+        [data-theme="dark"] .mobile-pin-box {
+            background: #111827;
+        }
+
+        #mobile-pin-number {
+            font-size: 2.4rem;
+            font-weight: 900;
+            letter-spacing: 8px;
+            color: var(--primary);
+            margin: 8px 0 0;
+        }
+
+        #mobile-connect-status,
+        #mobile-complete-status {
+            margin-top: 14px;
+            font-size: 0.95rem;
+            color: var(--text-sub);
         }
 
         .helper-text {
@@ -196,6 +338,122 @@
             0% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.1); opacity: 0.8; }
             100% { transform: scale(1); opacity: 1; }
+        }
+
+        @media screen and (max-width: 768px) {
+            body {
+                width: 100%;
+                min-height: 100vh;
+                height: auto;
+                overflow-x: hidden;
+                overflow-y: auto;
+                display: block;
+            }
+
+            .welcome-container {
+                min-height: 100vh;
+                height: auto;
+                justify-content: flex-start;
+                padding: 88px 18px 28px;
+                box-sizing: border-box;
+            }
+
+            .theme-toggle-floating {
+                top: 12px;
+                min-height: 48px;
+                padding: 12px 16px;
+                font-size: 0.95rem;
+            }
+
+            .main-visual {
+                margin-bottom: 18px;
+            }
+
+            .eye-scan-icon {
+                font-size: 4.2rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+                line-height: 1.3;
+                margin-bottom: 12px;
+            }
+
+            .subtitle {
+                font-size: 1rem;
+                line-height: 1.5;
+                margin-bottom: 28px;
+            }
+
+            .feature-tags {
+                margin-bottom: 30px;
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .feature-tags span {
+                margin: 0;
+                padding: 10px 18px;
+                font-size: 0.95rem;
+                width: 100%;
+                max-width: 320px;
+                box-sizing: border-box;
+            }
+
+            .start-section {
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 14px;
+            }
+
+            .btn-start {
+                width: 100%;
+                max-width: 340px;
+                min-height: 48px;
+                padding: 14px 20px;
+                box-sizing: border-box;
+                font-size: 1.2rem;
+                border-radius: 18px;
+                text-align: center;
+            }
+
+            .helper-text {
+                margin-top: 0;
+                font-size: 0.88rem;
+                line-height: 1.45;
+                padding: 0 6px;
+            }
+
+            .btn-mobile-access {
+                width: 100%;
+                max-width: 340px;
+                min-height: 48px;
+                padding: 12px 18px;
+                font-size: 1rem;
+            }
+
+            .mobile-o2o-overlay {
+                padding: 12px;
+            }
+
+            .mobile-o2o-body {
+                padding: 14px;
+            }
+
+            #mobile-qr-wrap {
+                width: 190px;
+                height: 190px;
+            }
+
+            #mobile-pin-number {
+                font-size: 2rem;
+                letter-spacing: 6px;
+            }
         }
     </style>
 </head>
@@ -227,7 +485,31 @@
         <a href="{{ url_for('login') }}" class="btn-start">
             진단 시작하기
         </a>
+        <button type="button" class="btn-mobile-access" onclick="openMobileAccessModal()">📱 모바일 기기로 접속</button>
         <p class="helper-text">※ 본 서비스는 의료 보조 및 스크리닝 목적으로 제공됩니다.</p>
+    </div>
+</div>
+
+<div id="mobile-o2o-overlay" class="mobile-o2o-overlay" onclick="closeMobileAccessModal(event)">
+    <div class="mobile-o2o-panel">
+        <div class="mobile-o2o-header">
+            <div class="mobile-o2o-title">모바일 연동 (O2O)</div>
+            <button class="mobile-o2o-close" type="button" onclick="closeMobileAccessModal()">닫기</button>
+        </div>
+        <div class="mobile-o2o-body">
+            <p class="mobile-step-note">1단계: 스마트폰으로 아래 QR 코드를 스캔해 접속하세요.</p>
+            <div id="mobile-qr-wrap"><span style="font-size:0.88rem; color:#94a3b8;">QR 준비 중...</span></div>
+            <div id="mobile-server-url"></div>
+
+            <div id="mobile-connect-status">모바일 접속 대기 중...</div>
+
+            <div id="mobile-pin-box" class="mobile-pin-box">
+                <div style="font-size:0.92rem; color:var(--text-sub);">2단계: 스마트폰에 아래 PIN을 입력하세요</div>
+                <div id="mobile-pin-number">----</div>
+            </div>
+
+            <div id="mobile-complete-status"></div>
+        </div>
     </div>
 </div>
 
@@ -267,6 +549,125 @@
             applyTheme(next);
         });
     })();
+</script>
+
+<script>
+    let mobileAccessState = {
+        requestId: null,
+        pollTimer: null,
+        countdownTimer: null,
+        countdown: 0,
+        completed: false
+    };
+
+    function resetMobileAccessState() {
+        if (mobileAccessState.pollTimer) {
+            clearInterval(mobileAccessState.pollTimer);
+        }
+        if (mobileAccessState.countdownTimer) {
+            clearInterval(mobileAccessState.countdownTimer);
+        }
+        mobileAccessState = {
+            requestId: null,
+            pollTimer: null,
+            countdownTimer: null,
+            countdown: 0,
+            completed: false
+        };
+    }
+
+    function closeMobileAccessModal(event) {
+        if (event && event.target && event.target.id !== 'mobile-o2o-overlay') {
+            return;
+        }
+        const overlay = document.getElementById('mobile-o2o-overlay');
+        if (overlay) overlay.style.display = 'none';
+        resetMobileAccessState();
+    }
+
+    function renderMobileQr(url) {
+        const qrWrap = document.getElementById('mobile-qr-wrap');
+        qrWrap.innerHTML = '';
+        new QRCode(qrWrap, {
+            text: url,
+            width: 180,
+            height: 180,
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    }
+
+    async function openMobileAccessModal() {
+        const overlay = document.getElementById('mobile-o2o-overlay');
+        const statusEl = document.getElementById('mobile-connect-status');
+        const completeEl = document.getElementById('mobile-complete-status');
+        const pinBox = document.getElementById('mobile-pin-box');
+        const pinNumber = document.getElementById('mobile-pin-number');
+        const urlEl = document.getElementById('mobile-server-url');
+
+        resetMobileAccessState();
+        completeEl.textContent = '';
+        statusEl.textContent = '모바일 접속 대기 중...';
+        pinBox.style.display = 'none';
+        pinNumber.textContent = '----';
+        overlay.style.display = 'flex';
+
+        try {
+            const res = await fetch('/api/generate_pin', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'PIN 발급 실패');
+            }
+
+            mobileAccessState.requestId = data.request_id;
+            renderMobileQr(data.mobile_url);
+            urlEl.textContent = data.mobile_url;
+
+            mobileAccessState.pollTimer = setInterval(async () => {
+                if (!mobileAccessState.requestId || mobileAccessState.completed) return;
+
+                try {
+                    const statusRes = await fetch(`/api/pin_status?request_id=${encodeURIComponent(mobileAccessState.requestId)}`);
+                    const statusData = await statusRes.json();
+                    if (!statusRes.ok || statusData.status !== 'ok') {
+                        return;
+                    }
+
+                    if (statusData.mobile_connected) {
+                        statusEl.textContent = '모바일 접속 확인됨. PIN을 입력해 주세요.';
+                        pinBox.style.display = 'block';
+                        pinNumber.textContent = statusData.pin || '----';
+                    }
+
+                    if (statusData.verified) {
+                        mobileAccessState.completed = true;
+                        statusEl.textContent = '모바일 인증이 완료되었습니다.';
+                        mobileAccessState.countdown = 5;
+                        completeEl.textContent = `기본 화면으로 ${mobileAccessState.countdown}초 후 돌아갑니다.`;
+
+                        if (mobileAccessState.pollTimer) {
+                            clearInterval(mobileAccessState.pollTimer);
+                            mobileAccessState.pollTimer = null;
+                        }
+
+                        mobileAccessState.countdownTimer = setInterval(() => {
+                            mobileAccessState.countdown -= 1;
+                            if (mobileAccessState.countdown <= 0) {
+                                clearInterval(mobileAccessState.countdownTimer);
+                                closeMobileAccessModal();
+                                window.location.href = '/';
+                                return;
+                            }
+                            completeEl.textContent = `기본 화면으로 ${mobileAccessState.countdown}초 후 돌아갑니다.`;
+                        }, 1000);
+                    }
+                } catch (e) {
+                    // polling error ignore
+                }
+            }, 1000);
+        } catch (error) {
+            statusEl.textContent = `오류: ${error.message || error}`;
+        }
+    }
 </script>
 
 </body>

@@ -28,7 +28,7 @@ CLASSIFIER_MODEL_PATH = os.path.join(MODEL_DIR, 'Augmented_EffNet_V1_B0_best.pth
 # ========================================
 SERVER_IP = '0.0.0.0'
 SERVER_PORT = 5000
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 # ========================================
 # [3-1] 카메라 설정

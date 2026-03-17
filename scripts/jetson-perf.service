@@ -1,0 +1,11 @@
+[Unit]
+Description=Jetson Orin Nano Performance Setup (MAXN + jetson_clocks + drop_caches)
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/jetson_orin_nano/eye_project/scripts/perf_setup.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

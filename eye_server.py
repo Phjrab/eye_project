@@ -3,6 +3,9 @@ Eye Disease Detection Server
 웹 인터페이스와 AI 파이프라인의 오케스트레이터
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, render_template, Response, jsonify, request, session, redirect, url_for
 import cv2
 import numpy as np
@@ -20,6 +23,10 @@ import sys
 import io
 import importlib
 import requests
+import random
+import uuid
+import socket
+import subprocess
 from datetime import datetime
 from PIL import Image
 
@@ -63,6 +70,10 @@ ADMIN_EDITABLE_CONFIG_KEYS = {
     'AUTO_SCALE_MAX': float,
     'AUTO_CAPTURE_HOLD_FRAMES': int
 }
+
+MOBILE_PIN_STORE = {}
+MOBILE_PIN_LOCK = threading.Lock()
+MOBILE_PIN_TTL_SECONDS = 300
 
 
 def is_admin_session():
@@ -125,6 +136,66 @@ def get_admin_config_snapshot():
     for key in ADMIN_EDITABLE_CONFIG_KEYS:
         snapshot[key] = getattr(config, key, None)
     return snapshot
+
+
+def cleanup_expired_mobile_pins():
+    now_ts = time.time()
+    expired_keys = []
+
+    with MOBILE_PIN_LOCK:
+        for request_id, payload in MOBILE_PIN_STORE.items():
+            created_at = float(payload.get('created_at_ts', 0))
+            if (now_ts - created_at) > MOBILE_PIN_TTL_SECONDS:
+                expired_keys.append(request_id)
+
+        for request_id in expired_keys:
+            MOBILE_PIN_STORE.pop(request_id, None)
+
+
+def get_mobile_entry(request_id):
+    if not request_id:
+        return None
+
+    cleanup_expired_mobile_pins()
+    with MOBILE_PIN_LOCK:
+        payload = MOBILE_PIN_STORE.get(request_id)
+        if not payload:
+            return None
+        return dict(payload)
+
+
+def is_verified_mobile_request(request_id):
+    payload = get_mobile_entry(request_id)
+    if not payload:
+        return False
+    return bool(payload.get('verified', False))
+
+
+def resolve_mobile_base_url():
+    external_base_url = os.environ.get('EXTERNAL_BASE_URL', '').strip().rstrip('/')
+    if external_base_url:
+        return external_base_url
+
+    server_ip = str(getattr(config, 'SERVER_IP', '')).strip()
+    server_port = int(getattr(config, 'SERVER_PORT', 5000))
+    if server_ip and server_ip not in ('0.0.0.0', '127.0.0.1', 'localhost'):
+        return f"http://{server_ip}:{server_port}"
+
+    host_from_request = request.host.split(':')[0].strip()
+    if host_from_request and host_from_request not in ('0.0.0.0', '127.0.0.1', 'localhost'):
+        return f"http://{host_from_request}:{server_port}"
+
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(('8.8.8.8', 80))
+        local_ip = sock.getsockname()[0]
+        sock.close()
+        if local_ip:
+            return f"http://{local_ip}:{server_port}"
+    except Exception:
+        pass
+
+    return request.host_url.rstrip('/')
 
 # ========================================
 # [2] 촬영 상태 관리 (왼쪽/오른쪽 눈 시퀀스)
@@ -1480,6 +1551,138 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/api/generate_pin', methods=['POST'])
+def api_generate_pin():
+    """키오스크에서 모바일 접속용 4자리 PIN 발급"""
+    try:
+        cleanup_expired_mobile_pins()
+        request_id = uuid.uuid4().hex[:12]
+        pin_code = f"{random.randint(0, 9999):04d}"
+
+        with MOBILE_PIN_LOCK:
+            MOBILE_PIN_STORE[request_id] = {
+                'pin': pin_code,
+                'created_at_ts': time.time(),
+                'mobile_connected': False,
+                'verified': False
+            }
+
+        mobile_base = resolve_mobile_base_url()
+        mobile_url = f"{mobile_base}/m?request_id={request_id}"
+
+        return jsonify({
+            'status': 'ok',
+            'request_id': request_id,
+            'mobile_url': mobile_url,
+            'expires_in_sec': MOBILE_PIN_TTL_SECONDS
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/pin_status', methods=['GET'])
+def api_pin_status():
+    """키오스크 모달에서 PIN 상태(모바일 접속/인증 완료) 확인"""
+    try:
+        request_id = str(request.args.get('request_id', '')).strip()
+        payload = get_mobile_entry(request_id)
+        if not payload:
+            return jsonify({'status': 'error', 'message': '유효하지 않거나 만료된 PIN입니다.'}), 404
+
+        created_at_ts = float(payload.get('created_at_ts', 0))
+        remaining = max(0, MOBILE_PIN_TTL_SECONDS - int(time.time() - created_at_ts))
+
+        return jsonify({
+            'status': 'ok',
+            'request_id': request_id,
+            'mobile_connected': bool(payload.get('mobile_connected', False)),
+            'verified': bool(payload.get('verified', False)),
+            'pin': payload.get('pin') if payload.get('mobile_connected', False) else None,
+            'expires_in_sec': remaining
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/mobile_connected', methods=['POST'])
+def api_mobile_connected():
+    """모바일 /m 진입 확인 신호"""
+    try:
+        data = request.json or {}
+        request_id = str(data.get('request_id', '')).strip()
+        if not request_id:
+            return jsonify({'status': 'error', 'message': 'request_id가 필요합니다.'}), 400
+
+        cleanup_expired_mobile_pins()
+        with MOBILE_PIN_LOCK:
+            payload = MOBILE_PIN_STORE.get(request_id)
+            if not payload:
+                return jsonify({'status': 'error', 'message': '유효하지 않거나 만료된 PIN입니다.'}), 404
+            payload['mobile_connected'] = True
+
+        return jsonify({'status': 'ok', 'request_id': request_id}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/m')
+def mobile_login_page():
+    """모바일 PIN 입력 전용 화면"""
+    request_id = str(request.args.get('request_id', '')).strip()
+    return render_template('m_login.html', request_id=request_id)
+
+
+@app.route('/api/verify_pin', methods=['POST'])
+def api_verify_pin():
+    """모바일 PIN 검증 및 세션 인증"""
+    try:
+        data = request.json or {}
+        request_id = str(data.get('request_id', '')).strip()
+        pin = ''.join(ch for ch in str(data.get('pin', '')) if ch.isdigit())[:4]
+
+        if not request_id or len(pin) != 4:
+            return jsonify({'status': 'error', 'message': 'request_id와 4자리 PIN이 필요합니다.'}), 400
+
+        cleanup_expired_mobile_pins()
+        with MOBILE_PIN_LOCK:
+            payload = MOBILE_PIN_STORE.get(request_id)
+            if not payload:
+                return jsonify({'status': 'error', 'message': '유효하지 않거나 만료된 PIN입니다.'}), 404
+
+            if str(payload.get('pin')) != pin:
+                return jsonify({'status': 'error', 'message': 'PIN 번호가 올바르지 않습니다.'}), 401
+
+            payload['verified'] = True
+
+        session['mobile_verified'] = True
+        session['mobile_request_id'] = request_id
+
+        return jsonify({
+            'status': 'ok',
+            'verified': True,
+            'request_id': request_id,
+            'redirect_url': f"/m/dashboard?request_id={request_id}"
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/m/dashboard')
+def mobile_dashboard_page():
+    """모바일 인증 후 접근 가능한 대시보드"""
+    request_id = str(request.args.get('request_id', '')).strip()
+
+    if session.get('mobile_verified'):
+        return render_template('m_dashboard.html')
+
+    if request_id and is_verified_mobile_request(request_id):
+        session['mobile_verified'] = True
+        session['mobile_request_id'] = request_id
+        return render_template('m_dashboard.html')
+
+    return redirect(url_for('mobile_login_page', request_id=request_id))
+
+
 @app.route('/video_feed')
 def video_feed():
     """실시간 영상 스트림 (MJPEG)"""
@@ -2017,15 +2220,30 @@ def shutdown_process_delayed():
 
 
 def restart_process_delayed():
-    time.sleep(1.0)
+    time.sleep(0.5)
+
+    project_dir = config.BASE_DIR
+    python_exec = sys.executable
+    restart_cmd = (
+        f"sleep 2; cd '{project_dir}' && "
+        f"nohup '{python_exec}' eye_server.py > logs/server.out 2>&1 &"
+    )
+
+    try:
+        subprocess.Popen(
+            ['/bin/bash', '-lc', restart_cmd],
+            start_new_session=True
+        )
+    except Exception as error:
+        print(f"[ERROR] 재시작 프로세스 생성 실패: {error}")
+        return
+
     try:
         cleanup_resources()
     except Exception as error:
         print(f"[WARNING] 재시작 전 리소스 정리 중 오류: {error}")
-
-    python_exec = sys.executable
-    args = [python_exec] + sys.argv
-    os.execv(python_exec, args)
+    finally:
+        os._exit(0)
 
 
 @app.route('/api/admin/server/restart', methods=['POST'])

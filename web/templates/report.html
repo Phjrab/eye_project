@@ -254,6 +254,19 @@
             padding-right: 4px;
         }
 
+        .history-records-box {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .history-records-box .all-history-list {
+            flex: 1;
+            max-height: none;
+            min-height: clamp(220px, 30vh, 320px);
+        }
+
         .history-item {
             border: 1px solid var(--border);
             background: #fff;
@@ -782,6 +795,86 @@
             background: #ef4444;
             color: #fff;
         }
+
+        @media screen and (max-width: 768px) {
+            body {
+                width: 100%;
+                min-height: 100vh;
+                height: auto;
+                padding: 12px;
+                overflow-x: hidden;
+                overflow-y: auto;
+            }
+
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+                padding: 0;
+                margin-bottom: 12px;
+            }
+
+            h1 {
+                font-size: 1.4rem;
+            }
+
+            .main-grid,
+            .trend-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .card,
+            .trend-card {
+                padding: 14px;
+            }
+
+            .eye-compare-box {
+                grid-template-columns: 1fr;
+            }
+
+            .eye-frame {
+                height: 190px;
+            }
+
+            .history-item {
+                grid-template-columns: 1fr;
+                gap: 6px;
+                align-items: stretch;
+            }
+
+            .history-records-box {
+                flex: none;
+            }
+
+            .history-records-box .all-history-list {
+                min-height: 0;
+            }
+
+            .history-desc {
+                white-space: normal;
+            }
+
+            .survey-item {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-btns {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .btn,
+            .history-view-btn,
+            .history-delete-btn,
+            .survey-delete-btn,
+            .toast-btn {
+                min-height: 48px;
+                width: 100%;
+                box-sizing: border-box;
+            }
+        }
     </style>
 </head>
 <body>
@@ -798,34 +891,34 @@
             
             <div class="history-section">
                 <div>
-                    <strong style="display:block; margin-bottom:8px;">[왼쪽 눈 - L]</strong>
+                    <strong style="display:block; margin-bottom:8px;">[현재 눈]</strong>
                     <div class="eye-compare-box">
                         <div class="eye-frame" onclick="viewImage('past_L')">
-                            <span class="date-badge">과거 (2025.11.20)</span>
+                            <span id="badge-past-L" class="date-badge">과거 (2025.11.20)</span>
                             <img src="https://via.placeholder.com/200x150/333/fff?text=Past+L" id="img-past-L">
                         </div>
                         <div class="eye-frame" onclick="viewImage('current_L')">
-                            <span class="date-badge" style="background:var(--primary)">현재 (오늘)</span>
+                            <span id="badge-curr-L" class="date-badge" style="background:var(--primary)">현재 (오늘)</span>
                             <img src="" id="img-curr-L">
                         </div>
                     </div>
                 </div>
 
                 <div style="margin-top: 15px;">
-                    <strong style="display:block; margin-bottom:8px;">[오른쪽 눈 - R]</strong>
+                    <strong style="display:block; margin-bottom:8px;">[과거 검사 사진]</strong>
                     <div class="eye-compare-box">
                         <div class="eye-frame" onclick="viewImage('past_R')">
-                            <span class="date-badge">과거 (2025.11.20)</span>
+                            <span id="badge-past-R" class="date-badge">과거 (2025.11.20)</span>
                             <img src="https://via.placeholder.com/200x150/333/fff?text=Past+R" id="img-past-R">
                         </div>
                         <div class="eye-frame" onclick="viewImage('current_R')">
-                            <span class="date-badge" style="background:var(--primary)">현재 (오늘)</span>
+                            <span id="badge-curr-R" class="date-badge" style="background:var(--primary)">현재 (오늘)</span>
                             <img src="" id="img-curr-R">
                         </div>
                     </div>
                 </div>
 
-                <div class="summary-box" style="margin-top: 4px; margin-bottom: 0;">
+                <div class="summary-box history-records-box" style="margin-top: 4px; margin-bottom: 0;">
                     <strong style="color:var(--primary)">🗂️ 전체 검사 기록</strong>
                     <div id="all-history-list" class="all-history-list">
                         <div style="font-size:0.85rem; color:#64748b;">기록 불러오는 중...</div>
@@ -960,6 +1053,10 @@
     <script>
         let historyRecords = [];
         let historySessions = [];
+        let previewSlots = {
+            current: { L: null, R: null },
+            past: { L: null, R: null }
+        };
         let surveyRecords = [];
         let activeUserId = 'anonymous';
 
@@ -1161,6 +1258,26 @@
             session.records.push(record);
         }
 
+        function hasLeftEye(record) {
+            return !!record?.analysis?.left_eye;
+        }
+
+        function hasRightEye(record) {
+            return !!record?.analysis?.right_eye;
+        }
+
+        function hasBothEyes(record) {
+            return hasLeftEye(record) && hasRightEye(record);
+        }
+
+        function isComplementaryPair(recordA, recordB) {
+            const aL = hasLeftEye(recordA);
+            const aR = hasRightEye(recordA);
+            const bL = hasLeftEye(recordB);
+            const bR = hasRightEye(recordB);
+            return (aL && !aR && !bL && bR) || (!aL && aR && bL && !bR);
+        }
+
         function makeSessionFromRecord(record) {
             const session = {
                 created_at: record?.created_at || null,
@@ -1169,21 +1286,6 @@
                 eyes: { L: null, R: null }
             };
             addRecordEyesToSession(session, record);
-
-            if (!session.eyes.L) {
-                session.eyes.L = {
-                    image_url: record?.image_url || '',
-                    bbox: null,
-                    record
-                };
-            }
-            if (!session.eyes.R) {
-                session.eyes.R = {
-                    image_url: record?.image_url || '',
-                    bbox: null,
-                    record
-                };
-            }
 
             return session;
         }
@@ -1196,11 +1298,11 @@
                 const record = records[index];
                 const session = makeSessionFromRecord(record);
 
-                const hasBothEyes = !!(session.analysis?.left_eye && session.analysis?.right_eye);
-                if (!hasBothEyes && index + 1 < records.length) {
+                const hasBothInCurrentRecord = hasBothEyes(record);
+                if (!hasBothInCurrentRecord && index + 1 < records.length) {
                     const next = records[index + 1];
                     const timeGap = Math.abs(parseDateToMs(record.created_at) - parseDateToMs(next.created_at));
-                    if (timeGap <= maxMergeGapMs) {
+                    if (timeGap <= maxMergeGapMs && isComplementaryPair(record, next)) {
                         addRecordEyesToSession(session, next);
                         index += 1;
                     }
@@ -1212,11 +1314,36 @@
             return sessions;
         }
 
+        function getEyeRecordList(records, side) {
+            const key = side === 'R' ? 'right_eye' : 'left_eye';
+            return (records || []).filter((record) => !!record?.analysis?.[key]);
+        }
+
+        function setBadgeText(id, label, createdAt) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const dateLabel = createdAt ? String(createdAt).split(' ')[0].replace(/-/g, '.') : '기록 없음';
+            el.textContent = `${label} (${dateLabel})`;
+        }
+
         async function applyHistoryToUI(records) {
             historySessions = buildHistorySessions(records);
 
             const curr = historySessions[0] || null;
             const past = historySessions[1] || null;
+            const leftRecords = getEyeRecordList(records, 'L');
+            const rightRecords = getEyeRecordList(records, 'R');
+
+            previewSlots = {
+                current: {
+                    L: leftRecords[0] || null,
+                    R: rightRecords[0] || null
+                },
+                past: {
+                    L: leftRecords[1] || null,
+                    R: rightRecords[1] || null
+                }
+            };
 
             const emptyCurrent = 'https://via.placeholder.com/200x150/e2e8f0/64748b?text=No+Current';
             const emptyPast = 'https://via.placeholder.com/200x150/e2e8f0/64748b?text=No+Past';
@@ -1225,37 +1352,20 @@
             document.getElementById('img-past-L').src = emptyPast;
             document.getElementById('img-past-R').src = emptyPast;
 
-            document.querySelectorAll('.date-badge[style*="var(--primary)"]').forEach(el => {
-                el.textContent = '현재 (기록 없음)';
-            });
-            document.querySelectorAll('.date-badge:not([style*="var(--primary)"])').forEach(el => {
-                el.textContent = '과거 (기록 없음)';
-            });
+            setBadgeText('badge-curr-L', '현재', previewSlots.current.L?.created_at);
+            setBadgeText('badge-curr-R', '현재', previewSlots.current.R?.created_at);
+            setBadgeText('badge-past-L', '과거', previewSlots.past.L?.created_at);
+            setBadgeText('badge-past-R', '과거', previewSlots.past.R?.created_at);
 
-            if (curr) {
-                const currLeft = await resolveSessionEyeImage(curr, 'L');
-                const currRight = await resolveSessionEyeImage(curr, 'R');
+            const currLeft = await resolveRecordEyeImage(previewSlots.current.L, 'L');
+            const currRight = await resolveRecordEyeImage(previewSlots.current.R, 'R');
+            const pastLeft = await resolveRecordEyeImage(previewSlots.past.L, 'L');
+            const pastRight = await resolveRecordEyeImage(previewSlots.past.R, 'R');
 
-                document.getElementById('img-curr-L').src = currLeft || emptyCurrent;
-                document.getElementById('img-curr-R').src = currRight || emptyCurrent;
-                document.querySelectorAll('.date-badge[style*="var(--primary)"]').forEach(el => {
-                    const dateLabel = curr.created_at ? curr.created_at.split(' ')[0].replace(/-/g, '.') : '현재';
-                    el.textContent = `현재 (${dateLabel})`;
-                });
-            }
-
-            if (past) {
-                const pastLeft = await resolveSessionEyeImage(past, 'L');
-                const pastRight = await resolveSessionEyeImage(past, 'R');
-
-                document.getElementById('img-past-L').src = pastLeft || emptyPast;
-                document.getElementById('img-past-R').src = pastRight || emptyPast;
-                const badges = document.querySelectorAll('.date-badge:not([style*="var(--primary)"])');
-                const dateLabel = past.created_at ? past.created_at.split(' ')[0].replace(/-/g, '.') : '과거';
-                badges.forEach(el => {
-                    el.textContent = `과거 (${dateLabel})`;
-                });
-            }
+            document.getElementById('img-curr-L').src = currLeft || emptyCurrent;
+            document.getElementById('img-curr-R').src = currRight || emptyCurrent;
+            document.getElementById('img-past-L').src = pastLeft || emptyPast;
+            document.getElementById('img-past-R').src = pastRight || emptyPast;
 
             renderGuide(curr ? curr.analysis : null);
             renderRednessGraph(curr ? curr.analysis : null, past ? past.analysis : null);
@@ -1278,6 +1388,19 @@
             }
 
             return eye.image_url;
+        }
+
+        async function resolveRecordEyeImage(record, side) {
+            if (!record || !record.image_url) return '';
+            const bbox = getEyeBBox(record.analysis || {}, side);
+            if (bbox) {
+                try {
+                    return await buildCroppedEyeDataUrl(record.image_url, bbox);
+                } catch (error) {
+                    return record.image_url;
+                }
+            }
+            return record.image_url;
         }
 
         function formatShortDateTime(createdAt) {
@@ -1521,10 +1644,6 @@
                 }
 
                 const data = await requestReportShare(true);
-                const pdfUrl = data.pdf_url || null;
-                if (pdfUrl) {
-                    openReportPdfModal(pdfUrl);
-                }
 
                 if (data.kakao_sent) {
                     await showAlert('보고서 생성 완료 및 카카오톡 전송 성공');
@@ -1876,18 +1995,12 @@
         }
 
         async function viewImage(type) {
-            const curr = historySessions[0] || null;
-            const past = historySessions[1] || null;
+            const side = type.endsWith('_L') ? 'L' : 'R';
+            const section = (type === 'current_L' || type === 'current_R') ? 'current' : 'past';
+            const record = previewSlots?.[section]?.[side] || null;
 
-            if(type === 'current_L' || type === 'current_R') {
-                const record = curr?.records?.[0] || null;
-                if (!record) return;
-                await openEyeImageFromRecord(record, type.endsWith('_L') ? 'L' : 'R');
-            } else {
-                const record = past?.records?.[0] || null;
-                if (!record) return;
-                await openEyeImageFromRecord(record, type.endsWith('_L') ? 'L' : 'R');
-            }
+            if (!record) return;
+            await openEyeImageFromRecord(record, side);
         }
 
         async function viewHistoryImage(index, side) {
@@ -1920,23 +2033,7 @@
                     if (label) label.textContent = '다크 모드';
                 }
             }
-            function ensureToggleButton() {
-                let btn = document.getElementById('global-theme-toggle');
-                if (btn) return btn;
-                btn = document.createElement('button');
-                btn.id = 'global-theme-toggle';
-                btn.className = 'theme-toggle-floating';
-                btn.type = 'button';
-                btn.innerHTML = '<span data-role="icon">🌙</span><span data-role="label">다크 모드</span>';
-                document.body.appendChild(btn);
-                return btn;
-            }
-            const btn = ensureToggleButton();
             applyTheme(currentTheme(), false);
-            btn.addEventListener('click', function () {
-                const next = currentTheme() === 'dark' ? 'light' : 'dark';
-                applyTheme(next, true);
-            });
         })();
     </script>
 </body>

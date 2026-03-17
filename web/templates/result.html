@@ -293,6 +293,87 @@
         }
 
         input[type="number"] { width: 40%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
+
+        @media screen and (max-width: 768px) {
+            body {
+                width: 100%;
+                min-height: 100vh;
+                height: auto;
+                overflow-x: hidden;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .left-panel,
+            .right-panel {
+                width: 100%;
+                flex: none;
+            }
+
+            .left-panel {
+                min-height: 300px;
+            }
+
+            #captured-image {
+                height: 48vh;
+                min-height: 220px;
+            }
+
+            .eye-toggle-overlay {
+                top: 10px;
+            }
+
+            .camera-bottom-btns {
+                height: auto;
+                padding: 10px 12px;
+                flex-direction: column;
+                gap: 10px;
+                align-items: stretch;
+                justify-content: stretch;
+            }
+
+            .right-panel {
+                border-left: none;
+                border-top: 1px solid var(--border);
+                padding: 14px;
+            }
+
+            .btn,
+            .btn-toggle,
+            .btn-camera-sub,
+            .btn-main {
+                min-height: 48px;
+            }
+
+            .btn-camera-sub {
+                width: 100%;
+                flex: none;
+                height: auto;
+                box-sizing: border-box;
+            }
+
+            .btn-main {
+                width: 100%;
+                padding: 14px;
+                box-sizing: border-box;
+            }
+
+            .right-panel .card,
+            .right-panel > div {
+                width: 100%;
+            }
+
+            .map-overlay {
+                padding: 12px;
+            }
+
+            .map-panel {
+                width: 100%;
+                height: min(90vh, 760px);
+            }
+        }
     </style>
 </head>
 <body>
@@ -726,23 +807,7 @@
                 if (label) label.textContent = '다크 모드';
             }
         }
-        function ensureToggleButton() {
-            let btn = document.getElementById('global-theme-toggle');
-            if (btn) return btn;
-            btn = document.createElement('button');
-            btn.id = 'global-theme-toggle';
-            btn.className = 'theme-toggle-floating';
-            btn.type = 'button';
-            btn.innerHTML = '<span data-role="icon">🌙</span><span data-role="label">다크 모드</span>';
-            document.body.appendChild(btn);
-            return btn;
-        }
-        const btn = ensureToggleButton();
         applyTheme(currentTheme(), false);
-        btn.addEventListener('click', function () {
-            const next = currentTheme() === 'dark' ? 'light' : 'dark';
-            applyTheme(next, true);
-        });
     })();
 </script>
 </html>
