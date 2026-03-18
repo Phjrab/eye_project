@@ -89,9 +89,8 @@
 
         .theme-toggle-floating {
             position: fixed;
-            top: 18px;
-            left: 50%;
-            transform: translateX(-50%);
+            right: 18px;
+            bottom: 18px;
             z-index: 3000;
             border: 1px solid var(--theme-btn-border);
             background: var(--theme-btn-bg);
@@ -111,12 +110,12 @@
         }
 
         .theme-toggle-floating:hover {
-            transform: translateX(-50%) translateY(-1px);
+            transform: translateY(-1px);
             background: var(--theme-btn-active);
         }
 
         .theme-toggle-floating:active {
-            transform: translateX(-50%) scale(0.98);
+            transform: scale(0.98);
         }
 
         /* 메인 비주얼 아이콘 */
@@ -359,7 +358,8 @@
             }
 
             .theme-toggle-floating {
-                top: 12px;
+                right: 12px;
+                bottom: 12px;
                 min-height: 48px;
                 padding: 12px 16px;
                 font-size: 0.95rem;

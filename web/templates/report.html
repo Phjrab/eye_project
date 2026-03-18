@@ -1394,11 +1394,11 @@
                 try {
                     return await buildCroppedEyeDataUrl(eye.image_url, eye.bbox);
                 } catch (error) {
-                    return eye.image_url;
+                    return '';
                 }
             }
 
-            return eye.image_url;
+            return '';
         }
 
         async function resolveRecordEyeImage(record, side) {

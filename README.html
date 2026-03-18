@@ -107,11 +107,13 @@
         <h2>주요 기능</h2>
         <ul>
             <li>실시간 카메라 스트리밍 및 눈 감지 상태 표시 (<code>/video_feed</code>, <code>/detect_status</code>)</li>
-            <li>양안 촬영 시퀀스 기반 진단 파이프라인</li>
+            <li>얼굴 단일 촬영/업로드 기반 진단 파이프라인 (YOLO가 좌/우 눈 자동 감지 및 크롭)</li>
             <li>업로드 이미지 분석 API (<code>/analyze</code>)</li>
             <li>사용자별 진단 히스토리 조회 (<code>/api/history</code>)</li>
             <li>설문(문진) 데이터 저장 (<code>/api/survey</code>)</li>
             <li>분석 결과 기반 AI 가이드(위험도/권장 진료/관리 수칙) 자동 생성</li>
+            <li>리포트 PDF 생성 및 카카오톡 공유 (<code>/api/report/share</code>)</li>
+            <li>QR + PIN 기반 O2O 모바일 인증 연동 (<code>/m</code>, <code>/m/dashboard</code>)</li>
             <li>관리자 설정 페이지 및 설정 저장 API 제공</li>
         </ul>
     </section>
@@ -120,9 +122,12 @@
         <h2>최근 업데이트 (2026-03 기준)</h2>
         <ul>
             <li><code>web/templates/admin_config.html</code> 추가</li>
+            <li><code>web/templates/m_login.html</code>, <code>web/templates/m_dashboard.html</code> 추가</li>
             <li>관리자 설정 API: <code>/api/admin/login</code>, <code>/api/admin/config</code> (GET/POST)</li>
             <li><code>survey_history</code> 테이블 추가 및 설문 저장 로직 강화</li>
-            <li>리포트 화면: 전체 히스토리 목록, 비교, AI 가이드 카드 개선</li>
+            <li>O2O PIN API 추가: <code>/api/generate_pin</code>, <code>/api/pin_status</code>, <code>/api/mobile_connected</code>, <code>/api/verify_pin</code></li>
+            <li>리포트 화면: 전체 히스토리 목록 스크롤, 비교 슬롯 매핑 안정화, 크롭 이미지 표시 강화</li>
+            <li>capture/result/report 포함 주요 화면 반응형 개선 및 다크 테마 통합</li>
             <li><code>database/backfill_guides.py</code> 백필 스크립트 추가</li>
         </ul>
     </section>
@@ -138,6 +143,10 @@
             <span class="pill">OpenCV</span>
             <span class="pill">NumPy</span>
             <span class="pill">Pillow</span>
+            <span class="pill">python-dotenv</span>
+            <span class="pill">requests</span>
+            <span class="pill">reportlab</span>
+            <span class="pill">qrcode.js</span>
             <span class="pill">HTML/CSS/JS</span>
         </div>
     </section>
@@ -149,11 +158,12 @@
 source .venv/bin/activate</pre>
 
         <h3>2) 패키지 설치</h3>
-        <pre>pip install flask opencv-python numpy pillow torch torchvision ultralytics</pre>
+        <pre>pip install flask opencv-python numpy pillow torch torchvision ultralytics python-dotenv requests reportlab</pre>
 
         <h3>3) 환경변수 (권장)</h3>
         <pre>export HASH_PEPPER='change-this-secret'
-export EYE_APP_SECRET_KEY='change-this-secret-too'</pre>
+    export EYE_APP_SECRET_KEY='change-this-secret-too'
+    export KAKAO_ACCESS_TOKEN='kakao-access-token'</pre>
 
         <h3>4) 서버 실행</h3>
         <pre>python eye_server.py</pre>
@@ -165,7 +175,7 @@ export EYE_APP_SECRET_KEY='change-this-secret-too'</pre>
 
         <h3>페이지</h3>
         <ul>
-            <li><code>GET /</code>, <code>/login</code>, <code>/admin/config</code>, <code>/capture</code>, <code>/result</code>, <code>/report</code>, <code>/survey</code></li>
+            <li><code>GET /</code>, <code>/login</code>, <code>/admin/config</code>, <code>/capture</code>, <code>/result</code>, <code>/report</code>, <code>/survey</code>, <code>/m</code>, <code>/m/dashboard</code></li>
         </ul>
 
         <h3>API</h3>
@@ -174,6 +184,7 @@ export EYE_APP_SECRET_KEY='change-this-secret-too'</pre>
             <li><code>POST /analyze</code>, <code>/diagnose</code></li>
             <li><code>GET /capture/state</code>, <code>POST /capture/reset</code></li>
             <li><code>GET /api/history</code>, <code>POST /api/survey</code></li>
+            <li><code>POST /api/report/share</code>, <code>POST /api/generate_pin</code>, <code>GET /api/pin_status</code>, <code>POST /api/mobile_connected</code>, <code>POST /api/verify_pin</code></li>
             <li><code>POST /api/admin/login</code>, <code>GET/POST /api/admin/config</code></li>
         </ul>
     </section>
@@ -212,6 +223,10 @@ python database/backfill_guides.py --db database/history.db</pre>
 │   ├── backfill_guides.py
 │   ├── db.py
 │   └── schema.sql
+├── scripts/
+│   ├── add_swap.sh
+│   ├── perf_setup.sh
+│   └── jetson-perf.service
 ├── models/
 │   └── Augmented_EffNet_V1_B0_best.pth
 ├── modules/
@@ -234,6 +249,8 @@ python database/backfill_guides.py --db database/history.db</pre>
         ├── capture.html
         ├── index.html
         ├── login.html
+        ├── m_dashboard.html
+        ├── m_login.html
         ├── report.html
         ├── result.html
         └── survey.html</pre>

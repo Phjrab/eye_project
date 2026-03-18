@@ -150,26 +150,21 @@
             background: #111; 
         }
 
-        .eye-toggle-overlay { 
-            position: absolute; 
-            top: 5%; 
-            left: 50%; 
-            transform: translateX(-50%); 
-            display: flex; 
-            gap: 10px; 
-            z-index: 20; 
+        .captured-empty-hint {
+            position: absolute;
+            left: 50%;
+            top: 41%;
+            transform: translate(-50%, -50%);
+            color: #cbd5e1;
+            font-size: 0.95rem;
+            font-weight: 700;
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: none;
+            pointer-events: none;
         }
-
-        .btn-toggle { 
-            padding: 10px 25px; 
-            border-radius: 30px; 
-            border: none; 
-            background: rgba(255,255,255,0.9); 
-            font-weight: bold; 
-            cursor: pointer; 
-        }
-
-        .btn-toggle.active { background: var(--primary); color: #fff; }
 
         .camera-bottom-btns { 
             height: 18%; 
@@ -321,10 +316,6 @@
                 min-height: 220px;
             }
 
-            .eye-toggle-overlay {
-                top: 10px;
-            }
-
             .camera-bottom-btns {
                 height: auto;
                 padding: 10px 12px;
@@ -341,7 +332,6 @@
             }
 
             .btn,
-            .btn-toggle,
             .btn-camera-sub,
             .btn-main {
                 min-height: 48px;
@@ -379,12 +369,8 @@
 <body>
 
     <div class="left-panel">
-        <div class="eye-toggle-overlay">
-            <button id="tog-L" class="btn-toggle active" onclick="displayPhoto('L')">왼쪽 눈 (L)</button>
-            <button id="tog-R" class="btn-toggle" onclick="displayPhoto('R')">오른쪽 눈 (R)</button>
-        </div>
-        
         <img id="captured-image" alt="진단 이미지">
+        <div id="captured-empty-hint" class="captured-empty-hint">촬영된 원본 이미지가 없습니다. capture에서 얼굴 촬영을 먼저 진행해 주세요.</div>
 
         <div class="camera-bottom-btns">
             <button class="btn btn-camera-sub btn-retake" onclick="retakePhotos()">🔄 안구 재촬영</button>
@@ -706,26 +692,18 @@
             refreshReportAvailability();
         }
 
-        // 1. 이미지 표시 로직
-        function displayPhoto(side) {
-            const photo = localStorage.getItem('eye_photo_' + side) || localStorage.getItem('bilateral_capture');
-            if(photo) {
-                document.getElementById('captured-image').src = photo;
-                document.getElementById('tog-L').classList.toggle('active', side === 'L');
-                document.getElementById('tog-R').classList.toggle('active', side === 'R');
-            }
-        }
-
-        function renderPhotoToggles() {
-            const hasLeft = !!localStorage.getItem('eye_photo_L');
-            const hasRight = !!localStorage.getItem('eye_photo_R');
-            document.getElementById('tog-L').disabled = !hasLeft;
-            document.getElementById('tog-R').disabled = !hasRight;
-
-            if (hasLeft) {
-                displayPhoto('L');
-            } else if (hasRight) {
-                displayPhoto('R');
+        // 1. 이미지 표시 로직 (capture 원본 1장 고정)
+        function renderCapturedPhoto() {
+            const photo = localStorage.getItem('bilateral_capture');
+            const imageEl = document.getElementById('captured-image');
+            const hintEl = document.getElementById('captured-empty-hint');
+            if (!imageEl) return;
+            if (photo) {
+                imageEl.src = photo;
+                if (hintEl) hintEl.style.display = 'none';
+            } else {
+                imageEl.removeAttribute('src');
+                if (hintEl) hintEl.style.display = 'block';
             }
         }
 
@@ -770,7 +748,7 @@
         }
 
         window.onload = () => {
-            renderPhotoToggles();
+            renderCapturedPhoto();
             renderAiResults();
             localStorage.setItem('data_updated', isLatestDataReady() ? 'true' : 'false');
             refreshReportAvailability();
