@@ -138,7 +138,7 @@
         }
 
         .guide-card {
-            padding-bottom: 24px;
+            padding-bottom: 20px;
         }
 
         h2 { font-size: 1.2rem; margin-bottom: 15px; border-left: 5px solid var(--primary); padding-left: 10px; }
@@ -150,7 +150,7 @@
             gap: 15px;
             flex: 1;
             min-height: 0;
-            overflow-y: auto;
+            overflow: hidden;
             padding-right: 4px;
         }
 
@@ -263,8 +263,10 @@
 
         .history-records-box .all-history-list {
             flex: 1;
+            height: 220px;
             max-height: none;
-            min-height: clamp(220px, 30vh, 320px);
+            min-height: 0;
+            overflow-y: auto;
         }
 
         .history-item {
@@ -849,6 +851,8 @@
 
             .history-records-box .all-history-list {
                 min-height: 0;
+                max-height: 280px;
+                overflow-y: auto;
             }
 
             .history-desc {
@@ -893,13 +897,13 @@
                 <div>
                     <strong style="display:block; margin-bottom:8px;">[현재 눈]</strong>
                     <div class="eye-compare-box">
-                        <div class="eye-frame" onclick="viewImage('past_L')">
-                            <span id="badge-past-L" class="date-badge">과거 (2025.11.20)</span>
-                            <img src="https://via.placeholder.com/200x150/333/fff?text=Past+L" id="img-past-L">
-                        </div>
                         <div class="eye-frame" onclick="viewImage('current_L')">
-                            <span id="badge-curr-L" class="date-badge" style="background:var(--primary)">현재 (오늘)</span>
+                            <span id="badge-curr-L" class="date-badge" style="background:var(--primary)">왼쪽 눈</span>
                             <img src="" id="img-curr-L">
+                        </div>
+                        <div class="eye-frame" onclick="viewImage('current_R')">
+                            <span id="badge-curr-R" class="date-badge" style="background:var(--primary)">오른쪽 눈</span>
+                            <img src="" id="img-curr-R">
                         </div>
                     </div>
                 </div>
@@ -907,13 +911,13 @@
                 <div style="margin-top: 15px;">
                     <strong style="display:block; margin-bottom:8px;">[과거 검사 사진]</strong>
                     <div class="eye-compare-box">
-                        <div class="eye-frame" onclick="viewImage('past_R')">
-                            <span id="badge-past-R" class="date-badge">과거 (2025.11.20)</span>
-                            <img src="https://via.placeholder.com/200x150/333/fff?text=Past+R" id="img-past-R">
+                        <div class="eye-frame" onclick="viewImage('past_L')">
+                            <span id="badge-past-L" class="date-badge">왼쪽 눈</span>
+                            <img src="https://via.placeholder.com/200x150/333/fff?text=Past+L" id="img-past-L">
                         </div>
-                        <div class="eye-frame" onclick="viewImage('current_R')">
-                            <span id="badge-curr-R" class="date-badge" style="background:var(--primary)">현재 (오늘)</span>
-                            <img src="" id="img-curr-R">
+                        <div class="eye-frame" onclick="viewImage('past_R')">
+                            <span id="badge-past-R" class="date-badge">오른쪽 눈</span>
+                            <img src="https://via.placeholder.com/200x150/333/fff?text=Past+R" id="img-past-R">
                         </div>
                     </div>
                 </div>
@@ -1314,34 +1318,40 @@
             return sessions;
         }
 
-        function getEyeRecordList(records, side) {
-            const key = side === 'R' ? 'right_eye' : 'left_eye';
-            return (records || []).filter((record) => !!record?.analysis?.[key]);
+        function getSessionEyeRecord(session, side) {
+            const eye = side === 'R' ? session?.eyes?.R : session?.eyes?.L;
+            return eye?.record || null;
         }
 
-        function setBadgeText(id, label, createdAt) {
+        function selectPreviewBaseSessions(sessions) {
+            const list = Array.isArray(sessions) ? sessions : [];
+            return {
+                current: list[0] || null,
+                past: list[1] || null
+            };
+        }
+
+        function setBadgeText(id, label) {
             const el = document.getElementById(id);
             if (!el) return;
-            const dateLabel = createdAt ? String(createdAt).split(' ')[0].replace(/-/g, '.') : '기록 없음';
-            el.textContent = `${label} (${dateLabel})`;
+            el.textContent = label;
         }
 
         async function applyHistoryToUI(records) {
             historySessions = buildHistorySessions(records);
+            const previewBase = selectPreviewBaseSessions(historySessions);
+            const currSession = previewBase.current;
+            const pastSession = previewBase.past;
 
-            const curr = historySessions[0] || null;
-            const past = historySessions[1] || null;
-            const leftRecords = getEyeRecordList(records, 'L');
-            const rightRecords = getEyeRecordList(records, 'R');
-
+            // previewSlots에는 session eye 객체 {image_url, bbox, record} 를 그대로 저장
             previewSlots = {
                 current: {
-                    L: leftRecords[0] || null,
-                    R: rightRecords[0] || null
+                    L: currSession?.eyes?.L || null,
+                    R: currSession?.eyes?.R || null
                 },
                 past: {
-                    L: leftRecords[1] || null,
-                    R: rightRecords[1] || null
+                    L: pastSession?.eyes?.L || null,
+                    R: pastSession?.eyes?.R || null
                 }
             };
 
@@ -1352,23 +1362,24 @@
             document.getElementById('img-past-L').src = emptyPast;
             document.getElementById('img-past-R').src = emptyPast;
 
-            setBadgeText('badge-curr-L', '현재', previewSlots.current.L?.created_at);
-            setBadgeText('badge-curr-R', '현재', previewSlots.current.R?.created_at);
-            setBadgeText('badge-past-L', '과거', previewSlots.past.L?.created_at);
-            setBadgeText('badge-past-R', '과거', previewSlots.past.R?.created_at);
+            setBadgeText('badge-curr-L', '왼쪽 눈');
+            setBadgeText('badge-curr-R', '오른쪽 눈');
+            setBadgeText('badge-past-L', '왼쪽 눈');
+            setBadgeText('badge-past-R', '오른쪽 눈');
 
-            const currLeft = await resolveRecordEyeImage(previewSlots.current.L, 'L');
-            const currRight = await resolveRecordEyeImage(previewSlots.current.R, 'R');
-            const pastLeft = await resolveRecordEyeImage(previewSlots.past.L, 'L');
-            const pastRight = await resolveRecordEyeImage(previewSlots.past.R, 'R');
+            // sessions 기반 resolveSessionEyeImage 사용 → L/R 병합이 이미 반영됨
+            const currLeft  = await resolveSessionEyeImage(currSession, 'L');
+            const currRight = await resolveSessionEyeImage(currSession, 'R');
+            const pastLeft  = await resolveSessionEyeImage(pastSession, 'L');
+            const pastRight = await resolveSessionEyeImage(pastSession, 'R');
 
-            document.getElementById('img-curr-L').src = currLeft || emptyCurrent;
+            document.getElementById('img-curr-L').src = currLeft  || emptyCurrent;
             document.getElementById('img-curr-R').src = currRight || emptyCurrent;
-            document.getElementById('img-past-L').src = pastLeft || emptyPast;
+            document.getElementById('img-past-L').src = pastLeft  || emptyPast;
             document.getElementById('img-past-R').src = pastRight || emptyPast;
 
-            renderGuide(curr ? curr.analysis : null);
-            renderRednessGraph(curr ? curr.analysis : null, past ? past.analysis : null);
+            renderGuide(currSession ? currSession.analysis : null);
+            renderRednessGraph(currSession ? currSession.analysis : null, pastSession ? pastSession.analysis : null);
             renderAllHistoryList(historySessions);
             renderRednessTrend(records);
             renderHealthMetricTrend(records);
@@ -1392,15 +1403,17 @@
 
         async function resolveRecordEyeImage(record, side) {
             if (!record || !record.image_url) return '';
+            const sideKey = side === 'R' ? 'right_eye' : 'left_eye';
+            if (!record?.analysis?.[sideKey]) return '';
+
             const bbox = getEyeBBox(record.analysis || {}, side);
-            if (bbox) {
-                try {
-                    return await buildCroppedEyeDataUrl(record.image_url, bbox);
-                } catch (error) {
-                    return record.image_url;
-                }
+            if (!bbox) return '';
+
+            try {
+                return await buildCroppedEyeDataUrl(record.image_url, bbox);
+            } catch (error) {
+                return '';
             }
-            return record.image_url;
         }
 
         function formatShortDateTime(createdAt) {
@@ -1997,10 +2010,10 @@
         async function viewImage(type) {
             const side = type.endsWith('_L') ? 'L' : 'R';
             const section = (type === 'current_L' || type === 'current_R') ? 'current' : 'past';
-            const record = previewSlots?.[section]?.[side] || null;
-
-            if (!record) return;
-            await openEyeImageFromRecord(record, side);
+            // previewSlots[section][side]는 이제 session eye 객체 {image_url, bbox, record}
+            const eye = previewSlots?.[section]?.[side] || null;
+            if (!eye?.record) return;
+            await openEyeImageFromRecord(eye.record, side);
         }
 
         async function viewHistoryImage(index, side) {

@@ -112,8 +112,6 @@
         [data-theme="dark"] .video-container,
         [data-theme="dark"] #video-feed { background: #0b1220; }
         [data-theme="dark"] .camera-bottom-btns { background: #111827; }
-        [data-theme="dark"] .btn-eye,
-        [data-theme="dark"] .thumb-box,
         [data-theme="dark"] .btn-upload,
         [data-theme="dark"] .btn-restore,
         [data-theme="dark"] #detection-status { background: #1f2937; color: var(--text); }
@@ -297,27 +295,8 @@
             </div>
         </div>
 
-        <div class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 1. 좌/우 눈 선택</h2>
-            <div class="eye-select-wrap">
-                <button id="btn-eye-L" class="btn-eye active" onclick="selectEye('L')">좌안 (L)</button>
-                <button id="btn-eye-R" class="btn-eye" onclick="selectEye('R')">우안 (R)</button>
-            </div>
-            <div style="margin-top:8px; font-size:0.85rem; color:#64748b;">현재 선택: <b id="current-eye-label">좌안 (L)</b></div>
-            <div class="thumb-wrap">
-                <div class="thumb-box" onclick="selectEye('L')">
-                    <div class="thumb-title">좌안 저장본</div>
-                    <img id="thumb-L" class="thumb-img" alt="left eye preview">
-                </div>
-                <div class="thumb-box" onclick="selectEye('R')">
-                    <div class="thumb-title">우안 저장본</div>
-                    <img id="thumb-R" class="thumb-img" alt="right eye preview">
-                </div>
-            </div>
-        </div>
-
         <div id="step2-card" class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 자동셔터 / 디지털 줌</h2>
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 1. 자동셔터 / 디지털 줌</h2>
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
                 <span style="font-size:0.95rem; color:#334155;">자동셔터</span>
                 <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; color:#64748b;">
@@ -335,13 +314,13 @@
         </div>
 
         <div class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">선택한 눈 촬영/업로드</h2>
-            <button id="btn-capture-photo" class="btn-capture" onclick="takeSnapshot()">📸 선택한 눈 촬영</button>
-            <button class="btn-upload" onclick="openImageUploader()">🖼️ 선택한 눈 사진 업로드</button>
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 얼굴 촬영 / 업로드</h2>
+            <button id="btn-capture-photo" class="btn-capture" onclick="takeSnapshot()">📸 얼굴 전체 촬영</button>
+            <button class="btn-upload" onclick="openImageUploader()">🖼️ 얼굴 사진 업로드</button>
             <button class="btn-restore" onclick="restoreCameraPreview()">↩️ 실시간 카메라로 복귀</button>
-            <button id="btn-go-result" class="btn-go-result" onclick="goToResult()" disabled>✅ 양안 결과 보기</button>
+            <button id="btn-go-result" class="btn-go-result" onclick="goToResult()" disabled>✅ 결과 보기</button>
             <input id="upload-image-input" type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleUploadedImage(event)">
-            <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;">안내: 선택한 눈(좌/우)을 촬영 또는 업로드하세요. 양안 저장 후 결과 보기 버튼이 활성화됩니다.</div>
+            <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;">안내: 얼굴 사진 한 장을 촬영하면 YOLO가 좌/우 눈을 자동으로 감지해 분석합니다.</div>
         </div>
 
     </div>
@@ -355,9 +334,8 @@
     </div>
 
     <script>
-        let currentEye = 'L';
-        const eyePhotos = { L: null, R: null };
         let capturedPhoto = null;
+        let analysisReady = false;
         let detectionPollingInterval = null;
         let digitalZoom = 1.0;
         let autoShutterEnabled = true;
@@ -403,7 +381,7 @@
             }
 
             if (messageEl) {
-                messageEl.textContent = '모바일 환경에서는 기기 카메라 직접 연동이 제한되어 사진 업로드 방식으로 동작합니다. 업로드 버튼으로 좌/우 눈 사진을 등록해 주세요.';
+                messageEl.textContent = '모바일 환경에서는 기기 카메라 직접 연동이 제한됩니다. 업로드 버튼으로 얼굴 사진을 등록하면 YOLO가 눈을 자동 감지합니다.';
             }
         }
 
@@ -433,8 +411,6 @@
         }
 
         function clearSessionCaptureData() {
-            localStorage.removeItem('eye_photo_L');
-            localStorage.removeItem('eye_photo_R');
             localStorage.removeItem('eye_analysis_L');
             localStorage.removeItem('eye_analysis_R');
             localStorage.removeItem('bilateral_capture');
@@ -555,63 +531,21 @@
             });
         }
 
-        function showSelectedPreview(side = currentEye) {
-            const videoImg = document.getElementById('video-feed');
-            const savedPhoto = eyePhotos[side];
-
-            if (savedPhoto) {
-                previewMode = 'upload';
-                videoImg.src = savedPhoto;
-                videoImg.style.objectFit = 'contain';
-                videoImg.style.transform = 'none';
-                return true;
-            }
-
-            return false;
-        }
-
         function setResultButtonState(enabled) {
             const btn = document.getElementById('btn-go-result');
             btn.disabled = !enabled;
         }
 
-        function selectEye(side) {
-            currentEye = side;
-            document.getElementById('btn-eye-L').classList.toggle('active', side === 'L');
-            document.getElementById('btn-eye-R').classList.toggle('active', side === 'R');
-            document.getElementById('current-eye-label').textContent = side === 'L' ? '좌안 (L)' : '우안 (R)';
-            showSelectedPreview(side);
-        }
-
-        function updateEyeThumbs() {
-            const leftThumb = document.getElementById('thumb-L');
-            const rightThumb = document.getElementById('thumb-R');
-
-            leftThumb.src = eyePhotos.L || '';
-            rightThumb.src = eyePhotos.R || '';
-
-            leftThumb.style.visibility = eyePhotos.L ? 'visible' : 'hidden';
-            rightThumb.style.visibility = eyePhotos.R ? 'visible' : 'hidden';
-        }
-
-        function hasBothEyes() {
-            return !!eyePhotos.L && !!eyePhotos.R;
-        }
-
-        function saveCurrentEyePhoto(dataUrl) {
-            eyePhotos[currentEye] = dataUrl;
-            localStorage.setItem(`eye_photo_${currentEye}`, dataUrl);
-            updateEyeThumbs();
-            showSelectedPreview(currentEye);
-            setResultButtonState(hasBothEyes());
+        function hasAnalysisResult() {
+            // 서버가 L 또는 R 중 하나라도 돌려줬으면 결과 진행 가능
+            return !!localStorage.getItem('eye_analysis_L') || !!localStorage.getItem('eye_analysis_R');
         }
 
         function goToResult() {
-            if (!hasBothEyes()) {
-                showToastPopup('좌안/우안 사진을 모두 촬영 또는 업로드해 주세요.');
+            if (!hasAnalysisResult()) {
+                showToastPopup('촬영 또는 업로드 후 분석이 완료되면 결과 보기가 가능합니다.');
                 return;
             }
-
             syncCombinedAnalysisToLocalStorage();
             window.location.href = '/result';
         }
@@ -631,17 +565,6 @@
             const num = Number(value);
             if (!Number.isFinite(num)) return 0;
             return num <= 1 ? num * 100 : num;
-        }
-
-        function pickDetectedEye(result, selectedEye) {
-            const left = result?.left_eye || null;
-            const right = result?.right_eye || null;
-
-            if (left && right) {
-                return selectedEye === 'L' ? left : right;
-            }
-
-            return left || right || null;
         }
 
         function getCombinedAnalysis() {
@@ -709,9 +632,8 @@
                 videoImg.style.transform = 'none';
 
                 capturedPhoto = dataUrl;
-                saveCurrentEyePhoto(dataUrl);
                 await analyzeWithServer(dataUrl);
-                captureMessage.textContent = `${currentEye === 'L' ? '좌안' : '우안'} 업로드/분석 완료`;
+                captureMessage.textContent = '업로드/분석 완료';
             } catch (error) {
                 console.error('[Upload Analyze Error]', error);
                 captureMessage.textContent = '업로드 이미지 분석 실패. 다시 시도해 주세요.';
@@ -760,11 +682,10 @@
                 // 3. 이미지를 Base64 데이터로 변환
                 const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);
                 capturedPhoto = dataUrl;
-                saveCurrentEyePhoto(dataUrl);
 
                 // 서버로 전송
                 await analyzeWithServer(dataUrl);
-                captureMessage.textContent = `${currentEye === 'L' ? '좌안' : '우안'} 촬영/분석 완료`;
+                captureMessage.textContent = '촬영/분석 완료';
             } catch (error) {
                 captureMessage.textContent = '촬영/분석 실패. 다시 시도해 주세요.';
                 console.error('[Capture Error]', error);
@@ -777,29 +698,27 @@
         // 서버 분석 (Base64 이미지 → EfficientNet)
         // ==========================================
         async function analyzeWithServer(base64Image) {
+            const captureMessage = document.getElementById('capture-message');
             try {
+                captureMessage.textContent = '서버 분석 중 (YOLO 눈 자동 감지)...';
                 const userId = localStorage.getItem('user_id') || 'anonymous';
                 const response = await fetch('/analyze', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        image: base64Image,
-                        user_id: userId
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image, user_id: userId })
                 });
 
                 const result = await response.json();
-                
-                if (response.ok) {
-                    const detectedEye = pickDetectedEye(result, currentEye);
-                    if (detectedEye) {
-                        const storageKey = currentEye === 'L' ? 'eye_analysis_L' : 'eye_analysis_R';
-                        localStorage.setItem(storageKey, JSON.stringify(detectedEye));
-                    }
 
-                    const combinedResult = syncCombinedAnalysisToLocalStorage({
+                if (response.ok) {
+                    // YOLO가 감지한 좌/우 눈을 각각 저장 (없으면 이전 값 유지)
+                    if (result.left_eye)  localStorage.setItem('eye_analysis_L', JSON.stringify(result.left_eye));
+                    if (result.right_eye) localStorage.setItem('eye_analysis_R', JSON.stringify(result.right_eye));
+
+                    const detectedSides = [result.left_eye ? '좌안' : null, result.right_eye ? '우안' : null].filter(Boolean);
+                    const detectedText = detectedSides.length ? detectedSides.join(', ') + ' 감지됨' : '눈 감지 실패 - 다시 시도해 주세요';
+
+                    syncCombinedAnalysisToLocalStorage({
                         guide: result.guide,
                         meta: result.meta,
                         message: result.message,
@@ -807,27 +726,19 @@
                         saved_image_url: result.saved_image_url
                     });
 
-                    updateAnalysisResult(combinedResult);
-                    if (capturedPhoto) {
-                        localStorage.setItem('bilateral_capture', capturedPhoto);
-                    }
-                    setResultButtonState(hasBothEyes());
+                    if (capturedPhoto) localStorage.setItem('bilateral_capture', capturedPhoto);
+
+                    captureMessage.textContent = detectedText;
+                    setResultButtonState(hasAnalysisResult());
                 } else {
-                    console.error(`[Analysis Error] ${result.error}`);
-                    const captureMessage = document.getElementById('capture-message');
                     captureMessage.textContent = result.error || '분석 중 오류가 발생했습니다.';
-                    setResultButtonState(hasBothEyes());
+                    setResultButtonState(false);
                 }
             } catch (error) {
                 console.error('[Server Analysis Error]', error);
-                const captureMessage = document.getElementById('capture-message');
                 captureMessage.textContent = '서버 통신 오류가 발생했습니다.';
-                setResultButtonState(hasBothEyes());
+                setResultButtonState(false);
             }
-        }
-
-        function updateAnalysisResult(result) {
-            return result;
         }
 
         // 화면 로딩 시 프레임 스트리밍 및 감지 폴링 시작
@@ -845,18 +756,14 @@
                 videoImg.style.transform = `scaleX(-1) scale(${digitalZoom})`;
             }
 
-            eyePhotos.L = null;
-            eyePhotos.R = null;
             capturedPhoto = null;
-            updateEyeThumbs();
-            selectEye('L');
+            analysisReady = false;
             if (mobileUploadOnlyMode) {
                 previewMode = 'upload';
             } else {
                 restoreCameraPreview();
             }
             setResultButtonState(false);
-            updateAnalysisResult({ status: 'idle', left_eye: null, right_eye: null });
 
             // 감지 상태 즉시 조회 & 주기적으로 폴링 (500ms)
             if (!mobileUploadOnlyMode) {

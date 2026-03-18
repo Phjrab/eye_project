@@ -1,3 +1,49 @@
+    
+def normalize_selected_eye(value):
+    text = str(value or '').strip().upper()
+    if text in ('L', 'LEFT', 'LEFT_EYE'):
+        return 'L'
+    if text in ('R', 'RIGHT', 'RIGHT_EYE'):
+        return 'R'
+    return None
+
+def apply_selected_eye_mapping(analysis, selected_eye):
+    side = normalize_selected_eye(selected_eye)
+    if side not in ('L', 'R'):
+        return analysis
+
+    left_eye = analysis.get('left_eye')
+    right_eye = analysis.get('right_eye')
+    has_left = bool(left_eye)
+    has_right = bool(right_eye)
+
+    if has_left and has_right:
+        return analysis
+
+    detected_side = None
+    detected_payload = None
+    if has_left:
+        detected_side = 'L'
+        detected_payload = left_eye
+    elif has_right:
+        detected_side = 'R'
+        detected_payload = right_eye
+    else:
+        return analysis
+
+    if detected_side == side:
+        return analysis
+
+    analysis['left_eye'] = detected_payload if side == 'L' else None
+    analysis['right_eye'] = detected_payload if side == 'R' else None
+
+    meta = analysis.get('meta') or {}
+    meta['selected_eye'] = side
+    meta['detected_side_before_remap'] = detected_side
+    meta['side_remapped_by_selected_eye'] = True
+    analysis['meta'] = meta
+
+    return analysis
 """
 Eye Disease Detection Server
 웹 인터페이스와 AI 파이프라인의 오케스트레이터
@@ -1770,6 +1816,7 @@ def analyze():
             return jsonify({'error': '이미지 데이터가 없습니다'}), 400
 
         user_id = normalize_user_id(data.get('user_id'))
+        selected_eye = data.get('selected_eye')
         img_bgr, decode_error = decode_base64_image(data['image'])
         if decode_error:
             return jsonify({'status': 'error', 'message': decode_error}), 400
@@ -1777,6 +1824,8 @@ def analyze():
         analysis = analyze_bilateral_from_image(img_bgr)
         if analysis.get('status') == 'error':
             return jsonify(analysis), 400
+
+        analysis = apply_selected_eye_mapping(analysis, selected_eye)
 
         analysis['guide'] = build_ai_guide(analysis)
 
