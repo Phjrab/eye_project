@@ -3,5 +3,5 @@
   "KAKAO_CLIENT_ID": "your-rest-api-key",
   "KAKAO_CLIENT_SECRET": "your-client-secret",
   "KAKAO_REDIRECT_URI": "http://localhost:5000/kakao/callback",
-  "KAKAO_REFRESH_TOKEN": "your-refresh-token"
+  "KAKAO_REFRESH_TOKEN": ""
 }
