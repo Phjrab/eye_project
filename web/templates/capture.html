@@ -154,6 +154,10 @@
             border-top-right-radius: 18px;
         }
 
+        .video-container.mobile-upload-tappable {
+            cursor: pointer;
+        }
+
         #video-feed { 
             width: 100%; 
             height: 100%; 
@@ -162,6 +166,96 @@
             background: #222; 
             transform-origin: center center;
             display: block;
+        }
+
+        .mobile-preview-hint {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 0.95rem;
+            color: #cbd5e1;
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 10px;
+            padding: 12px 14px;
+            width: min(86%, 360px);
+            line-height: 1.5;
+            display: none;
+            pointer-events: none;
+        }
+
+        .mobile-preview-hint.hint-pulse {
+            animation: hintPulse 1.2s ease-in-out 3;
+        }
+
+        @keyframes hintPulse {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 0.95; }
+            50% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0.95; }
+        }
+
+        .upload-progress-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.62);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 8;
+        }
+
+        .upload-progress-card {
+            background: rgba(15, 23, 42, 0.88);
+            color: #e2e8f0;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 12px;
+            padding: 12px 14px;
+            width: min(86%, 320px);
+            text-align: center;
+        }
+
+        .upload-progress-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .upload-progress-sub {
+            font-size: 0.82rem;
+            color: #cbd5e1;
+        }
+
+        .mobile-reupload-fab {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            z-index: 9;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: rgba(15, 23, 42, 0.8);
+            color: #e2e8f0;
+            border-radius: 999px;
+            min-height: 42px;
+            padding: 8px 12px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: none;
+        }
+
+        .btn-use-last {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            background: #eef2ff;
+            color: #334155;
+            border: 1px dashed var(--border);
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 8px;
+            display: none;
         }
 
 
@@ -205,8 +299,9 @@
         @media screen and (max-width: 768px) {
             body {
                 width: 100%;
-                min-height: 100vh;
+                min-height: 100dvh;
                 height: auto;
+                max-width: 100vw;
                 padding: 12px;
                 gap: 12px;
                 overflow-x: hidden;
@@ -222,12 +317,12 @@
             }
 
             .left-panel {
-                min-height: 320px;
+                min-height: 240px;
             }
 
             .video-container {
-                height: 54vh;
-                min-height: 240px;
+                height: clamp(220px, 42vh, 340px);
+                min-height: 220px;
             }
 
             .camera-bottom-btns {
@@ -265,6 +360,65 @@
                 padding: 14px;
                 font-size: 1.08rem;
             }
+
+            body.mobile-upload-only {
+                padding: 10px;
+                gap: 10px;
+                padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            }
+
+            body.mobile-upload-only .left-panel {
+                min-height: 52vh;
+                border-radius: 14px;
+            }
+
+            body.mobile-upload-only .video-container {
+                height: 52vh;
+                min-height: 260px;
+                max-height: 62vh;
+                border-radius: 14px;
+            }
+
+            body.mobile-upload-only .right-panel {
+                padding: 12px;
+                border-radius: 14px;
+                padding-bottom: calc(12px + env(safe-area-inset-bottom));
+            }
+
+            body.mobile-upload-only .right-panel .card {
+                margin-bottom: 10px;
+                padding: 12px;
+            }
+
+            body.mobile-upload-only .btn-upload,
+            body.mobile-upload-only .btn-go-result {
+                margin-top: 8px;
+            }
+
+            body.mobile-upload-only #capture-message {
+                font-size: 0.86rem;
+                line-height: 1.45;
+            }
+
+            body.mobile-upload-only .mobile-preview-hint {
+                display: block;
+                font-size: 0.9rem;
+                width: min(90%, 360px);
+            }
+
+            body.mobile-upload-only .theme-toggle-floating {
+                display: none;
+            }
+
+            body.mobile-upload-only .mobile-reupload-fab.show {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            body.mobile-upload-only .btn-use-last.show {
+                display: block;
+            }
         }
     </style>
 </head>
@@ -273,18 +427,26 @@
     <div class="left-panel">
         <div class="video-container">
             <!-- Canvas 또는 img로 프레임 표시 -->
-            <img id="video-feed" src="/video_feed">
+            <img id="video-feed" src="">
+            <div id="mobile-preview-hint" class="mobile-preview-hint">모바일 업로드 전용 모드입니다.<br>"얼굴 사진 업로드" 버튼으로 사진을 선택해 주세요.</div>
+            <div id="upload-progress-overlay" class="upload-progress-overlay" aria-live="polite">
+                <div class="upload-progress-card">
+                    <div id="upload-progress-title" class="upload-progress-title">이미지 준비 중...</div>
+                    <div id="upload-progress-sub" class="upload-progress-sub">잠시만 기다려 주세요.</div>
+                </div>
+            </div>
+            <button id="btn-mobile-reupload" class="mobile-reupload-fab" onclick="openImageUploader()">다시 업로드</button>
         </div>
 
         <div class="camera-bottom-btns">
-            <div style="font-size: 0.9rem; color: #64748b;">
+            <div id="camera-guide-text" style="font-size: 0.9rem; color: #64748b;">
                 ※ 고해상도 촬영을 위해 가이드 중앙에 눈을 정렬해 주세요.
             </div>
         </div>
     </div>
 
     <div class="right-panel">
-        <div class="card">
+        <div id="step0-card" class="card">
             <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 0. 눈 감지 상태</h2>
             <div id="detection-status" class="detection-status-box">
                 <div id="status-dot" style="width: 12px; height: 12px; border-radius: 50%; background: #ccc;"></div>
@@ -317,6 +479,7 @@
             <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 얼굴 촬영 / 업로드</h2>
             <button id="btn-capture-photo" class="btn-capture" onclick="takeSnapshot()">📸 얼굴 전체 촬영</button>
             <button class="btn-upload" onclick="openImageUploader()">🖼️ 얼굴 사진 업로드</button>
+            <button id="btn-use-last-upload" class="btn-use-last" onclick="useLastUploadedImage()">↺ 최근 업로드 다시 사용</button>
             <button class="btn-restore" onclick="restoreCameraPreview()">↩️ 실시간 카메라로 복귀</button>
             <button id="btn-go-result" class="btn-go-result" onclick="goToResult()" disabled>✅ 결과 보기</button>
             <input id="upload-image-input" type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleUploadedImage(event)">
@@ -344,6 +507,8 @@
         let previewMode = 'camera'; // 'camera' | 'upload'
         let mobileUploadOnlyMode = false;
         const AUTO_SHUTTER_CONF_THRESHOLD = 0.70; // 70%
+        const LAST_UPLOAD_KEY = 'last_mobile_upload_capture';
+        const MOBILE_HINT_SEEN_KEY = 'mobile_upload_hint_seen_v1';
 
         function isMobileClient() {
             const ua = navigator.userAgent || '';
@@ -358,15 +523,27 @@
             mobileUploadOnlyMode = true;
             autoShutterEnabled = false;
 
+            const bodyEl = document.body;
+            const step0Card = document.getElementById('step0-card');
             const step2Card = document.getElementById('step2-card');
+            const cameraBottom = document.querySelector('.camera-bottom-btns');
             const captureBtn = document.getElementById('btn-capture-photo');
             const restoreBtn = document.querySelector('.btn-restore');
             const autoToggle = document.getElementById('auto-shutter-toggle');
             const statusEl = document.getElementById('auto-shutter-status');
             const messageEl = document.getElementById('capture-message');
             const videoImg = document.getElementById('video-feed');
+            const videoContainer = document.querySelector('.video-container');
+            const previewHint = document.getElementById('mobile-preview-hint');
+            const guideText = document.getElementById('camera-guide-text');
+            const bottomBar = document.querySelector('.camera-bottom-btns');
+            const useLastBtn = document.getElementById('btn-use-last-upload');
+            const reuploadFab = document.getElementById('btn-mobile-reupload');
 
+            if (bodyEl) bodyEl.classList.add('mobile-upload-only');
+            if (step0Card) step0Card.style.display = 'none';
             if (step2Card) step2Card.style.display = 'none';
+            if (cameraBottom) cameraBottom.style.display = 'none';
             if (captureBtn) captureBtn.style.display = 'none';
             if (restoreBtn) restoreBtn.style.display = 'none';
             if (autoToggle) autoToggle.checked = false;
@@ -379,9 +556,54 @@
                 videoImg.style.objectFit = 'contain';
                 videoImg.style.transform = 'none';
             }
+            if (videoContainer) {
+                videoContainer.classList.add('mobile-upload-tappable');
+                if (!videoContainer.dataset.uploadTapBound) {
+                    videoContainer.addEventListener('click', () => {
+                        if (mobileUploadOnlyMode) openImageUploader();
+                    });
+                    videoContainer.dataset.uploadTapBound = '1';
+                }
+            }
+            if (previewHint) previewHint.style.display = 'block';
+            if (previewHint && !localStorage.getItem(MOBILE_HINT_SEEN_KEY)) {
+                previewHint.classList.add('hint-pulse');
+                localStorage.setItem(MOBILE_HINT_SEEN_KEY, '1');
+            }
+            if (guideText) guideText.textContent = '※ 모바일에서는 웹캠 대신 업로드한 이미지가 이 영역에 표시됩니다.';
+            if (bottomBar) {
+                bottomBar.style.justifyContent = 'center';
+                bottomBar.style.alignItems = 'center';
+            }
+            if (useLastBtn && localStorage.getItem(LAST_UPLOAD_KEY)) {
+                useLastBtn.classList.add('show');
+            }
 
             if (messageEl) {
-                messageEl.textContent = '모바일 환경에서는 기기 카메라 직접 연동이 제한됩니다. 업로드 버튼으로 얼굴 사진을 등록하면 YOLO가 눈을 자동 감지합니다.';
+                messageEl.textContent = '모바일 환경에서는 업로드 전용으로 동작합니다. 위 미리보기 영역을 탭하거나 업로드 버튼으로 얼굴 사진을 등록해 주세요.';
+            }
+            if (reuploadFab) {
+                reuploadFab.classList.remove('show');
+            }
+        }
+
+        function setUploadProgress(show, title = '처리 중...', sub = '잠시만 기다려 주세요.') {
+            const overlay = document.getElementById('upload-progress-overlay');
+            const titleEl = document.getElementById('upload-progress-title');
+            const subEl = document.getElementById('upload-progress-sub');
+            if (!overlay || !titleEl || !subEl) return;
+            titleEl.textContent = title;
+            subEl.textContent = sub;
+            overlay.style.display = show ? 'flex' : 'none';
+        }
+
+        function setLastUploadAvailability() {
+            const useLastBtn = document.getElementById('btn-use-last-upload');
+            if (!useLastBtn) return;
+            if (mobileUploadOnlyMode && localStorage.getItem(LAST_UPLOAD_KEY)) {
+                useLastBtn.classList.add('show');
+            } else {
+                useLastBtn.classList.remove('show');
             }
         }
 
@@ -513,6 +735,9 @@
         }
 
         function restoreCameraPreview() {
+            if (mobileUploadOnlyMode) {
+                return;
+            }
             const videoImg = document.getElementById('video-feed');
             const captureMessage = document.getElementById('capture-message');
             previewMode = 'camera';
@@ -522,13 +747,87 @@
             captureMessage.textContent = '실시간 카메라 모드로 복귀했습니다.';
         }
 
-        function loadImageElement(dataUrl) {
+        async function loadImageElementWithOrientation(file, dataUrl) {
+            // createImageBitmap(imageOrientation=from-image)로 EXIF 방향 보정 우선 시도
+            if (window.createImageBitmap && file) {
+                try {
+                    return await createImageBitmap(file, { imageOrientation: 'from-image' });
+                } catch (error) {
+                    // fallback으로 Image 사용
+                }
+            }
+
             return new Promise((resolve, reject) => {
                 const img = new Image();
                 img.onload = () => resolve(img);
                 img.onerror = reject;
                 img.src = dataUrl;
             });
+        }
+
+        function normalizeUploadError(error) {
+            const text = String(error?.message || error || '').toLowerCase();
+            if (text.includes('network') || text.includes('fetch') || text.includes('failed to fetch')) {
+                return '네트워크 오류로 업로드에 실패했습니다. 연결 상태를 확인해 주세요.';
+            }
+            if (text.includes('decode') || text.includes('format') || text.includes('mime')) {
+                return '지원하지 않는 이미지 형식입니다. JPG/PNG 파일을 사용해 주세요.';
+            }
+            if (text.includes('server') || text.includes('500') || text.includes('analy')) {
+                return '서버 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+            }
+            return '업로드 이미지 처리에 실패했습니다. 다른 사진으로 다시 시도해 주세요.';
+        }
+
+        function showDetectionToast(result) {
+            const hasLeft = !!result?.left_eye;
+            const hasRight = !!result?.right_eye;
+
+            if (hasLeft && hasRight) {
+                return;
+            }
+
+            if (hasLeft || hasRight) {
+                const side = hasLeft ? '왼쪽 눈' : '오른쪽 눈';
+                showToastPopup(`${side}만 감지되었습니다. 정면 얼굴 사진으로 다시 업로드하면 양안 감지 확률이 높아집니다.`);
+                return;
+            }
+
+            showToastPopup('눈이 감지되지 않았습니다. 조명이 밝은 곳에서 얼굴 전체가 나오도록 다시 업로드해 주세요.');
+        }
+
+        function applyUploadedPreview(dataUrl) {
+            const videoImg = document.getElementById('video-feed');
+            const previewHint = document.getElementById('mobile-preview-hint');
+            const reuploadFab = document.getElementById('btn-mobile-reupload');
+
+            previewMode = 'upload';
+            videoImg.src = dataUrl;
+            videoImg.style.objectFit = 'contain';
+            videoImg.style.transform = 'none';
+            if (previewHint) previewHint.style.display = 'none';
+            if (reuploadFab && mobileUploadOnlyMode) reuploadFab.classList.add('show');
+        }
+
+        async function useLastUploadedImage() {
+            const captureMessage = document.getElementById('capture-message');
+            const dataUrl = localStorage.getItem(LAST_UPLOAD_KEY);
+            if (!dataUrl) {
+                await showToastPopup('최근 업로드 이미지가 없습니다. 먼저 새 이미지를 업로드해 주세요.');
+                return;
+            }
+
+            try {
+                setUploadProgress(true, '최근 업로드 불러오는 중...', '저장된 이미지를 다시 분석합니다.');
+                capturedPhoto = dataUrl;
+                applyUploadedPreview(dataUrl);
+                const analysisResult = await analyzeWithServer(dataUrl);
+                captureMessage.textContent = analysisResult.ok ? '최근 업로드 이미지 재분석 완료' : '최근 업로드 이미지 재분석 실패';
+            } catch (error) {
+                captureMessage.textContent = normalizeUploadError(error);
+            } finally {
+                setUploadProgress(false);
+            }
         }
 
         function setResultButtonState(enabled) {
@@ -596,10 +895,14 @@
             }
 
             const captureMessage = document.getElementById('capture-message');
-            const videoImg = document.getElementById('video-feed');
 
             try {
+                if (!String(file.type || '').startsWith('image/')) {
+                    throw new Error('unsupported-image-format');
+                }
+
                 captureMessage.textContent = '업로드 이미지 처리 중...';
+                setUploadProgress(true, '이미지 읽는 중...', '사진 파일을 불러오고 있습니다.');
                 const rawDataUrl = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = () => resolve(reader.result);
@@ -607,7 +910,8 @@
                     reader.readAsDataURL(file);
                 });
 
-                const srcImg = await loadImageElement(rawDataUrl);
+                setUploadProgress(true, '방향 보정 중...', '모바일 EXIF 정보를 반영하고 있습니다.');
+                const srcImg = await loadImageElementWithOrientation(file, rawDataUrl);
 
                 // 업로드 이미지는 1280x720으로 제한 (메인 스레드 블로킹 방지)
                 const maxW = 1280;
@@ -624,20 +928,22 @@
 
                 // 메인 스레드 양보 후 toDataURL 실행 (UI 프리징 방지)
                 await new Promise(r => setTimeout(r, 0));
+                setUploadProgress(true, '이미지 최적화 중...', '분석 전 크기 최적화를 진행합니다.');
                 const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
 
-                previewMode = 'upload';
-                videoImg.src = dataUrl;
-                videoImg.style.objectFit = 'contain';
-                videoImg.style.transform = 'none';
-
+                localStorage.setItem(LAST_UPLOAD_KEY, dataUrl);
+                setLastUploadAvailability();
                 capturedPhoto = dataUrl;
-                await analyzeWithServer(dataUrl);
-                captureMessage.textContent = '업로드/분석 완료';
+                applyUploadedPreview(dataUrl);
+
+                setUploadProgress(true, '서버 분석 중...', 'YOLO가 좌/우 눈을 감지하고 있습니다.');
+                const analysisResult = await analyzeWithServer(dataUrl);
+                captureMessage.textContent = analysisResult.ok ? '업로드/분석 완료' : '업로드/분석 실패';
             } catch (error) {
                 console.error('[Upload Analyze Error]', error);
-                captureMessage.textContent = '업로드 이미지 분석 실패. 다시 시도해 주세요.';
+                captureMessage.textContent = normalizeUploadError(error);
             } finally {
+                setUploadProgress(false);
                 event.target.value = '';
             }
         }
@@ -730,14 +1036,18 @@
 
                     captureMessage.textContent = detectedText;
                     setResultButtonState(hasAnalysisResult());
+                    showDetectionToast(result);
+                    return { ok: true, left: !!result.left_eye, right: !!result.right_eye, result };
                 } else {
                     captureMessage.textContent = result.error || '분석 중 오류가 발생했습니다.';
                     setResultButtonState(false);
+                    return { ok: false, message: result.error || '분석 중 오류' };
                 }
             } catch (error) {
                 console.error('[Server Analysis Error]', error);
                 captureMessage.textContent = '서버 통신 오류가 발생했습니다.';
                 setResultButtonState(false);
+                return { ok: false, message: String(error || 'server-error') };
             }
         }
 
@@ -746,7 +1056,7 @@
             syncUserScopedCaptureCache();
             clearSessionCaptureData();
 
-            if (isMobileClient() && !canUseMobileCameraDirectly()) {
+            if (isMobileClient()) {
                 enableMobileUploadOnlyMode();
             }
 
@@ -758,6 +1068,7 @@
 
             capturedPhoto = null;
             analysisReady = false;
+            setLastUploadAvailability();
             if (mobileUploadOnlyMode) {
                 previewMode = 'upload';
             } else {
