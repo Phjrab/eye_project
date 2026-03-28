@@ -7,8 +7,51 @@ import socket
 import sqlite3
 import requests
 import qrcode
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, redirect
 from flask_cors import CORS
+
+# [추가됨] 앱 설정을 로컬 JSON 파일에서 읽도록 변경.
+CONFIG_PATH = "config.local.json"
+DB_PATH = "db/database.db"
+REPORT_DIR = "reports"
+
+
+# [추가됨] 수동 환경변수 입력 대신 config.local.json 로딩 추가.
+def load_json_config(path: str = CONFIG_PATH) -> None:
+    if not os.path.exists(path):
+        return
+
+    with open(path, "r", encoding="utf-8-sig") as config_file:
+        config = json.load(config_file)
+
+    if not isinstance(config, dict):
+        raise RuntimeError(f"{path} must contain a JSON object.")
+
+    for key, value in config.items():
+        if value is None:
+            continue
+        os.environ.setdefault(str(key), str(value))
+
+# [추가됨] 새 refresh token을 config.local.json에 다시 저장.
+def update_json_config(updates: dict[str, str], path: str = CONFIG_PATH) -> None:
+    config: dict[str, object] = {}
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8-sig") as config_file:
+            loaded = json.load(config_file)
+        if not isinstance(loaded, dict):
+            raise RuntimeError(f"{path} must contain a JSON object.")
+        config = loaded
+
+    for key, value in updates.items():
+        config[str(key)] = value
+        os.environ[str(key)] = value
+
+    with open(path, "w", encoding="utf-8") as config_file:
+        json.dump(config, config_file, ensure_ascii=False, indent=2)
+
+
+load_json_config()
+
 app = Flask(__name__)
 CORS(app)
 _PHONE_RE = re.compile(r"\D+")
@@ -40,10 +83,64 @@ def phone_hash_id(phone: str) -> str:
     norm = normalize_phone(phone)
     return hashlib.sha256(f"{norm}|{pepper}".encode("utf-8")).hexdigest()
 
-def kakao_send_me(text: str, link_url: str):
-    token = os.environ.get("KAKAO_ACCESS_TOKEN")
-    if not token:
-        raise RuntimeError("KAKAO_ACCESS_TOKEN 환경변수가 필요합니다.")
+# [수정됨] access token 직접 사용 대신 refresh token으로 재발급.
+def refresh_kakao_token(refresh_token: str | None = None) -> dict:
+    refresh_token = refresh_token or os.environ.get("KAKAO_REFRESH_TOKEN")
+    client_id = os.environ.get("KAKAO_CLIENT_ID")
+    client_secret = os.environ.get("KAKAO_CLIENT_SECRET")
+
+    if not refresh_token:
+        raise RuntimeError("KAKAO_REFRESH_TOKEN 환경변수가 필요합니다.")
+    if not client_id:
+        raise RuntimeError("KAKAO_CLIENT_ID 환경변수가 필요합니다.")
+
+    token_data = {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "refresh_token": refresh_token,
+    }
+    if client_secret:
+        token_data["client_secret"] = client_secret
+
+    token_response = requests.post(
+        "https://kauth.kakao.com/oauth/token",
+        data=token_data,
+        timeout=10
+    )
+
+    if token_response.status_code != 200:
+        raise RuntimeError(f"Kakao token refresh failed: {token_response.status_code} {token_response.text}")
+
+    return token_response.json()
+
+
+# [추가됨] 전역 fallback 토큰은 유지하되, 새 refresh token이 오면 자동 저장.
+def get_kakao_access_token(refresh_token: str | None = None) -> tuple[str, dict]:
+    uses_global_refresh_token = refresh_token is None
+    token_payload = refresh_kakao_token(refresh_token=refresh_token)
+    if uses_global_refresh_token and token_payload.get("refresh_token"):
+        update_json_config({"KAKAO_REFRESH_TOKEN": token_payload["refresh_token"]})
+    access_token = token_payload.get("access_token")
+    if not access_token:
+        raise RuntimeError(f"Kakao token refresh response missing access_token: {token_payload}")
+
+    return access_token, token_payload
+
+def get_kakao_oauth_config() -> tuple[str, str, str | None]:
+    client_id = os.environ.get("KAKAO_CLIENT_ID")
+    redirect_uri = os.environ.get("KAKAO_REDIRECT_URI")
+    client_secret = os.environ.get("KAKAO_CLIENT_SECRET")
+
+    if not client_id:
+        raise RuntimeError("KAKAO_CLIENT_ID 환경변수가 필요합니다.")
+    if not redirect_uri:
+        raise RuntimeError("KAKAO_REDIRECT_URI 환경변수가 필요합니다.")
+
+    return client_id, redirect_uri, client_secret
+
+# [수정됨] 카카오 전송 시 사용자별 refresh token을 받을 수 있게 변경.
+def kakao_send_me(text: str, link_url: str, refresh_token: str | None = None):
+    token, token_payload = get_kakao_access_token(refresh_token=refresh_token)
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -74,18 +171,126 @@ def kakao_send_me(text: str, link_url: str):
     if r.status_code != 200:
         raise RuntimeError(f"Kakao send failed: {r.status_code} {r.text}")
 
-    return r.json()
+    return {
+        "send_result": r.json(),
+        "token_payload": token_payload,
+    }
 
-DB_PATH = "db/database.db"
-REPORT_DIR = "reports"
+# [추가됨] 사용자별 카카오 로그인 시작 라우트 추가. 전화번호를 state로 전달.
+@app.get("/kakao/login")
+def kakao_login():
+    phone = request.args.get("phone", "").strip()
+    if not phone:
+        return jsonify({"error": "phone query required"}), 400
 
-app = Flask(__name__)
+    normalized = normalize_phone(phone)
+    client_id, redirect_uri, _ = get_kakao_oauth_config()
+    auth_url = (
+        "https://kauth.kakao.com/oauth/authorize"
+        f"?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&state={normalized}"
+    )
+    return redirect(auth_url)
 
+# [추가됨] 카카오 로그인 완료 후 사용자별 refresh token 저장.
+@app.get("/kakao/callback")
+def kakao_callback():
+    code = request.args.get("code")
+    error = request.args.get("error")
+    state = request.args.get("state", "").strip()
+
+    if error:
+        return jsonify({
+            "error": "kakao_login_failed",
+            "error_description": request.args.get("error_description"),
+            "details": request.args.to_dict()
+        }), 400
+
+    if not code:
+        return jsonify({"error": "code query required"}), 400
+    if not state:
+        return jsonify({"error": "state query required"}), 400
+
+    client_id, redirect_uri, client_secret = get_kakao_oauth_config()
+    token_data = {
+        "grant_type": "authorization_code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "code": code,
+    }
+    if client_secret:
+        token_data["client_secret"] = client_secret
+
+    token_response = requests.post(
+        "https://kauth.kakao.com/oauth/token",
+        data=token_data,
+        timeout=10
+    )
+
+    if token_response.status_code != 200:
+        return jsonify({
+            "error": "token_exchange_failed",
+            "status_code": token_response.status_code,
+            "body": token_response.text,
+        }), 400
+
+    token_payload = token_response.json()
+    issued_refresh_token = token_payload.get("refresh_token")
+    refresh_token_expires_in = token_payload.get("refresh_token_expires_in")
+    scope = token_payload.get("scope")
+
+    conn = get_conn()
+    try:
+        user_id = upsert_user_by_phone(conn, state)
+        if issued_refresh_token:
+            set_user_kakao_token(
+                conn,
+                user_id=user_id,
+                refresh_token=issued_refresh_token,
+                refresh_token_expires_in=refresh_token_expires_in,
+                scope=scope,
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify({
+        "message": "Kakao login linked to this phone number.",
+        "phone": state,
+        "user_id": user_id,
+        "access_token": token_payload.get("access_token"),
+        "refresh_token": issued_refresh_token,
+        "refresh_token_expires_in": refresh_token_expires_in,
+        "scope": scope,
+    })
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+# [추가됨] 기존 DB에도 사용자별 카카오 토큰 컬럼이 생기도록 보정.
+def ensure_runtime_schema() -> None:
+    conn = get_conn()
+    try:
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(users)").fetchall()
+        }
+        if "kakao_refresh_token" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN kakao_refresh_token TEXT")
+        if "kakao_refresh_token_expires_in" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN kakao_refresh_token_expires_in INTEGER")
+        if "kakao_scope" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN kakao_scope TEXT")
+        if "kakao_connected_at" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN kakao_connected_at TEXT")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+ensure_runtime_schema()
 
 
 def upsert_user_by_phone(conn, phone: str, display_name: str | None = None) -> int:
@@ -100,6 +305,31 @@ def upsert_user_by_phone(conn, phone: str, display_name: str | None = None) -> i
 
     cur.execute("INSERT INTO users (phone_hash, display_name) VALUES (?, ?)", (ph, display_name))
     return int(cur.lastrowid)
+
+
+# [추가됨] users 테이블에 사용자 카카오 refresh token과 메타데이터 저장.
+def set_user_kakao_token(conn, user_id: int, refresh_token: str, refresh_token_expires_in: int | None = None,
+                         scope: str | None = None) -> None:
+    conn.execute(
+        """
+        UPDATE users
+        SET kakao_refresh_token=?, kakao_refresh_token_expires_in=?, kakao_scope=?, kakao_connected_at=datetime('now')
+        WHERE id=?
+        """,
+        (refresh_token, refresh_token_expires_in, scope, user_id)
+    )
+
+
+# [추가됨] 진단 요청의 전화번호에 연결된 사용자 카카오 토큰 조회.
+def get_user_kakao_token_by_phone(conn, phone: str) -> str | None:
+    ph = phone_hash_id(phone)
+    row = conn.execute(
+        "SELECT kakao_refresh_token FROM users WHERE phone_hash=?",
+        (ph,)
+    ).fetchone()
+    if not row:
+        return None
+    return row["kakao_refresh_token"]
 
 
 def create_session(conn, user_id: int, ai_reading: dict, pixel_metrics: dict, survey: dict,
@@ -293,10 +523,22 @@ def post_diagnosis():
 
         
             try:    
-                kakao_send_me(
+                # [수정됨] 전화번호에 연결된 사용자 토큰을 우선 사용하고, 없으면 전역 설정 토큰 사용.
+                user_refresh_token = get_user_kakao_token_by_phone(conn, phone)
+                send_result = kakao_send_me(
                     text=f"진단 리포트가 생성되었습니다. (session_id={session_id})\n\n리포트 열기:\n{open_url}",
-                    link_url=open_url
+                    link_url=open_url,
+                    refresh_token=user_refresh_token
                 )
+                refreshed_refresh_token = send_result["token_payload"].get("refresh_token")
+                if user_refresh_token and refreshed_refresh_token:
+                    set_user_kakao_token(
+                        conn,
+                        user_id=user_id,
+                        refresh_token=refreshed_refresh_token,
+                        refresh_token_expires_in=send_result["token_payload"].get("refresh_token_expires_in"),
+                        scope=send_result["token_payload"].get("scope"),
+                    )
                 log_event(conn, session_id, "KAKAO_SENT", {"url": open_url})
             except Exception as e:
                 print("DEBUG kakao error:", e)
@@ -385,4 +627,4 @@ def get_qr(session_id: int):
     return send_file(buf, mimetype="image/png")
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
