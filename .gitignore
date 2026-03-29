@@ -10,3 +10,6 @@ eye_photo/
 web/static/captures/users/
 web/static/reports/
 .env
+config.local.json
+database/config.local.json
+database/config.local.example.json

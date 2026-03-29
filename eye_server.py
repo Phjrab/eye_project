@@ -342,6 +342,11 @@ def normalize_user_id(user_id):
     if not value:
         return 'anonymous'
 
+    # 전화번호 형식은 하이픈 유무와 무관하게 동일한 식별자로 통일한다.
+    digits = re.sub(r'\D+', '', value)
+    if len(digits) == 11 and digits.startswith('01'):
+        value = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+
     normalized = re.sub(r'[^0-9A-Za-z가-힣._-]+', '_', value)
     return normalized[:80] if normalized else 'anonymous'
 

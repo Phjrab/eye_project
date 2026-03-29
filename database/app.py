@@ -12,7 +12,7 @@ from flask_cors import CORS
 
 # [추가됨] 앱 설정을 로컬 JSON 파일에서 읽도록 변경.
 CONFIG_PATH = "config.local.json"
-DB_PATH = "db/database.db"
+DB_PATH = "database/database.db"
 REPORT_DIR = "reports"
 
 
@@ -51,6 +51,9 @@ def update_json_config(updates: dict[str, str], path: str = CONFIG_PATH) -> None
 
 
 load_json_config()
+
+APP_HOST = os.environ.get("KAKAO_APP_HOST", "0.0.0.0")
+APP_PORT = int(os.environ.get("KAKAO_APP_PORT", "5001"))
 
 app = Flask(__name__)
 CORS(app)
@@ -519,7 +522,7 @@ def post_diagnosis():
             # (카톡) 일단 꺼두는 게 안전 -> 아래 3줄은 주석 처리해도 됨
             #server_ip = socket.gethostbyname(socket.gethostname())
             server_ip = get_lan_ip()   # <-- 이걸로 바꿔야 172.x 같은 거 안 잡힘
-            open_url = f"http://{server_ip}:5000/open/{session_id}"
+            open_url = f"http://{server_ip}:{APP_PORT}/open/{session_id}"
 
         
             try:    
@@ -614,7 +617,7 @@ def get_qr(session_id: int):
     local_ip = socket.gethostbyname(hostname)
 
     # PDF 다운로드 링크
-    url = f"http://{local_ip}:5000/report/{session_id}"
+    url = f"http://{local_ip}:{APP_PORT}/report/{session_id}"
 
     # QR 코드 생성
     img = qrcode.make(url)
@@ -627,4 +630,4 @@ def get_qr(session_id: int):
     return send_file(buf, mimetype="image/png")
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    app.run(host=APP_HOST, port=APP_PORT, debug=True, use_reloader=False)
