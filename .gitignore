@@ -13,3 +13,5 @@ web/static/reports/
 config.local.json
 database/config.local.json
 database/config.local.example.json
+commit_detail.txt
+database/database.db

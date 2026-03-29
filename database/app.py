@@ -5,6 +5,9 @@ import re
 import hashlib
 import socket
 import sqlite3
+import secrets
+import threading
+import time
 import requests
 import qrcode
 from flask import Flask, request, jsonify, send_file, redirect
@@ -59,6 +62,10 @@ app = Flask(__name__)
 CORS(app)
 _PHONE_RE = re.compile(r"\D+")
 
+OAUTH_STATE_STORE: dict[str, dict[str, object]] = {}
+OAUTH_STATE_LOCK = threading.Lock()
+OAUTH_STATE_TTL_SECONDS = int(os.environ.get("KAKAO_OAUTH_STATE_TTL_SECONDS", "600"))
+
 
 
 def get_lan_ip() -> str:
@@ -78,6 +85,75 @@ def normalize_phone(phone: str) -> str:
     if len(digits) < 9:
         raise ValueError(f"phone looks too short: {digits}")
     return digits
+
+
+def issue_oauth_state(phone: str, popup: bool = False) -> str:
+    now = time.time()
+    token = secrets.token_urlsafe(24)
+    with OAUTH_STATE_LOCK:
+        expired_keys = [
+            key for key, value in OAUTH_STATE_STORE.items()
+            if float(value.get("expires_at", 0)) < now
+        ]
+        for key in expired_keys:
+            OAUTH_STATE_STORE.pop(key, None)
+
+        OAUTH_STATE_STORE[token] = {
+            "phone": phone,
+            "popup": bool(popup),
+            "expires_at": now + OAUTH_STATE_TTL_SECONDS,
+        }
+
+    return token
+
+
+def consume_oauth_state(token: str) -> dict[str, object] | None:
+    now = time.time()
+    with OAUTH_STATE_LOCK:
+        payload = OAUTH_STATE_STORE.pop(token, None)
+
+    if not payload:
+        return None
+
+    if float(payload.get("expires_at", 0)) < now:
+        return None
+
+    return payload
+
+
+def popup_result_html(ok: bool, message: str, phone: str = "") -> str:
+        color = "#0f766e" if ok else "#b91c1c"
+        escaped_message = str(message).replace("'", "\\'")
+        escaped_phone = str(phone).replace("'", "\\'")
+        return f"""
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset=\"utf-8\" />
+            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+            <title>Kakao OAuth Result</title>
+            <style>
+                body {{ font-family: sans-serif; padding: 24px; text-align: center; }}
+                .msg {{ color: {color}; font-weight: 700; }}
+            </style>
+        </head>
+        <body>
+            <h2 class=\"msg\">{message}</h2>
+            <p>창이 자동으로 닫힙니다.</p>
+            <script>
+                if (window.opener && !window.opener.closed) {{
+                    window.opener.postMessage({{
+                        type: 'kakao-link-result',
+                        ok: {str(ok).lower()},
+                        message: '{escaped_message}',
+                        phone: '{escaped_phone}'
+                    }}, '*');
+                }}
+                setTimeout(function () {{ window.close(); }}, 500);
+            </script>
+        </body>
+        </html>
+        """
 
 def phone_hash_id(phone: str) -> str:
     pepper = os.environ.get("HASH_PEPPER")
@@ -187,10 +263,12 @@ def kakao_login():
         return jsonify({"error": "phone query required"}), 400
 
     normalized = normalize_phone(phone)
+    popup = request.args.get("popup", "").strip().lower() in {"1", "true", "yes", "y"}
+    oauth_state = issue_oauth_state(normalized, popup=popup)
     client_id, redirect_uri, _ = get_kakao_oauth_config()
     auth_url = (
         "https://kauth.kakao.com/oauth/authorize"
-        f"?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&state={normalized}"
+        f"?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&state={oauth_state}"
     )
     return redirect(auth_url)
 
@@ -201,7 +279,13 @@ def kakao_callback():
     error = request.args.get("error")
     state = request.args.get("state", "").strip()
 
+    state_payload = consume_oauth_state(state) if state else None
+    linked_phone = str(state_payload.get("phone")) if state_payload else ""
+    popup_mode = bool(state_payload.get("popup")) if state_payload else False
+
     if error:
+        if popup_mode:
+            return popup_result_html(False, "카카오 로그인 실패", linked_phone), 400
         return jsonify({
             "error": "kakao_login_failed",
             "error_description": request.args.get("error_description"),
@@ -212,6 +296,10 @@ def kakao_callback():
         return jsonify({"error": "code query required"}), 400
     if not state:
         return jsonify({"error": "state query required"}), 400
+    if not state_payload or not linked_phone:
+        if request.args.get("popup") in {"1", "true"}:
+            return popup_result_html(False, "세션이 만료되었습니다. 다시 시도해 주세요."), 400
+        return jsonify({"error": "invalid_or_expired_state"}), 400
 
     client_id, redirect_uri, client_secret = get_kakao_oauth_config()
     token_data = {
@@ -230,6 +318,8 @@ def kakao_callback():
     )
 
     if token_response.status_code != 200:
+        if popup_mode:
+            return popup_result_html(False, "카카오 토큰 발급 실패", linked_phone), 400
         return jsonify({
             "error": "token_exchange_failed",
             "status_code": token_response.status_code,
@@ -243,7 +333,7 @@ def kakao_callback():
 
     conn = get_conn()
     try:
-        user_id = upsert_user_by_phone(conn, state)
+        user_id = upsert_user_by_phone(conn, linked_phone)
         if issued_refresh_token:
             set_user_kakao_token(
                 conn,
@@ -256,15 +346,79 @@ def kakao_callback():
     finally:
         conn.close()
 
+        if popup_mode:
+                return popup_result_html(True, "카카오 연동 완료", linked_phone)
+
     return jsonify({
         "message": "Kakao login linked to this phone number.",
-        "phone": state,
+                "phone": linked_phone,
         "user_id": user_id,
         "access_token": token_payload.get("access_token"),
         "refresh_token": issued_refresh_token,
         "refresh_token_expires_in": refresh_token_expires_in,
         "scope": scope,
     })
+
+
+@app.post("/kakao/send_report")
+def kakao_send_report():
+    data = request.get_json(force=True, silent=True) or {}
+    phone = str(data.get("phone", "")).strip()
+    text = str(data.get("text", "")).strip()
+    link_url = str(data.get("link_url", "")).strip()
+
+    if not phone:
+        return jsonify({"status": "error", "message": "phone is required"}), 400
+    if not text:
+        return jsonify({"status": "error", "message": "text is required"}), 400
+    if not link_url:
+        return jsonify({"status": "error", "message": "link_url is required"}), 400
+
+    try:
+        normalized_phone = normalize_phone(phone)
+    except Exception:
+        return jsonify({"status": "error", "message": "invalid phone format"}), 400
+
+    conn = get_conn()
+    try:
+        user_id = upsert_user_by_phone(conn, normalized_phone)
+        user_refresh_token = get_user_kakao_token_by_phone(conn, normalized_phone)
+
+        global_refresh_token = os.environ.get("KAKAO_REFRESH_TOKEN", "").strip()
+        if not user_refresh_token and not global_refresh_token:
+            return jsonify({
+                "status": "error",
+                "message": "카카오 계정 연동이 필요합니다. 메인 화면에서 카카오 연동을 먼저 완료해 주세요.",
+                "code": "KAKAO_LINK_REQUIRED",
+                "phone": normalized_phone,
+            }), 400
+
+        send_result = kakao_send_me(text=text, link_url=link_url, refresh_token=user_refresh_token or None)
+
+        refreshed_refresh_token = send_result["token_payload"].get("refresh_token")
+        if user_refresh_token and refreshed_refresh_token:
+            set_user_kakao_token(
+                conn,
+                user_id=user_id,
+                refresh_token=refreshed_refresh_token,
+                refresh_token_expires_in=send_result["token_payload"].get("refresh_token_expires_in"),
+                scope=send_result["token_payload"].get("scope"),
+            )
+
+        conn.commit()
+        return jsonify({
+            "status": "ok",
+            "phone": normalized_phone,
+            "send_result": send_result["send_result"],
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"카카오 전송 실패: {e}",
+            "code": "KAKAO_SEND_FAILED",
+        }), 400
+    finally:
+        conn.close()
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)

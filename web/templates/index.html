@@ -184,7 +184,8 @@
         }
 
         .start-section .btn-start,
-        .start-section .btn-mobile-access {
+        .start-section .btn-mobile-access,
+        .start-section .btn-kakao-link {
             width: min(460px, 92vw);
             text-align: center;
             box-sizing: border-box;
@@ -213,6 +214,25 @@
             cursor: pointer;
         }
 
+        .btn-kakao-link {
+            margin-top: 0;
+            display: inline-block;
+            background: #FEE500;
+            color: #191919;
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-size: 1.02rem;
+            font-weight: 800;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 8px 20px rgba(25, 25, 25, 0.12);
+        }
+
+        .btn-kakao-link:hover {
+            filter: brightness(0.98);
+            transform: translateY(-1px);
+        }
+
         .mobile-o2o-overlay {
             position: fixed;
             inset: 0;
@@ -223,6 +243,116 @@
             justify-content: center;
             padding: 28px;
             box-sizing: border-box;
+        }
+
+        .kakao-link-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 2200;
+            background: rgba(15, 23, 42, 0.65);
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+
+        .kakao-link-panel {
+            width: min(520px, 100%);
+            background: var(--card-bg);
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            box-shadow: 0 12px 40px rgba(15, 23, 42, 0.35);
+            overflow: hidden;
+        }
+
+        .kakao-link-header {
+            height: 56px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            background: #f8fafc;
+        }
+
+        [data-theme="dark"] .kakao-link-header {
+            background: #111827;
+        }
+
+        .kakao-link-title {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text-dark);
+        }
+
+        .kakao-link-close {
+            border: none;
+            background: #e2e8f0;
+            color: #1e293b;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .kakao-link-body {
+            padding: 18px;
+            text-align: left;
+        }
+
+        .kakao-link-body p {
+            margin: 0 0 12px;
+            color: var(--text-sub);
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+
+        .kakao-phone-input {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            outline: none;
+            background: var(--card-bg);
+            color: var(--text-dark);
+        }
+
+        .kakao-link-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-kakao-cancel,
+        .btn-kakao-submit {
+            border: none;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.93rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-kakao-cancel {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .btn-kakao-submit {
+            background: #FEE500;
+            color: #191919;
+        }
+
+        .kakao-link-status {
+            margin-top: 10px;
+            min-height: 20px;
+            color: var(--text-sub);
+            font-size: 0.9rem;
         }
 
         .mobile-o2o-panel {
@@ -438,7 +568,19 @@
                 font-size: 1rem;
             }
 
+            .btn-kakao-link {
+                width: 100%;
+                max-width: 340px;
+                min-height: 48px;
+                padding: 12px 18px;
+                font-size: 1rem;
+            }
+
             .mobile-o2o-overlay {
+                padding: 12px;
+            }
+
+            .kakao-link-overlay {
                 padding: 12px;
             }
 
@@ -486,6 +628,7 @@
         <a href="{{ url_for('login') }}" class="btn-start">
             진단 시작하기
         </a>
+        <button type="button" class="btn-kakao-link" onclick="openKakaoLinkModal()">💬 카카오 연동</button>
         <button type="button" class="btn-mobile-access" onclick="openMobileAccessModal()">📱 모바일 기기로 접속</button>
         <p class="helper-text">※ 본 서비스는 의료 보조 및 스크리닝 목적으로 제공됩니다.</p>
     </div>
@@ -510,6 +653,24 @@
             </div>
 
             <div id="mobile-complete-status"></div>
+        </div>
+    </div>
+</div>
+
+<div id="kakao-link-overlay" class="kakao-link-overlay" onclick="closeKakaoLinkModal(event)">
+    <div class="kakao-link-panel">
+        <div class="kakao-link-header">
+            <div class="kakao-link-title">카카오 계정 연동</div>
+            <button class="kakao-link-close" type="button" onclick="closeKakaoLinkModal()">닫기</button>
+        </div>
+        <div class="kakao-link-body">
+            <p>전화번호를 입력한 뒤 카카오 로그인 창에서 동의하면 이 기기 사용자와 계정이 연결됩니다.</p>
+            <input id="kakao-phone-input" class="kakao-phone-input" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" />
+            <div class="kakao-link-actions">
+                <button type="button" class="btn-kakao-cancel" onclick="closeKakaoLinkModal()">취소</button>
+                <button type="button" class="btn-kakao-submit" onclick="submitKakaoLink()">로그인 팝업 열기</button>
+            </div>
+            <div id="kakao-link-status" class="kakao-link-status"></div>
         </div>
     </div>
 </div>
@@ -553,6 +714,119 @@
 </script>
 
 <script>
+    let kakaoPopupRef = null;
+
+    function openCenteredPopup(url, name, width, height) {
+        const dualScreenLeft = window.screenLeft !== undefined ? window.screenLeft : window.screenX;
+        const dualScreenTop = window.screenTop !== undefined ? window.screenTop : window.screenY;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || screen.width;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || screen.height;
+
+        const left = Math.max(0, Math.floor(dualScreenLeft + (viewportWidth - width) / 2));
+        const top = Math.max(0, Math.floor(dualScreenTop + (viewportHeight - height) / 2));
+
+        const features = [
+            `width=${width}`,
+            `height=${height}`,
+            `left=${left}`,
+            `top=${top}`,
+            'menubar=no',
+            'toolbar=no',
+            'location=no',
+            'status=no',
+            'resizable=yes',
+            'scrollbars=yes'
+        ].join(',');
+
+        const popup = window.open(url, name, features);
+        if (popup && popup.focus) {
+            popup.focus();
+        }
+        return popup;
+    }
+
+    function normalizeKakaoPhone(raw) {
+        const digits = String(raw || '').replace(/\D/g, '').slice(0, 11);
+        if (digits.length <= 3) return digits;
+        if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    }
+
+    function openKakaoLinkModal() {
+        const overlay = document.getElementById('kakao-link-overlay');
+        const input = document.getElementById('kakao-phone-input');
+        const status = document.getElementById('kakao-link-status');
+        const saved = (localStorage.getItem('user_id') || '').trim();
+
+        status.textContent = '';
+        input.value = normalizeKakaoPhone(saved);
+        overlay.style.display = 'flex';
+
+        setTimeout(() => input.focus(), 50);
+    }
+
+    function closeKakaoLinkModal(event) {
+        if (event && event.target && event.target.id !== 'kakao-link-overlay') {
+            return;
+        }
+        const overlay = document.getElementById('kakao-link-overlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    function submitKakaoLink() {
+        const input = document.getElementById('kakao-phone-input');
+        const status = document.getElementById('kakao-link-status');
+        const normalized = normalizeKakaoPhone(input.value);
+        const digits = normalized.replace(/\D/g, '');
+
+        input.value = normalized;
+
+        if (digits.length !== 11) {
+            status.textContent = '전화번호 11자리를 입력해 주세요. 예: 010-1234-5678';
+            return;
+        }
+
+        localStorage.setItem('user_id', normalized);
+        status.textContent = '카카오 로그인 창을 여는 중입니다...';
+
+        const baseUrl = `${window.location.protocol}//${window.location.hostname}:5001`;
+        const loginUrl = `${baseUrl}/kakao/login?phone=${encodeURIComponent(normalized)}&popup=1`;
+
+        kakaoPopupRef = openCenteredPopup(loginUrl, 'kakao-link-popup', 560, 820);
+
+        if (!kakaoPopupRef) {
+            status.textContent = '팝업이 차단되었습니다. 브라우저 팝업 허용 후 다시 시도해 주세요.';
+            return;
+        }
+
+        status.textContent = '카카오 로그인/동의 후 창이 자동으로 닫힙니다.';
+    }
+
+    window.addEventListener('message', function (event) {
+        const data = event && event.data ? event.data : null;
+        if (!data || data.type !== 'kakao-link-result') return;
+
+        const status = document.getElementById('kakao-link-status');
+        if (!status) return;
+
+        if (data.ok) {
+            status.textContent = `연동 완료: ${data.phone || ''}`;
+            setTimeout(() => {
+                closeKakaoLinkModal();
+            }, 800);
+        } else {
+            status.textContent = data.message || '연동에 실패했습니다.';
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const input = document.getElementById('kakao-phone-input');
+        if (!input) return;
+        input.addEventListener('input', function () {
+            this.value = normalizeKakaoPhone(this.value);
+        });
+    });
+
     let mobileAccessState = {
         requestId: null,
         pollTimer: null,

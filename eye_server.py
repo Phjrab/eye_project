@@ -98,6 +98,7 @@ debug_frame_counter = 0
 
 HISTORY_DB_PATH = os.path.join(config.BASE_DIR, 'database', 'history.db')
 REPORT_EXPORT_DIR = os.path.join(config.BASE_DIR, 'web', 'static', 'reports')
+KAKAO_BRIDGE_URL = os.getenv('KAKAO_BRIDGE_URL', 'http://127.0.0.1:5001').strip().rstrip('/')
 
 ADMIN_EDITABLE_CONFIG_KEYS = {
     'SERVER_IP': str,
@@ -806,18 +807,43 @@ def generate_session_pdf_report(user_id, session_data, latest_survey):
 def send_kakao_report_message(user_id, report_url):
     """
     카카오 나에게 보내기 API
-    - 토큰은 환경변수 KAKAO_ACCESS_TOKEN만 사용
-    - 코드/저장소에 토큰 하드코딩 금지
+    - 기본 경로: 카카오 연동 서버(database/app.py)로 전송 위임
+    - 예외 fallback: 환경변수 KAKAO_ACCESS_TOKEN 직접 사용
     """
     token = os.environ.get('KAKAO_ACCESS_TOKEN')
-    if not token:
-        raise RuntimeError('KAKAO_ACCESS_TOKEN 환경변수가 필요합니다.')
-
     external_base_url = os.environ.get('EXTERNAL_BASE_URL', '').strip().rstrip('/')
     if external_base_url:
         open_url = f"{external_base_url}{report_url}"
     else:
         open_url = f"http://{config.SERVER_IP}:{config.SERVER_PORT}{report_url}"
+
+    # 우선: 카카오 연동 서버(database/app.py)로 전송 위임
+    if KAKAO_BRIDGE_URL:
+        payload = {
+            'phone': normalize_user_id(user_id),
+            'text': f"안구 진단 보고서가 생성되었습니다.\n사용자: {normalize_user_id(user_id)}\n\n보고서 열기: {open_url}",
+            'link_url': open_url,
+        }
+
+        try:
+            bridge_response = requests.post(
+                f"{KAKAO_BRIDGE_URL}/kakao/send_report",
+                json=payload,
+                timeout=10
+            )
+            bridge_data = bridge_response.json() if bridge_response.text else {}
+            if bridge_response.status_code == 200 and bridge_data.get('status') == 'ok':
+                return {
+                    'open_url': open_url,
+                    'kakao_response': bridge_data,
+                }
+
+            bridge_message = bridge_data.get('message') if isinstance(bridge_data, dict) else bridge_response.text
+            raise RuntimeError(bridge_message or f"카카오 연동 서버 오류({bridge_response.status_code})")
+        except Exception as bridge_error:
+            token = os.environ.get('KAKAO_ACCESS_TOKEN')
+            if not token:
+                raise RuntimeError(str(bridge_error))
 
     headers = {
         'Authorization': f'Bearer {token}',
@@ -858,6 +884,7 @@ def get_report_dependency_status():
     reportlab_installed = importlib.util.find_spec('reportlab') is not None
     requests_installed = importlib.util.find_spec('requests') is not None
     kakao_token_set = bool(os.environ.get('KAKAO_ACCESS_TOKEN'))
+    kakao_bridge_enabled = bool(KAKAO_BRIDGE_URL)
 
     missing = []
     if not reportlab_installed:
@@ -869,8 +896,9 @@ def get_report_dependency_status():
         'reportlab_installed': reportlab_installed,
         'requests_installed': requests_installed,
         'kakao_token_configured': kakao_token_set,
+        'kakao_bridge_enabled': kakao_bridge_enabled,
         'pdf_generation_ready': reportlab_installed,
-        'kakao_send_ready': requests_installed and kakao_token_set,
+        'kakao_send_ready': requests_installed and (kakao_token_set or kakao_bridge_enabled),
         'missing_packages': missing
     }
 
