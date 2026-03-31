@@ -40,5 +40,6 @@ stop_by_pattern() {
 
 stop_by_pattern "kakao app" "python.*database/app.py"
 stop_by_pattern "eye_server" "python.*eye_server.py"
+stop_by_pattern "epiphany browser" "epiphany.*browser"
 
 echo "[DONE] Services stop routine finished."

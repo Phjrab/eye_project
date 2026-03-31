@@ -20,7 +20,7 @@ DEVICE = torch.device('cpu')  # Jetson Orin Nano의 제한된 CUDA 메모리 때
 # ========================================
 # [2] 모델 경로
 # ========================================
-YOLO_MODEL_PATH = os.path.join(MODEL_DIR, 'yololv8n.pt')  # YOLO eye detector 모델
+YOLO_MODEL_PATH = os.path.join(MODEL_DIR, 'set_1000_YOLO26s_best.pt')  # YOLO eye detector 모델
 CLASSIFIER_MODEL_PATH = os.path.join(MODEL_DIR, 'Augmented_EffNet_V1_B0_best.pth')
 
 # ========================================

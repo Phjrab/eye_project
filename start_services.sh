@@ -11,6 +11,12 @@ fi
 
 source venv/bin/activate
 
+# Detect host IP address
+HOST_IP=$(hostname -I | awk '{print $1}')
+if [[ -z "$HOST_IP" ]]; then
+  HOST_IP="127.0.0.1"
+fi
+
 mkdir -p logs database
 
 if [[ ! -f "database/database.db" ]]; then
@@ -79,5 +85,42 @@ wait_for_http() {
 
 wait_for_http "eye_server" "http://127.0.0.1:5000/capture" || true
 wait_for_http "kakao_login" "http://127.0.0.1:5001/kakao/login?phone=01012341234" || true
+
+echo ""
+echo "=========================================="
+echo "  eye_server  →  http://${HOST_IP}:5000"
+echo "  kakao app   →  http://${HOST_IP}:5001"
+echo "=========================================="
+
+# ── Epiphany 브라우저 전체화면 자동 실행 ──
+export DISPLAY=:0
+BROWSER_URL="http://127.0.0.1:5000"
+
+# 이미 실행 중이면 건너뛰기
+if pgrep -x epiphany-browse >/dev/null 2>&1 || pgrep -af "epiphany.*browser" >/dev/null 2>&1; then
+  echo "[OK] Epiphany browser already running"
+else
+  echo "[INFO] Launching Epiphany browser (fullscreen)..."
+  nohup epiphany-browser "$BROWSER_URL" > logs/browser.log 2>&1 &
+  BROWSER_PID=$!
+
+  # 브라우저 창이 뜰 때까지 대기 후 F11 전체화면
+  sleep 4
+  if command -v xdotool >/dev/null 2>&1; then
+    # epiphany 창 찾아서 전체화면 전환
+    WID=$(xdotool search --name "Web" 2>/dev/null | head -1 || true)
+    if [[ -z "$WID" ]]; then
+      WID=$(xdotool search --pid "$BROWSER_PID" 2>/dev/null | head -1 || true)
+    fi
+    if [[ -n "$WID" ]]; then
+      xdotool windowactivate "$WID" 2>/dev/null || true
+      sleep 0.5
+      xdotool key F11 2>/dev/null || true
+      echo "[OK] Browser fullscreen activated (window=$WID)"
+    else
+      echo "[WARN] Could not find browser window for fullscreen"
+    fi
+  fi
+fi
 
 echo "[DONE] Services startup routine finished."

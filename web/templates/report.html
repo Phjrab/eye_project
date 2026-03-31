@@ -1301,6 +1301,10 @@
 
             for (let index = 0; index < records.length; index += 1) {
                 const record = records[index];
+
+                // 눈 데이터가 전혀 없는 레코드는 세션에 포함하지 않음
+                if (!hasLeftEye(record) && !hasRightEye(record)) continue;
+
                 const session = makeSessionFromRecord(record);
 
                 const hasBothInCurrentRecord = hasBothEyes(record);
@@ -1395,11 +1399,11 @@
                 try {
                     return await buildCroppedEyeDataUrl(eye.image_url, eye.bbox);
                 } catch (error) {
-                    return '';
+                    return eye.image_url;
                 }
             }
 
-            return '';
+            return eye.image_url;
         }
 
         async function resolveRecordEyeImage(record, side) {
@@ -1408,12 +1412,12 @@
             if (!record?.analysis?.[sideKey]) return '';
 
             const bbox = getEyeBBox(record.analysis || {}, side);
-            if (!bbox) return '';
+            if (!bbox) return record.image_url;
 
             try {
                 return await buildCroppedEyeDataUrl(record.image_url, bbox);
             } catch (error) {
-                return '';
+                return record.image_url;
             }
         }
 
