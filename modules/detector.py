@@ -68,11 +68,17 @@ class EyeDetector:
             
             # 패딩 추가 (컨텍스트 정보 확보)
             h, w = image.shape[:2]
-            padding = 10
-            x1 = max(0, x1 - padding)
-            y1 = max(0, y1 - padding)
-            x2 = min(w, x2 + padding)
-            y2 = min(h, y2 + padding)
+            box_w = max(1, x2 - x1)
+            box_h = max(1, y2 - y1)
+
+            # 고정 10px 대신 박스 크기 비율 기반 여유 패딩 적용
+            pad_x = int(max(12, min(72, box_w * 0.24)))
+            pad_y = int(max(10, min(64, box_h * 0.30)))
+
+            x1 = max(0, x1 - pad_x)
+            y1 = max(0, y1 - pad_y)
+            x2 = min(w, x2 + pad_x)
+            y2 = min(h, y2 + pad_y)
             
             crop = image[y1:y2, x1:x2]
             eye_crops.append({

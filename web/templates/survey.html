@@ -311,6 +311,20 @@
                 </select>
             </div>
 
+            <div class="field" style="margin-bottom:15px;">
+                <label>현재 교정시력 (선택)</label>
+                <div class="input-row">
+                    <div class="field">
+                        <label>좌안(L)</label>
+                        <input type="number" id="vision-left" step="0.1" min="0" max="3.0" placeholder="예: 1.0">
+                    </div>
+                    <div class="field">
+                        <label>우안(R)</label>
+                        <input type="number" id="vision-right" step="0.1" min="0" max="3.0" placeholder="예: 1.0">
+                    </div>
+                </div>
+            </div>
+
             <h2>🏥 병력 및 생활 습관</h2>
             <div class="field" style="margin-bottom:10px;">
                 <label>기저질환 (당뇨, 고혈압 등)</label>
@@ -469,6 +483,8 @@
                     age: ageInput.value,
                     gender: document.getElementById('user-gender').value,
                     wearing: document.getElementById('user-wearing').value,
+                    vision_left: document.getElementById('vision-left').value,
+                    vision_right: document.getElementById('vision-right').value,
                     conditions: document.getElementById('user-conditions').value,
                     surgery_history: document.getElementById('user-surgery').value,
                     smoking: document.getElementById('user-smoking').value,

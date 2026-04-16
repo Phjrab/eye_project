@@ -143,17 +143,47 @@
             position: relative; 
         }
 
+        .captured-media {
+            width: 100%;
+            height: 82%;
+            position: relative;
+            background: #111;
+            overflow: hidden;
+        }
+
         #captured-image { 
             width: 100%; 
-            height: 82%; 
+            height: 100%; 
             object-fit: contain; 
             background: #111; 
+            display: block;
+        }
+
+        .cam-overlay-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            display: none;
+        }
+
+        .cam-overlay-layer.show {
+            display: block;
+        }
+
+        .cam-overlay-full {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            opacity: 0.48;
+            object-fit: contain;
         }
 
         .captured-empty-hint {
             position: absolute;
             left: 50%;
-            top: 41%;
+            top: 50%;
             transform: translate(-50%, -50%);
             color: #cbd5e1;
             font-size: 0.95rem;
@@ -175,6 +205,44 @@
             padding: 0 20px; 
             gap: 15px; 
             border-top: 1px solid var(--border); 
+        }
+
+        .eye-select-row {
+            display: flex;
+            gap: 8px;
+            padding: 10px 12px;
+            background: rgba(15, 23, 42, 0.85);
+            border-top: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        .eye-select-btn {
+            flex: 1;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: rgba(30, 41, 59, 0.65);
+            color: #e2e8f0;
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .eye-select-btn.active {
+            background: rgba(14, 116, 144, 0.9);
+            border-color: rgba(56, 189, 248, 0.95);
+            color: #f0f9ff;
+        }
+
+        .eye-select-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .cam-toggle-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #475569;
         }
 
         /* 오른쪽: 데이터 대시보드 */
@@ -228,6 +296,19 @@
             text-align: center;
             margin-bottom: 8px;
             letter-spacing: -0.5px;
+        }
+
+        .cam-toggle-btn {
+            width: 100%;
+            margin-top: 12px;
+            background: #0f766e;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
         }
 
         .map-overlay {
@@ -326,6 +407,16 @@
                 justify-content: stretch;
             }
 
+            .eye-select-row {
+                padding: 8px 10px;
+                gap: 6px;
+            }
+
+            .eye-select-btn {
+                min-height: 40px;
+                font-size: 0.82rem;
+            }
+
             .right-panel {
                 border-left: none;
                 border-top: 1px solid var(--border);
@@ -370,8 +461,19 @@
 <body>
 
     <div class="left-panel">
-        <img id="captured-image" alt="진단 이미지">
-        <div id="captured-empty-hint" class="captured-empty-hint">촬영된 원본 이미지가 없습니다. capture에서 얼굴 촬영을 먼저 진행해 주세요.</div>
+        <div class="captured-media" id="captured-media">
+            <img id="captured-image" alt="진단 이미지">
+            <div id="cam-overlay-layer" class="cam-overlay-layer">
+                <img id="cam-overlay-yolo" class="cam-overlay-full" alt="원본 YOLO 히트맵 오버레이">
+            </div>
+            <div id="captured-empty-hint" class="captured-empty-hint">촬영된 원본 이미지가 없습니다. capture에서 얼굴 촬영을 먼저 진행해 주세요.</div>
+        </div>
+
+        <div class="eye-select-row">
+            <button id="btn-view-original" class="eye-select-btn active" onclick="setEyePhotoView('ORIGINAL')">원본 보기</button>
+            <button id="btn-view-left" class="eye-select-btn" onclick="setEyePhotoView('L')">좌안 보기</button>
+            <button id="btn-view-right" class="eye-select-btn" onclick="setEyePhotoView('R')">우안 보기</button>
+        </div>
 
         <div class="camera-bottom-btns">
             <button class="btn btn-camera-sub btn-retake" onclick="retakePhotos()">🔄 안구 재촬영</button>
@@ -393,20 +495,14 @@
         </div>
 
         <div class="card">
-            <h2>✍️ 사용자 시력 입력</h2>
-            <div style="display:flex; justify-content: space-around; align-items: center;">
-                <label>좌(L)</label> <input type="number" step="0.1" placeholder="1.0">
-                <label>우(R)</label> <input type="number" step="0.1" placeholder="1.0">
-            </div>
-        </div>
-
-        <div class="card">
             <h2>🤖 AI 질환 분석 결과</h2>
             <div class="status-item"><span>일반 (Normal)</span><span id="ai-normal" class="status-tag tag-normal">분석 대기</span></div>
             <div class="status-item"><span>결막염</span><span id="ai-conj" class="status-tag tag-normal">분석 대기</span></div>
             <div class="status-item"><span>포도막염</span><span id="ai-uveitis" class="status-tag tag-normal">분석 대기</span></div>
             <div class="status-item"><span>백내장</span><span id="ai-cataract" class="status-tag tag-normal">분석 대기</span></div>
             <div class="status-item" style="border:none;"><span>다래끼</span><span id="ai-eyelid" class="status-tag tag-normal">분석 대기</span></div>
+
+            <button id="btn-cam-toggle" class="cam-toggle-btn" onclick="toggleGradCam()">🔥 히트맵 오버레이 보기</button>
         </div>
 
         <div style="margin-top: auto;">
@@ -443,6 +539,10 @@
     </div>
 
     <script>
+        let gradCamVisible = false;
+        let eyeViewMode = 'ORIGINAL';
+        let eyeCropCache = { L: '', R: '' };
+
         function showToastPopup(message, options = {}) {
             return new Promise((resolve) => {
                 const toast = document.getElementById('confirm-toast');
@@ -537,6 +637,239 @@
             const num = readNumber(value);
             if (num === null) return 0;
             return num <= 1 ? num * 100 : num;
+        }
+
+        function sanitizeCamUrl(url) {
+            if (!url) return '';
+            const text = String(url).trim();
+            if (!text) return '';
+            return text;
+        }
+
+        function getPhotoDataUrl() {
+            return localStorage.getItem('bilateral_capture') || '';
+        }
+
+        function hasUsableEye(eye) {
+            return !!(eye && parseBBox(eye.bbox));
+        }
+
+        function setActiveEyeViewButton(mode) {
+            const originalBtn = document.getElementById('btn-view-original');
+            const leftBtn = document.getElementById('btn-view-left');
+            const rightBtn = document.getElementById('btn-view-right');
+            if (!originalBtn || !leftBtn || !rightBtn) return;
+
+            originalBtn.classList.toggle('active', mode === 'ORIGINAL');
+            leftBtn.classList.toggle('active', mode === 'L');
+            rightBtn.classList.toggle('active', mode === 'R');
+        }
+
+        function updateEyeViewButtons(analysis) {
+            const originalBtn = document.getElementById('btn-view-original');
+            const leftBtn = document.getElementById('btn-view-left');
+            const rightBtn = document.getElementById('btn-view-right');
+            if (!originalBtn || !leftBtn || !rightBtn) return;
+
+            const hasPhoto = !!getPhotoDataUrl();
+
+            const leftAvailable = hasUsableEye(analysis?.left_eye);
+            const rightAvailable = hasUsableEye(analysis?.right_eye);
+
+            originalBtn.disabled = !hasPhoto;
+            leftBtn.disabled = !hasPhoto || !leftAvailable;
+            rightBtn.disabled = !hasPhoto || !rightAvailable;
+
+            originalBtn.title = hasPhoto ? '원본 사진 보기' : '원본 사진이 없습니다';
+            leftBtn.title = (!hasPhoto) ? '원본 사진이 없습니다' : (leftAvailable ? '좌안 사진 보기' : '좌안이 인식되지 않아 선택할 수 없습니다');
+            rightBtn.title = (!hasPhoto) ? '원본 사진이 없습니다' : (rightAvailable ? '우안 사진 보기' : '우안이 인식되지 않아 선택할 수 없습니다');
+
+            if (eyeViewMode === 'L' && leftBtn.disabled) {
+                eyeViewMode = 'ORIGINAL';
+            }
+            if (eyeViewMode === 'R' && rightBtn.disabled) {
+                eyeViewMode = 'ORIGINAL';
+            }
+        }
+
+        function updateCamToggleState(analysis) {
+            const btn = document.getElementById('btn-cam-toggle');
+            if (!btn) return;
+
+            if (eyeViewMode !== 'ORIGINAL') {
+                const eye = eyeViewMode === 'L' ? analysis?.left_eye : analysis?.right_eye;
+                const hasEfficientNetCam = !!sanitizeCamUrl(eye?.cam_image_url);
+                if (!hasEfficientNetCam) {
+                    btn.disabled = true;
+                    btn.textContent = '🔥 EfficientNet 히트맵 없음';
+                    return;
+                }
+
+                btn.disabled = false;
+                btn.textContent = gradCamVisible ? '🙈 EfficientNet 히트맵 숨기기' : '🔥 EfficientNet 히트맵 보기';
+                return;
+            }
+
+            const hasYoloCam = !!sanitizeCamUrl(analysis?.yolo_cam_image_url);
+            if (!hasYoloCam) {
+                btn.disabled = true;
+                btn.textContent = '🔥 YOLO 히트맵 없음';
+                return;
+            }
+
+            btn.disabled = false;
+            btn.textContent = gradCamVisible ? '🙈 YOLO 히트맵 숨기기' : '🔥 YOLO 히트맵 보기';
+        }
+
+        function loadImageFromDataUrl(dataUrl) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = dataUrl;
+            });
+        }
+
+        async function buildEyeCropDataUrl(dataUrl, bbox) {
+            const img = await loadImageFromDataUrl(dataUrl);
+            const [x1, y1, x2, y2] = bbox;
+            const minX = Math.max(0, Math.floor(Math.min(x1, x2)));
+            const minY = Math.max(0, Math.floor(Math.min(y1, y2)));
+            const maxX = Math.min(img.naturalWidth, Math.ceil(Math.max(x1, x2)));
+            const maxY = Math.min(img.naturalHeight, Math.ceil(Math.max(y1, y2)));
+            const cropW = Math.max(1, maxX - minX);
+            const cropH = Math.max(1, maxY - minY);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = cropW;
+            canvas.height = cropH;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+            return canvas.toDataURL('image/jpeg', 0.92);
+        }
+
+        function parseBBox(value) {
+            if (!Array.isArray(value) || value.length !== 4) return null;
+            const nums = value.map(v => Number(v));
+            if (nums.some(v => !Number.isFinite(v))) return null;
+            return nums;
+        }
+
+        function renderGradCamOverlay(analysis) {
+            const layer = document.getElementById('cam-overlay-layer');
+            const yoloEl = document.getElementById('cam-overlay-yolo');
+            if (!layer || !yoloEl) return;
+
+            if (eyeViewMode !== 'ORIGINAL') {
+                layer.classList.remove('show');
+                yoloEl.style.display = 'none';
+                yoloEl.removeAttribute('src');
+                return;
+            }
+
+            const yoloUrl = sanitizeCamUrl(analysis?.yolo_cam_image_url);
+            const canShowOverlay = gradCamVisible && !!yoloUrl;
+            if (canShowOverlay) {
+                yoloEl.src = yoloUrl;
+                yoloEl.style.display = 'block';
+            } else {
+                yoloEl.style.display = 'none';
+                yoloEl.removeAttribute('src');
+            }
+            layer.classList.toggle('show', canShowOverlay);
+        }
+
+        function getSelectedEyeData(analysis) {
+            if (eyeViewMode === 'L') return analysis?.left_eye || null;
+            if (eyeViewMode === 'R') return analysis?.right_eye || null;
+            return null;
+        }
+
+        function renderSelectedEyeImageForMode(analysis) {
+            if (eyeViewMode === 'ORIGINAL') {
+                renderGradCamOverlay(analysis);
+                return;
+            }
+
+            const imageEl = document.getElementById('captured-image');
+            const eye = getSelectedEyeData(analysis);
+            if (!imageEl || !eye) return;
+
+            const baseCrop = eyeCropCache[eyeViewMode] || '';
+            const camUrl = sanitizeCamUrl(eye?.cam_image_url);
+            if (gradCamVisible && camUrl) {
+                imageEl.src = camUrl;
+            } else if (baseCrop) {
+                imageEl.src = baseCrop;
+            }
+
+            renderGradCamOverlay(analysis);
+        }
+
+        function toggleGradCam(forceState) {
+            const btn = document.getElementById('btn-cam-toggle');
+            if (!btn) return;
+
+            if (btn.disabled) {
+                return;
+            }
+
+            if (typeof forceState === 'boolean') {
+                gradCamVisible = forceState;
+            } else {
+                gradCamVisible = !gradCamVisible;
+            }
+
+            const analysis = getStoredAnalysis();
+            updateCamToggleState(analysis);
+            renderSelectedEyeImageForMode(analysis);
+        }
+
+        async function setEyePhotoView(mode) {
+            const imageEl = document.getElementById('captured-image');
+            const hintEl = document.getElementById('captured-empty-hint');
+            const analysis = getStoredAnalysis();
+            const basePhoto = getPhotoDataUrl();
+            if (!imageEl) return;
+
+            if (!basePhoto) {
+                eyeViewMode = 'ORIGINAL';
+                setActiveEyeViewButton('ORIGINAL');
+                updateCamToggleState(analysis);
+                renderGradCamOverlay(analysis);
+                return;
+            }
+
+            try {
+                if (mode === 'ORIGINAL') {
+                    eyeViewMode = 'ORIGINAL';
+                    imageEl.onload = () => renderGradCamOverlay(analysis);
+                    imageEl.src = basePhoto;
+                    if (hintEl) hintEl.style.display = 'none';
+                } else {
+                    const eye = mode === 'L' ? analysis?.left_eye : analysis?.right_eye;
+                    const bbox = parseBBox(eye?.bbox);
+                    if (!bbox) {
+                        return;
+                    }
+
+                    eyeViewMode = mode;
+                    const cropDataUrl = await buildEyeCropDataUrl(basePhoto, bbox);
+                    eyeCropCache[mode] = cropDataUrl;
+                    imageEl.onload = () => renderSelectedEyeImageForMode(analysis);
+                    imageEl.src = (gradCamVisible && sanitizeCamUrl(eye?.cam_image_url)) ? sanitizeCamUrl(eye?.cam_image_url) : cropDataUrl;
+                    if (hintEl) hintEl.style.display = 'none';
+                }
+            } catch (error) {
+                eyeViewMode = 'ORIGINAL';
+                imageEl.onload = () => renderGradCamOverlay(analysis);
+                imageEl.src = basePhoto;
+                if (hintEl) hintEl.style.display = 'none';
+            }
+
+            setActiveEyeViewButton(eyeViewMode);
+            updateCamToggleState(analysis);
+            renderSelectedEyeImageForMode(analysis);
         }
 
         function getStoredAnalysis() {
@@ -679,10 +1012,18 @@
                 setStatusTag(uveitisEl, 'tag-warning', '분석 데이터 없음');
                 setStatusTag(eyelidEl, 'tag-warning', '분석 데이터 없음');
                 setStatusTag(cataractEl, 'tag-warning', '분석 데이터 없음');
+                updateEyeViewButtons(analysis);
+                setActiveEyeViewButton(eyeViewMode);
+                updateCamToggleState(analysis);
+                renderSelectedEyeImageForMode(analysis);
                 return;
             }
 
             renderRednessInfo(analysis);
+            updateEyeViewButtons(analysis);
+            setActiveEyeViewButton(eyeViewMode);
+            updateCamToggleState(analysis);
+            renderSelectedEyeImageForMode(analysis);
 
             const scores = extractDiseaseScores(analysis);
             setStatusTag(normalEl, confidenceToLevel(scores.normal), formatNormalText(scores.normal));
@@ -695,16 +1036,23 @@
 
         // 1. 이미지 표시 로직 (capture 원본 1장 고정)
         function renderCapturedPhoto() {
-            const photo = localStorage.getItem('bilateral_capture');
+            const photo = getPhotoDataUrl();
             const imageEl = document.getElementById('captured-image');
             const hintEl = document.getElementById('captured-empty-hint');
             if (!imageEl) return;
             if (photo) {
+                eyeViewMode = 'ORIGINAL';
+                eyeCropCache = { L: '', R: '' };
+                imageEl.onload = () => renderGradCamOverlay(getStoredAnalysis());
                 imageEl.src = photo;
                 if (hintEl) hintEl.style.display = 'none';
+                setActiveEyeViewButton('ORIGINAL');
             } else {
                 imageEl.removeAttribute('src');
                 if (hintEl) hintEl.style.display = 'block';
+                eyeCropCache = { L: '', R: '' };
+                setActiveEyeViewButton('ORIGINAL');
+                renderGradCamOverlay({});
             }
         }
 
@@ -753,11 +1101,16 @@
             renderAiResults();
             localStorage.setItem('data_updated', isLatestDataReady() ? 'true' : 'false');
             refreshReportAvailability();
+            toggleGradCam(false);
 
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Escape') {
                     closeNearbyClinicMap();
                 }
+            });
+
+            window.addEventListener('resize', () => {
+                renderSelectedEyeImageForMode(getStoredAnalysis());
             });
         };
     </script>

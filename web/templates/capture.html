@@ -506,13 +506,16 @@
         let autoCooldownUntil = 0;
         let previewMode = 'camera'; // 'camera' | 'upload'
         let mobileUploadOnlyMode = false;
+        let videoFallbackInterval = null;
         const AUTO_SHUTTER_CONF_THRESHOLD = 0.70; // 70%
         const LAST_UPLOAD_KEY = 'last_mobile_upload_capture';
         const MOBILE_HINT_SEEN_KEY = 'mobile_upload_hint_seen_v1';
 
         function isMobileClient() {
             const ua = navigator.userAgent || '';
-            return /Android|iPhone|iPad|iPod|Mobile|IEMobile|Opera Mini/i.test(ua);
+            const maybeMobileUA = /Android|iPhone|iPad|iPod|Mobile|IEMobile|Opera Mini/i.test(ua);
+            const narrowViewport = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 768;
+            return maybeMobileUA && narrowViewport;
         }
 
         function canUseMobileCameraDirectly() {
@@ -605,6 +608,24 @@
             } else {
                 useLastBtn.classList.remove('show');
             }
+        }
+
+        function stopVideoFallbackPolling() {
+            if (videoFallbackInterval) {
+                clearInterval(videoFallbackInterval);
+                videoFallbackInterval = null;
+            }
+        }
+
+        function startVideoFallbackPolling() {
+            const videoImg = document.getElementById('video-feed');
+            if (!videoImg) return;
+
+            stopVideoFallbackPolling();
+            videoFallbackInterval = setInterval(() => {
+                if (previewMode !== 'camera') return;
+                videoImg.src = `/video_frame?t=${Date.now()}`;
+            }, 250);
         }
 
         function showToastPopup(message) {
@@ -741,7 +762,18 @@
             const videoImg = document.getElementById('video-feed');
             const captureMessage = document.getElementById('capture-message');
             previewMode = 'camera';
-            videoImg.src = '/video_feed';
+            stopVideoFallbackPolling();
+            videoImg.onerror = () => {
+                if (previewMode !== 'camera') return;
+                captureMessage.textContent = '실시간 스트림 연결이 불안정하여 프레임 폴백 모드로 전환했습니다.';
+                startVideoFallbackPolling();
+            };
+            videoImg.onload = () => {
+                if (previewMode !== 'camera') return;
+                stopVideoFallbackPolling();
+            };
+            videoImg.src = '';
+            videoImg.src = `/video_feed?t=${Date.now()}`;
             videoImg.style.objectFit = 'cover';
             videoImg.style.transform = `scaleX(-1) scale(${digitalZoom})`;
             captureMessage.textContent = '실시간 카메라 모드로 복귀했습니다.';
@@ -780,6 +812,10 @@
         }
 
         function showDetectionToast(result) {
+            if (result?.meta?.analysis_mode === 'upload_single_eye_no_yolo') {
+                return;
+            }
+
             const hasLeft = !!result?.left_eye;
             const hasRight = !!result?.right_eye;
 
@@ -801,6 +837,7 @@
             const previewHint = document.getElementById('mobile-preview-hint');
             const reuploadFab = document.getElementById('btn-mobile-reupload');
 
+            stopVideoFallbackPolling();
             previewMode = 'upload';
             videoImg.src = dataUrl;
             videoImg.style.objectFit = 'contain';
@@ -836,7 +873,7 @@
         }
 
         function hasAnalysisResult() {
-            // 서버가 L 또는 R 중 하나라도 돌려줬으면 결과 진행 가능
+            // 최소 한쪽 눈 분석 데이터가 있어야 결과 보기 허용
             return !!localStorage.getItem('eye_analysis_L') || !!localStorage.getItem('eye_analysis_R');
         }
 
@@ -864,6 +901,16 @@
             const num = Number(value);
             if (!Number.isFinite(num)) return 0;
             return num <= 1 ? num * 100 : num;
+        }
+
+        function inferSelectedEyeHint() {
+            const combined = getCombinedAnalysis();
+            const hasLeft = !!combined.left_eye;
+            const hasRight = !!combined.right_eye;
+
+            if (!hasLeft) return 'L';
+            if (!hasRight) return 'R';
+            return null;
         }
 
         function getCombinedAnalysis() {
@@ -936,7 +983,11 @@
                 capturedPhoto = dataUrl;
                 applyUploadedPreview(dataUrl);
 
-                setUploadProgress(true, '서버 분석 중...', 'YOLO가 좌/우 눈을 감지하고 있습니다.');
+                if (mobileUploadOnlyMode) {
+                    setUploadProgress(true, '서버 분석 중...', 'YOLO가 좌/우 눈을 감지하고 있습니다.');
+                } else {
+                    setUploadProgress(true, '서버 분석 중...', '업로드 사진은 YOLO를 건너뛰고 EfficientNet 분류를 진행합니다.');
+                }
                 const analysisResult = await analyzeWithServer(dataUrl);
                 captureMessage.textContent = analysisResult.ok ? '업로드/분석 완료' : '업로드/분석 실패';
             } catch (error) {
@@ -1008,10 +1059,17 @@
             try {
                 captureMessage.textContent = '서버 분석 중 (YOLO 눈 자동 감지)...';
                 const userId = localStorage.getItem('user_id') || 'anonymous';
+                const selectedEyeHint = inferSelectedEyeHint();
                 const response = await fetch('/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: base64Image, user_id: userId })
+                    body: JSON.stringify({
+                        image: base64Image,
+                        user_id: userId,
+                        selected_eye: selectedEyeHint,
+                        capture_source: previewMode,
+                        mobile_upload_only: mobileUploadOnlyMode
+                    })
                 });
 
                 const result = await response.json();
@@ -1021,14 +1079,19 @@
                     if (result.left_eye)  localStorage.setItem('eye_analysis_L', JSON.stringify(result.left_eye));
                     if (result.right_eye) localStorage.setItem('eye_analysis_R', JSON.stringify(result.right_eye));
 
+                    const isUploadNoYoloMode = result?.meta?.analysis_mode === 'upload_single_eye_no_yolo';
                     const detectedSides = [result.left_eye ? '좌안' : null, result.right_eye ? '우안' : null].filter(Boolean);
-                    const detectedText = detectedSides.length ? detectedSides.join(', ') + ' 감지됨' : '눈 감지 실패 - 다시 시도해 주세요';
+                    const detectedText = isUploadNoYoloMode
+                        ? '업로드 단안 분석 완료'
+                        : (detectedSides.length ? detectedSides.join(', ') + ' 감지됨' : '눈 감지 실패 - 다시 시도해 주세요');
 
                     syncCombinedAnalysisToLocalStorage({
+                        status: result.status || 'success',
                         guide: result.guide,
                         meta: result.meta,
                         message: result.message,
                         user_id: result.user_id,
+                        yolo_cam_image_url: result.yolo_cam_image_url,
                         saved_image_url: result.saved_image_url
                     });
 
@@ -1040,13 +1103,13 @@
                     return { ok: true, left: !!result.left_eye, right: !!result.right_eye, result };
                 } else {
                     captureMessage.textContent = result.error || '분석 중 오류가 발생했습니다.';
-                    setResultButtonState(false);
+                    setResultButtonState(hasAnalysisResult());
                     return { ok: false, message: result.error || '분석 중 오류' };
                 }
             } catch (error) {
                 console.error('[Server Analysis Error]', error);
                 captureMessage.textContent = '서버 통신 오류가 발생했습니다.';
-                setResultButtonState(false);
+                setResultButtonState(hasAnalysisResult());
                 return { ok: false, message: String(error || 'server-error') };
             }
         }
@@ -1088,6 +1151,7 @@
             if (detectionPollingInterval) {
                 clearInterval(detectionPollingInterval);
             }
+            stopVideoFallbackPolling();
         };
     </script>
     <script>

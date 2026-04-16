@@ -34,10 +34,62 @@ def apply_selected_eye_mapping(analysis, selected_eye):
     if detected_side == side:
         return analysis
 
+    meta = analysis.get('meta') or {}
+
+    # fallback ROI로 만든 임시 검출은 반대쪽 눈으로 강제 리매핑하지 않는다.
+    if bool((detected_payload or {}).get('fallback')):
+        meta['selected_eye'] = side
+        meta['side_remapped_by_selected_eye'] = False
+        meta['side_remap_skipped_reason'] = 'fallback_detection'
+        analysis['meta'] = meta
+        return analysis
+
+    # 검출 신뢰도가 낮으면 리매핑하지 않아 반대쪽 눈 허위 생성 방지
+    det_conf = (detected_payload or {}).get('detection_confidence')
+    if det_conf is not None:
+        try:
+            conf_pct = float(det_conf)
+            if conf_pct <= 1.0:
+                conf_pct *= 100.0
+            min_conf_pct = max(float(config.YOLO_STATUS_CONF_THRESHOLD) * 100.0, 35.0)
+            if conf_pct < min_conf_pct:
+                meta['selected_eye'] = side
+                meta['side_remapped_by_selected_eye'] = False
+                meta['side_remap_skipped_reason'] = 'low_detection_confidence'
+                meta['detected_confidence_pct'] = round(conf_pct, 2)
+                analysis['meta'] = meta
+                return analysis
+        except Exception:
+            pass
+
+    # bbox 위치가 선택한 눈과 명확히 반대면 리매핑하지 않는다.
+    bbox = (detected_payload or {}).get('bbox')
+    source_resolution = (meta or {}).get('source_resolution') or []
+    if isinstance(bbox, (list, tuple)) and len(bbox) == 4 and isinstance(source_resolution, (list, tuple)) and len(source_resolution) >= 1:
+        try:
+            source_w = float(source_resolution[0])
+            center_x = (float(bbox[0]) + float(bbox[2])) / 2.0
+            left_boundary = source_w * 0.45
+            right_boundary = source_w * 0.55
+            bbox_side = None
+            if center_x < left_boundary:
+                bbox_side = 'L'
+            elif center_x > right_boundary:
+                bbox_side = 'R'
+
+            if bbox_side and bbox_side != side:
+                meta['selected_eye'] = side
+                meta['side_remapped_by_selected_eye'] = False
+                meta['side_remap_skipped_reason'] = 'bbox_side_mismatch'
+                meta['bbox_side'] = bbox_side
+                analysis['meta'] = meta
+                return analysis
+        except Exception:
+            pass
+
     analysis['left_eye'] = detected_payload if side == 'L' else None
     analysis['right_eye'] = detected_payload if side == 'R' else None
 
-    meta = analysis.get('meta') or {}
     meta['selected_eye'] = side
     meta['detected_side_before_remap'] = detected_side
     meta['side_remapped_by_selected_eye'] = True
@@ -390,6 +442,85 @@ def save_history_record(user_id, source_image_bgr, analysis):
         conn.close()
 
 
+def save_cam_image(user_id, eye_side, cam_image_bgr):
+    """Grad-CAM 이미지를 사용자별로 저장하고 정적 URL 반환"""
+    if cam_image_bgr is None:
+        return None
+
+    safe_user_id = normalize_user_id(user_id)
+    safe_eye_side = re.sub(r'[^0-9A-Za-z_-]+', '_', str(eye_side or 'eye')).lower()
+
+    user_dir = os.path.join(config.IMAGE_SAVE_DIR, 'users', safe_user_id)
+    os.makedirs(user_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    filename = f"{safe_eye_side}_cam_{timestamp}.jpg"
+    image_path = os.path.join(user_dir, filename)
+
+    write_ok = cv2.imwrite(image_path, cam_image_bgr)
+    if not write_ok:
+        return None
+
+    return f"/static/captures/users/{safe_user_id}/{filename}"
+
+
+def build_yolo_overlay_image(source_bgr, eye_crops):
+    """원본 이미지 위에 YOLO 검출 기반 히트맵 오버레이를 생성한다."""
+    if source_bgr is None or source_bgr.size == 0:
+        return None
+    if not eye_crops:
+        return None
+
+    h, w = source_bgr.shape[:2]
+    heat_mask = np.zeros((h, w), dtype=np.uint8)
+
+    for crop in eye_crops:
+        bbox = crop.get('bbox')
+        conf = float(crop.get('confidence', 0.0))
+        if not bbox or len(bbox) != 4:
+            continue
+
+        x1, y1, x2, y2 = [int(v) for v in bbox]
+        x1 = max(0, min(w - 1, x1))
+        x2 = max(0, min(w, x2))
+        y1 = max(0, min(h - 1, y1))
+        y2 = max(0, min(h, y2))
+        if x2 <= x1 or y2 <= y1:
+            continue
+
+        intensity = int(max(80, min(255, 80 + conf * 175)))
+        region = heat_mask[y1:y2, x1:x2]
+        np.maximum(region, intensity, out=region)
+
+    if not np.any(heat_mask > 0):
+        return None
+
+    colored = cv2.applyColorMap(heat_mask, cv2.COLORMAP_JET)
+    overlay = source_bgr.copy()
+    active = heat_mask > 0
+    overlay[active] = cv2.addWeighted(source_bgr[active], 0.55, colored[active], 0.45, 0)
+
+    for crop in eye_crops:
+        bbox = crop.get('bbox')
+        conf = float(crop.get('confidence', 0.0))
+        if not bbox or len(bbox) != 4:
+            continue
+        x1, y1, x2, y2 = [int(v) for v in bbox]
+        cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 255, 255), 2)
+        cv2.putText(
+            overlay,
+            f"YOLO {conf*100:.1f}%",
+            (x1, max(18, y1 - 6)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 255, 255),
+            1,
+            cv2.LINE_AA
+        )
+
+    return overlay
+
+
 def list_history_records(user_id, limit=10):
     """사용자별 최근 히스토리 조회"""
     safe_user_id = normalize_user_id(user_id)
@@ -493,10 +624,24 @@ def normalize_survey_payload(payload):
         value = payload.get(field_name, '')
         return str(value).strip()[:max_len]
 
+    def clean_vision(field_name):
+        value = payload.get(field_name, '')
+        text = str(value).strip()
+        if not text:
+            return ''
+        try:
+            number = float(text)
+            number = max(0.0, min(3.0, number))
+            return f"{number:.1f}"
+        except Exception:
+            return text[:10]
+
     return {
         'age': age,
         'gender': clean_text('gender', 30),
         'wearing': clean_text('wearing', 40),
+        'vision_left': clean_vision('vision_left'),
+        'vision_right': clean_vision('vision_right'),
         'conditions': clean_text('conditions', 500),
         'surgery_history': clean_text('surgery_history', 300),
         'smoking': clean_text('smoking', 20),
@@ -1065,10 +1210,8 @@ def analyze_eye_image(base64_image_data):
         classifier = manager.get_classifier()
         
         # 3. 분류 수행
-        classification = classifier.classify(img_bgr)
-        
-        disease_label = classification['disease']
-        confidence_score = classification['confidence'] * 100  # 퍼센티지
+        disease_label, confidence, _ = classifier.classify(img_bgr)
+        confidence_score = confidence * 100  # 퍼센티지
         
         return disease_label, confidence_score, None
         
@@ -1104,7 +1247,168 @@ def upscale_eye_crop_for_classifier(eye_crop):
     return cv2.resize(eye_crop, config.CLASSIFIER_INPUT_SIZE, interpolation=cv2.INTER_CUBIC)
 
 
-def analyze_bilateral_from_image(img_bgr):
+def analyze_uploaded_single_eye_from_image(img_bgr, user_id='anonymous', selected_eye=None):
+    """업로드 단안 이미지 분석: YOLO를 건너뛰고 EfficientNet/Analyzer만 수행"""
+    try:
+        manager = get_models()
+        classifier = manager.get_classifier()
+        analyzer = manager.get_analyzer()
+
+        source_h, source_w = img_bgr.shape[:2]
+        prepared_eye = upscale_eye_crop_for_classifier(img_bgr)
+        if prepared_eye is None:
+            return {
+                'status': 'error',
+                'message': '업로드 이미지 전처리에 실패했습니다.'
+            }
+
+        cls_start = time.time()
+        classification = classifier.classify_with_details(prepared_eye, generate_cam=True)
+        eye_analysis = analyzer.analyze(prepared_eye)
+        cls_elapsed_ms = (time.time() - cls_start) * 1000.0
+
+        side = normalize_selected_eye(selected_eye) or 'L'
+        side_key = 'left_eye' if side == 'L' else 'right_eye'
+        cam_image_url = save_cam_image(user_id, side_key, classification.get('heatmap_image'))
+
+        eye_payload = {
+            'disease': classification['disease'],
+            'class': classification['class'],
+            'confidence': round(float(classification['confidence']) * 100.0, 2),
+            'redness': round(float(eye_analysis.get('redness', 0.0)), 4),
+            'bbox': (0, 0, source_w, source_h),
+            'cam_image_url': cam_image_url,
+            'detection_confidence': None,
+            'process_time_ms': round(cls_elapsed_ms, 1),
+            'detection_method': 'upload_single_image'
+        }
+
+        result = {
+            'status': 'success',
+            'message': '업로드 단안 분석 완료',
+            'left_eye': eye_payload if side_key == 'left_eye' else None,
+            'right_eye': eye_payload if side_key == 'right_eye' else None,
+            'yolo_cam_image_url': None,
+            'meta': {
+                'source_resolution': [source_w, source_h],
+                'eyes_detected': 1,
+                'yolo_skipped': True,
+                'analysis_mode': 'upload_single_eye_no_yolo',
+                'selected_eye': side,
+                'process_time_ms': round(cls_elapsed_ms, 1)
+            }
+        }
+
+        del prepared_eye
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        return result
+    except Exception as e:
+        print(f"[ERROR] 업로드 단안 분석 실패: {e}")
+        return {
+            'status': 'error',
+            'message': str(e)
+        }
+
+
+def select_distinct_eye_crops(eye_crops, frame_width, frame_height):
+    """
+    YOLO 검출 결과에서 좌/우안 후보를 안정적으로 선택한다.
+    - 중복 박스(같은 눈 주변 다중 검출)로 좌/우가 깨지는 문제를 완화
+    - 가장 수평 분리가 큰 2개를 양안 후보로 선택
+    """
+    if not eye_crops:
+        return []
+
+    min_conf = max(float(config.YOLO_STATUS_CONF_THRESHOLD), 0.25)
+    min_box_w = max(20.0, float(frame_width) * 0.05)
+    min_box_h = max(14.0, float(frame_height) * 0.05)
+
+    filtered = []
+    for item in eye_crops:
+        conf = float(item.get('confidence', 0.0))
+        bbox = item.get('bbox') or (0, 0, 0, 0)
+        try:
+            bw = abs(float(bbox[2]) - float(bbox[0]))
+            bh = abs(float(bbox[3]) - float(bbox[1]))
+        except Exception:
+            continue
+
+        if conf < min_conf:
+            continue
+        if bw < min_box_w or bh < min_box_h:
+            continue
+        filtered.append(item)
+
+    candidates = sorted(filtered, key=lambda item: float(item.get('confidence', 0.0)), reverse=True)[:6]
+    if not candidates:
+        return []
+    if len(candidates) == 1:
+        return [candidates[0]]
+
+    def center_x(item):
+        x1, _, x2, _ = item['bbox']
+        return (x1 + x2) / 2.0
+
+    best_pair = None
+    best_sep = -1.0
+    pair_min_conf = max(min_conf + 0.12, 0.38)
+    for idx in range(len(candidates)):
+        for jdx in range(idx + 1, len(candidates)):
+            if float(candidates[idx].get('confidence', 0.0)) < pair_min_conf:
+                continue
+            if float(candidates[jdx].get('confidence', 0.0)) < pair_min_conf:
+                continue
+            sep = abs(center_x(candidates[idx]) - center_x(candidates[jdx]))
+            if sep > best_sep:
+                best_sep = sep
+                best_pair = (candidates[idx], candidates[jdx])
+
+    # 좌/우로 볼 수 있는 최소 수평 간격(프레임 폭의 12%)
+    min_sep = max(40.0, float(frame_width) * 0.12)
+    if best_pair and best_sep >= min_sep:
+        return sorted([best_pair[0], best_pair[1]], key=center_x)
+
+    # 서로 충분히 떨어진 2안이 아니면 단안으로 처리 (selected_eye 매핑이 후속 보정)
+    return [candidates[0]]
+
+
+def build_selected_eye_fallback_crop(img_bgr, selected_eye):
+    """YOLO 미검출 시 선택한 눈 방향의 ROI를 임시 크롭으로 생성한다."""
+    side = normalize_selected_eye(selected_eye)
+    if side not in ('L', 'R'):
+        return None
+
+    h, w = img_bgr.shape[:2]
+    crop_w = max(120, int(w * 0.38))
+    crop_h = max(90, int(h * 0.36))
+    center_x = int(w * 0.33) if side == 'L' else int(w * 0.67)
+    center_y = int(h * 0.44)
+
+    x1 = max(0, center_x - crop_w // 2)
+    y1 = max(0, center_y - crop_h // 2)
+    x2 = min(w, x1 + crop_w)
+    y2 = min(h, y1 + crop_h)
+
+    if x2 <= x1 or y2 <= y1:
+        return None
+
+    crop = img_bgr[y1:y2, x1:x2]
+    if crop is None or crop.size == 0:
+        return None
+
+    return {
+        'image': crop,
+        'bbox': (x1, y1, x2, y2),
+        'confidence': 0.0,
+        'fallback': True,
+        'fallback_side': side
+    }
+
+
+def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None):
     """
     단일 캡처 이미지(양안 포함) 분석
     1) YOLO 검출/크롭
@@ -1121,19 +1425,34 @@ def analyze_bilateral_from_image(img_bgr):
 
         # Step 1) YOLO 검출 + 크롭
         yolo_start = time.time()
-        detections = detector.detect(img_bgr, conf_threshold=config.YOLO_CONF_THRESHOLD)
-        eye_crops = detector.crop_eyes(img_bgr, detections)
+        used_conf_threshold = float(config.YOLO_CONF_THRESHOLD)
+        detections = detector.detect(img_bgr, conf_threshold=used_conf_threshold)
+        raw_eye_crops = detector.crop_eyes(img_bgr, detections)
+
+        # 검출이 전혀 없으면 완화된 임계값으로 1회 재시도
+        if len(raw_eye_crops) == 0 and config.YOLO_STATUS_CONF_THRESHOLD < config.YOLO_CONF_THRESHOLD:
+            used_conf_threshold = float(config.YOLO_STATUS_CONF_THRESHOLD)
+            detections = detector.detect(img_bgr, conf_threshold=used_conf_threshold)
+            raw_eye_crops = detector.crop_eyes(img_bgr, detections)
+
         yolo_elapsed_ms = (time.time() - yolo_start) * 1000.0
 
-        # 검출 신뢰도 기준 상위 2개 유지
-        eye_crops = sorted(eye_crops, key=lambda x: x['confidence'], reverse=True)[:2]
-        eye_crops = sorted(eye_crops, key=lambda x: ((x['bbox'][0] + x['bbox'][2]) / 2.0))
+        # 중복 박스 완화 + 좌/우 분리 후보 선택
+        eye_crops = select_distinct_eye_crops(raw_eye_crops, source_w, source_h)
 
         # YOLO 단계 메모리 정리 (OOM 방지)
         del detections
+        del raw_eye_crops
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+
+        fallback_used = False
+        if len(eye_crops) == 0:
+            fallback_crop = build_selected_eye_fallback_crop(img_bgr, selected_eye)
+            if fallback_crop is not None:
+                eye_crops = [fallback_crop]
+                fallback_used = True
 
         if len(eye_crops) == 0:
             return {
@@ -1141,12 +1460,18 @@ def analyze_bilateral_from_image(img_bgr):
                 'message': '양안을 검출하지 못했습니다. 얼굴을 조금 더 가까이 맞춰주세요.',
                 'left_eye': None,
                 'right_eye': None,
+                'yolo_cam_image_url': None,
                 'meta': {
                     'source_resolution': [source_w, source_h],
                     'eyes_detected': 0,
-                    'yolo_time_ms': round(yolo_elapsed_ms, 1)
+                    'yolo_time_ms': round(yolo_elapsed_ms, 1),
+                    'yolo_conf_threshold': round(float(used_conf_threshold), 3),
+                    'fallback_used': False
                 }
             }
+
+        yolo_overlay_bgr = build_yolo_overlay_image(img_bgr, eye_crops)
+        yolo_cam_image_url = save_cam_image(user_id, 'yolo', yolo_overlay_bgr)
 
         # 좌/우 레이블링
         labeled_eyes = {}
@@ -1168,10 +1493,13 @@ def analyze_bilateral_from_image(img_bgr):
             'message': '양안 분석 완료' if len(eye_crops) >= 2 else '한쪽 눈만 검출되었습니다.',
             'left_eye': None,
             'right_eye': None,
+            'yolo_cam_image_url': yolo_cam_image_url,
             'meta': {
                 'source_resolution': [source_w, source_h],
                 'eyes_detected': len(eye_crops),
-                'yolo_time_ms': round(yolo_elapsed_ms, 1)
+                'yolo_time_ms': round(yolo_elapsed_ms, 1),
+                'yolo_conf_threshold': round(float(used_conf_threshold), 3),
+                'fallback_used': fallback_used
             }
         }
 
@@ -1185,9 +1513,11 @@ def analyze_bilateral_from_image(img_bgr):
             if prepared_eye is None:
                 continue
 
-            classification = classifier.classify(prepared_eye)
+            classification = classifier.classify_with_details(prepared_eye, generate_cam=True)
             eye_analysis = analyzer.analyze(prepared_eye)
             cls_elapsed_ms = (time.time() - cls_start) * 1000.0
+
+            cam_image_url = save_cam_image(user_id, side, classification.get('heatmap_image'))
 
             result[side] = {
                 'disease': classification['disease'],
@@ -1195,6 +1525,7 @@ def analyze_bilateral_from_image(img_bgr):
                 'confidence': round(float(classification['confidence']) * 100.0, 2),
                 'redness': round(float(eye_analysis.get('redness', 0.0)), 4),
                 'bbox': eye_item['bbox'],
+                'cam_image_url': cam_image_url,
                 'detection_confidence': round(float(eye_item['confidence']) * 100.0, 2),
                 'process_time_ms': round(cls_elapsed_ms, 1)
             }
@@ -1214,7 +1545,7 @@ def analyze_bilateral_from_image(img_bgr):
         }
 
 
-def analyze_bilateral_from_base64(base64_image_data):
+def analyze_bilateral_from_base64(base64_image_data, user_id='anonymous', selected_eye=None):
     img_bgr, decode_error = decode_base64_image(base64_image_data)
     if decode_error:
         return {
@@ -1222,7 +1553,7 @@ def analyze_bilateral_from_base64(base64_image_data):
             'message': decode_error
         }
 
-    return analyze_bilateral_from_image(img_bgr)
+    return analyze_bilateral_from_image(img_bgr, user_id=user_id, selected_eye=selected_eye)
 
 
 def build_ai_guide(analysis):
@@ -1562,7 +1893,7 @@ def run_diagnosis_pipeline(snapshot):
             # Stage 2: 질환 분류
             print(f"  Stage 2: 질환 분류 중...")
             start_time = time.time()
-            classification = classifier.classify(crop_image)
+            classification = classifier.classify_with_details(crop_image, generate_cam=True)
             elapsed_classify = time.time() - start_time
             print(f"    ✓ {classification['disease']} (신뢰도: {classification['confidence']*100:.1f}%)")
             
@@ -1572,6 +1903,8 @@ def run_diagnosis_pipeline(snapshot):
             analysis = analyzer.analyze(crop_image)
             elapsed_analyze = time.time() - start_time
             print(f"    ✓ 충혈도: {analysis['redness']:.3f}")
+
+            cam_image_url = save_cam_image('anonymous', eye_side, classification.get('heatmap_image'))
             
             # 결과 저장
             result[eye_side] = {
@@ -1582,6 +1915,7 @@ def run_diagnosis_pipeline(snapshot):
                 'probabilities': classification['probabilities'],
                 'redness': float(analysis['redness']),
                 'bbox': eye_crop['bbox'],
+                'cam_image_url': cam_image_url,
                 'detection_confidence': float(eye_crop['confidence']),
                 'processing_time_ms': f"{elapsed_classify + elapsed_analyze:.1f}"
             }
@@ -1827,7 +2161,8 @@ def detect_status():
 def analyze():
     """
     웹 브라우저에서 캡처한 단일 Base64 이미지를
-    YOLO(양안 검출/크롭) -> EfficientNet(양안 순차 분류)로 분석
+    기본은 YOLO(양안 검출/크롭) -> EfficientNet(양안 순차 분류),
+    업로드+비모바일일 때는 YOLO를 건너뛰고 단안 분류로 분석
     
     Request:
         {
@@ -1850,15 +2185,33 @@ def analyze():
 
         user_id = normalize_user_id(data.get('user_id'))
         selected_eye = data.get('selected_eye')
+        capture_source = str(data.get('capture_source', '')).strip().lower()
+        mobile_upload_only = bool(data.get('mobile_upload_only', False))
         img_bgr, decode_error = decode_base64_image(data['image'])
         if decode_error:
             return jsonify({'status': 'error', 'message': decode_error}), 400
 
-        analysis = analyze_bilateral_from_image(img_bgr)
+        skip_yolo_for_upload = (capture_source == 'upload' and not mobile_upload_only)
+
+        if skip_yolo_for_upload:
+            analysis = analyze_uploaded_single_eye_from_image(
+                img_bgr,
+                user_id=user_id,
+                selected_eye=selected_eye
+            )
+        else:
+            analysis = analyze_bilateral_from_image(img_bgr, user_id=user_id, selected_eye=selected_eye)
+
         if analysis.get('status') == 'error':
             return jsonify(analysis), 400
 
-        analysis = apply_selected_eye_mapping(analysis, selected_eye)
+        if not skip_yolo_for_upload:
+            analysis = apply_selected_eye_mapping(analysis, selected_eye)
+
+        meta = analysis.get('meta') or {}
+        meta['capture_source'] = capture_source or 'camera'
+        meta['mobile_upload_only'] = mobile_upload_only
+        analysis['meta'] = meta
 
         analysis['guide'] = build_ai_guide(analysis)
 
