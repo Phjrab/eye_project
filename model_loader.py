@@ -1,130 +1,134 @@
-"""
-[관리자] 모델 로더 - 싱글톤 패턴
-GPU 메모리에 미리 로드하여 중복 로드 방지
-"""
+from __future__ import annotations
 
-import torch
-from modules import EyeDetector, DiseaseClassifier, EyeAnalyzer
-from utils.logger import ResultLogger
-import config
+import argparse
+import os
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
+
+from dotenv import load_dotenv
 
 
-class ModelManager:
-    """
-    싱글톤 패턴으로 모델을 한 번만 로드하여 전역에서 공유
-    Jetson의 제한된 자원을 효율적으로 활용
-    """
-    
-    _instance = None
-    _initialized = False
-    
-    def __new__(cls):
-        """
-        싱글톤 인스턴스 생성
-        """
-        if cls._instance is None:
-            cls._instance = super(ModelManager, cls).__new__(cls)
-        return cls._instance
-    
-    def __init__(self):
-        """
-        모델 초기화 (한 번만 실행)
-        """
-        if ModelManager._initialized:
-            return
-        
-        print("[ModelManager] 모델 로딩 시작...")
-        
-        try:
-            # ========================================
-            # [1] YOLO 눈 검출 모델 로드
-            # ========================================
-            print("  - YOLO eye detector 로딩...")
-            self.detector = EyeDetector(config.YOLO_MODEL_PATH)
-            print("    ✓ YOLO 로드 완료")
-            
-            # ========================================
-            # [2] EfficientNet 질환 분류 모델 로드
-            # ========================================
-            print("  - EfficientNet classifier 로딩...")
-            self.classifier = DiseaseClassifier(config.CLASSIFIER_MODEL_PATH)
-            print("    ✓ EfficientNet 로드 완료")
-            
-            # ========================================
-            # [3] 눈 분석기 초기화
-            # ========================================
-            print("  - Eye analyzer 초기화...")
-            self.analyzer = EyeAnalyzer()
-            print("    ✓ Analyzer 초기화 완료")
-            
-            # ========================================
-            # [4] 결과 로거 초기화
-            # ========================================
-            print("  - Result logger 초기화...")
-            self.logger = ResultLogger(config.LOG_FORMAT)
-            print("    ✓ Logger 초기화 완료")
-            
-            # ========================================
-            # [5] GPU 메모리 정보 출력
-            # ========================================
-            if torch.cuda.is_available():
-                print(f"\n[GPU 정보]")
-                print(f"  - 장치: {torch.cuda.get_device_name(0)}")
-                print(f"  - 총 메모리: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
-                print(f"  - 할당된 메모리: {torch.cuda.memory_allocated(0) / 1e9:.2f} GB")
-            
-            print("\n[ModelManager] 모든 모델 로드 완료!\n")
-            ModelManager._initialized = True
-            
-        except Exception as e:
-            print(f"[ERROR] 모델 로딩 실패: {e}")
-            raise
-    
+load_dotenv()
+
+
+SUPPORTED_DEVICES = {"jetson", "rpi"}
+
+
+@dataclass
+class LoaderConfig:
+    device: str
+    yolo_onnx_path: str
+    classifier_onnx_path: str
+
+
+def resolve_device(explicit_device: Optional[str] = None) -> str:
+    device = (explicit_device or os.getenv("MODEL_DEVICE") or "jetson").strip().lower()
+    if device not in SUPPORTED_DEVICES:
+        raise ValueError(f"Unsupported MODEL_DEVICE '{device}'. Use one of: {sorted(SUPPORTED_DEVICES)}")
+    return device
+
+
+def build_loader_config(explicit_device: Optional[str] = None) -> LoaderConfig:
+    device = resolve_device(explicit_device)
+    return LoaderConfig(
+        device=device,
+        yolo_onnx_path=os.getenv("YOLO_ONNX_PATH", "models/yolo.onnx"),
+        classifier_onnx_path=os.getenv("CLASSIFIER_ONNX_PATH", "models/efficientnet.onnx"),
+    )
+
+
+class ModelLoader:
+    """Factory facade exposing a hardware-agnostic predict function."""
+
+    def __init__(self, device: Optional[str] = None) -> None:
+        self.config = build_loader_config(device)
+        self.device = self.config.device
+        self.backend = self._create_backend(self.config)
+
+    def _create_backend(self, cfg: LoaderConfig):
+        if cfg.device == "jetson":
+            # Import torch only in Jetson path.
+            import torch  # noqa: F401
+            from inference.jetson_backend import JetsonBackend
+
+            return JetsonBackend()
+
+        # cfg.device == "rpi"
+        import onnxruntime  # noqa: F401
+        from inference.rpi_backend import RPiONNXBackend
+
+        return RPiONNXBackend(
+            yolo_onnx_path=cfg.yolo_onnx_path,
+            classifier_onnx_path=cfg.classifier_onnx_path,
+        )
+
+    def predict_eye_disease(self, image_bgr: Any) -> Dict[str, Any]:
+        return self.backend.predict_eye_disease(image_bgr)
+
+
+# -------- Optional compatibility layer for existing eye_server.py --------
+class _LegacyManagerProxy:
+    def __init__(self, loader: ModelLoader):
+        self._loader = loader
+
     def get_detector(self):
-        """
-        YOLO 검출기 반환
-        """
-        return self.detector
-    
+        return getattr(self._loader.backend, "detector", None)
+
     def get_classifier(self):
-        """
-        분류기 반환
-        """
-        return self.classifier
-    
+        return getattr(self._loader.backend, "classifier", None)
+
     def get_analyzer(self):
-        """
-        분석기 반환
-        """
-        return self.analyzer
-    
+        return getattr(self._loader.backend, "analyzer", None)
+
     def get_logger(self):
-        """
-        로거 반환
-        """
-        return self.logger
+        return getattr(self._loader.backend, "logger", None)
 
 
-# ========================================
-# [6] 전역 싱글톤 인스턴스
-# ========================================
-model_manager = None
+_model_loader_singleton: Optional[ModelLoader] = None
+_legacy_manager_singleton: Optional[_LegacyManagerProxy] = None
 
 
-def initialize_models():
-    """
-    모델 매니저 초기화 (서버 시작 시 호출)
-    """
-    global model_manager
-    model_manager = ModelManager()
-    return model_manager
+def initialize_model_loader(device: Optional[str] = None) -> ModelLoader:
+    global _model_loader_singleton
+    if _model_loader_singleton is None:
+        _model_loader_singleton = ModelLoader(device=device)
+    return _model_loader_singleton
+
+
+def initialize_models(device: Optional[str] = None):
+    global _model_loader_singleton, _legacy_manager_singleton
+    if _model_loader_singleton is None:
+        _model_loader_singleton = initialize_model_loader(device=device)
+        _legacy_manager_singleton = _LegacyManagerProxy(_model_loader_singleton)
+    return _legacy_manager_singleton
 
 
 def get_models():
-    """
-    초기화된 모델 매니저 반환
-    """
-    global model_manager
-    if model_manager is None:
-        model_manager = ModelManager()
-    return model_manager
+    global _legacy_manager_singleton
+    if _legacy_manager_singleton is None:
+        initialize_models()
+    return _legacy_manager_singleton
+
+
+def predict_eye_disease(image_bgr: Any, device: Optional[str] = None) -> Dict[str, Any]:
+    """Unified top-level inference API for server code."""
+    loader = initialize_model_loader(device=device)
+    return loader.predict_eye_disease(image_bgr)
+
+
+def parse_cli_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="ModelLoader factory")
+    parser.add_argument("--device", choices=sorted(SUPPORTED_DEVICES), default=None)
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_cli_args()
+    loader = ModelLoader(device=args.device)
+    print(
+        {
+            "status": "ok",
+            "device": loader.device,
+            "backend": loader.backend.__class__.__name__,
+        }
+    )
