@@ -90,6 +90,16 @@ bash scripts/export_onnx_rpi.sh
 - `models/yolo.onnx`
 - `models/efficientnet.onnx`
 
+### 3-2) 서비스 스크립트 구분 규칙
+
+- 현재 로컬에서 수정한 스크립트는 RPi 전용 파일로 사용합니다.
+  - `./start_services_rpi.sh`
+  - `./stop_services_rpi.sh`
+- GitHub에서 추후 내려받는 스크립트는 Jetson 전용으로 관리합니다.
+  - `./start_services_jetson.sh`
+  - `./stop_services_jetson.sh`
+- 기존 공용 이름(`start_services.sh`, `stop_services.sh`)은 사용하지 않습니다.
+
 ### 4) Jetson 파일 보호 훅 설치 (권장)
 
 ```bash
