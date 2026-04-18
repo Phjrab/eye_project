@@ -95,9 +95,18 @@ bash scripts/export_onnx_rpi.sh
 - 현재 로컬에서 수정한 스크립트는 RPi 전용 파일로 사용합니다.
   - `./start_services_rpi.sh`
   - `./stop_services_rpi.sh`
+- RPi 스크립트의 기본 동작
+  - `eye_server.py` 실행 (웹 UI 포함)
+  - 브라우저 기본 URL: `http://127.0.0.1:5000/`
+- RPi 키오스크 기본값은 Wayland 비활성(X11 모드)입니다.
+  - 기본: `USE_WAYLAND_KIOSK=0`
+  - Wayland를 강제로 쓰고 싶을 때만: `USE_WAYLAND_KIOSK=1 ./start_services_rpi.sh`
 - GitHub에서 추후 내려받는 스크립트는 Jetson 전용으로 관리합니다.
   - `./start_services_jetson.sh`
   - `./stop_services_jetson.sh`
+- Jetson 스크립트의 기본 동작
+  - `server.py` 실행 (API 서버)
+  - 헬스체크/브라우저 기준 URL: `http://127.0.0.1:5000/health`
 - 기존 공용 이름(`start_services.sh`, `stop_services.sh`)은 사용하지 않습니다.
 
 ### 4) Jetson 파일 보호 훅 설치 (권장)
@@ -145,7 +154,7 @@ export EYE_APP_SECRET_KEY='change-this-secret-too'
 ### 4) 서버 실행
 
 ```bash
-python server.py
+python eye_server.py
 ```
 
 브라우저에서 `http://0.0.0.0:5000` 또는 장비 IP로 접속합니다.

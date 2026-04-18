@@ -60,9 +60,9 @@ start_if_not_running() {
 }
 
 start_if_not_running \
-  "server.py (port 5000)" \
-  "python.*[ /]server.py" \
-  "cd '$PROJECT_DIR' && source '$VENV_DIR/bin/activate' && python server.py" \
+  "eye_server.py (port 5000)" \
+  "python.*eye_server.py" \
+  "cd '$PROJECT_DIR' && source '$VENV_DIR/bin/activate' && python eye_server.py" \
   "logs/server.log"
 
 start_if_not_running \
@@ -88,7 +88,7 @@ wait_for_http() {
   return 1
 }
 
-wait_for_http "server.py" "http://127.0.0.1:5000/health" || true
+wait_for_http "eye_server.py" "http://127.0.0.1:5000/status" || true
 wait_for_http "kakao_login" "http://127.0.0.1:5001/kakao/login?phone=01012341234" || true
 
 echo ""
@@ -109,7 +109,51 @@ if [[ -z "${XAUTHORITY:-}" ]]; then
   fi
 fi
 
-BROWSER_URL="${BROWSER_URL:-http://127.0.0.1:5000/capture}"
+BROWSER_URL="${BROWSER_URL:-http://127.0.0.1:5000/}"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+WAYLAND_SOCKET="${WAYLAND_DISPLAY:-wayland-0}"
+WAYLAND_AVAILABLE=0
+USE_WAYLAND_KIOSK="${USE_WAYLAND_KIOSK:-0}"
+
+if [[ -S "$RUNTIME_DIR/$WAYLAND_SOCKET" ]]; then
+  WAYLAND_AVAILABLE=1
+fi
+
+if [[ "$USE_WAYLAND_KIOSK" == "1" && "$WAYLAND_AVAILABLE" -eq 1 ]]; then
+  export XDG_RUNTIME_DIR="$RUNTIME_DIR"
+  export WAYLAND_DISPLAY="$WAYLAND_SOCKET"
+  unset GDK_BACKEND
+
+  echo "[INFO] Wayland session detected; launching native Epiphany for touch compatibility"
+
+  # Remove stale X11 fallback window from previous runs.
+  if pgrep -af "epiphany --private-instance --new-window" >/dev/null 2>&1; then
+    pkill -f "epiphany --private-instance --new-window" || true
+    sleep 1
+  fi
+
+  if pgrep -x epiphany >/dev/null 2>&1 || pgrep -x epiphany-browse >/dev/null 2>&1 || pgrep -af "epiphany.*browser" >/dev/null 2>&1; then
+    echo "[OK] Epiphany browser already running (Wayland mode)"
+  else
+    echo "[INFO] Launching Epiphany browser (Wayland mode)..."
+    nohup epiphany-browser --new-window "$BROWSER_URL" > logs/browser.log 2>&1 &
+    sleep 2
+    if pgrep -x epiphany >/dev/null 2>&1 || pgrep -x epiphany-browse >/dev/null 2>&1 || pgrep -af "epiphany.*browser" >/dev/null 2>&1; then
+      echo "[OK] Epiphany browser started (Wayland mode)"
+    else
+      echo "[WARN] Epiphany browser did not start in Wayland mode; check logs/browser.log"
+    fi
+  fi
+
+  echo "[DONE] Services startup routine finished."
+  exit 0
+fi
+
+if [[ "$USE_WAYLAND_KIOSK" == "1" && "$WAYLAND_AVAILABLE" -eq 0 ]]; then
+  echo "[WARN] USE_WAYLAND_KIOSK=1 but Wayland socket not found; falling back to X11 mode"
+else
+  echo "[INFO] Wayland kiosk mode disabled (USE_WAYLAND_KIOSK=$USE_WAYLAND_KIOSK); using X11 mode"
+fi
 
 activate_epiphany_fullscreen() {
   if ! command -v xdotool >/dev/null 2>&1; then
@@ -141,6 +185,7 @@ activate_epiphany_fullscreen() {
   return 1
 }
 
+# X11-only branch for environments without Wayland.
 # 기존 프로세스가 있으면 우선 기존 창에 대해 전체화면 시도
 fullscreen_done=0
 if pgrep -x epiphany >/dev/null 2>&1 || pgrep -x epiphany-browse >/dev/null 2>&1 || pgrep -af "epiphany.*browser" >/dev/null 2>&1; then
