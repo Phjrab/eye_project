@@ -1176,8 +1176,6 @@ def check_eye_detection(frame):
         detected = best_confidence >= config.YOLO_STATUS_CONF_THRESHOLD
 
         return detected, best_confidence
-
-        return False, 0
     except Exception as e:
         print(f"[WARNING] 눈 감지 확인 실패: {e}")
         return False, 0

@@ -135,7 +135,7 @@ export EYE_APP_SECRET_KEY='change-this-secret-too'
 ### 4) 서버 실행
 
 ```bash
-python eye_server.py
+python server.py
 ```
 
 브라우저에서 `http://0.0.0.0:5000` 또는 장비 IP로 접속합니다.
@@ -221,7 +221,6 @@ eye_project/
 ├── README.html
 ├── database/
 │   ├── app.py
-│   ├── appopen.py
 │   ├── backfill_guides.py
 │   ├── db.py
 │   └── schema.sql

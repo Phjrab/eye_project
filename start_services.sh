@@ -55,9 +55,9 @@ start_if_not_running() {
 }
 
 start_if_not_running \
-  "eye_server (port 5000)" \
-  "python.*eye_server.py" \
-  "cd '$PROJECT_DIR' && source venv/bin/activate && python eye_server.py" \
+  "server.py (port 5000)" \
+  "python.*[ /]server.py" \
+  "cd '$PROJECT_DIR' && source venv/bin/activate && python server.py" \
   "logs/server.log"
 
 start_if_not_running \
@@ -83,7 +83,7 @@ wait_for_http() {
   return 1
 }
 
-wait_for_http "eye_server" "http://127.0.0.1:5000/capture" || true
+wait_for_http "server.py" "http://127.0.0.1:5000/health" || true
 wait_for_http "kakao_login" "http://127.0.0.1:5001/kakao/login?phone=01012341234" || true
 
 echo ""
@@ -94,7 +94,7 @@ echo "=========================================="
 
 # ── Epiphany 브라우저 전체화면 자동 실행 ──
 export DISPLAY=:0
-BROWSER_URL="http://127.0.0.1:5000"
+BROWSER_URL="http://127.0.0.1:5000/health"
 
 # 이미 실행 중이면 건너뛰기
 if pgrep -x epiphany-browse >/dev/null 2>&1 || pgrep -af "epiphany.*browser" >/dev/null 2>&1; then
