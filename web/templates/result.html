@@ -209,34 +209,67 @@
 
         .eye-select-row {
             display: flex;
-            gap: 8px;
-            padding: 10px 12px;
-            background: rgba(15, 23, 42, 0.85);
-            border-top: 1px solid rgba(148, 163, 184, 0.35);
+            gap: 10px;
+            padding: 12px;
+            background: #ffffff;
+            border-top: 1px solid var(--border);
         }
 
         .eye-select-btn {
             flex: 1;
-            border: 1px solid rgba(148, 163, 184, 0.45);
-            background: rgba(30, 41, 59, 0.65);
-            color: #e2e8f0;
-            border-radius: 10px;
-            padding: 8px 10px;
-            font-size: 0.85rem;
+            border: none;
+            background: #f2f2f7;
+            color: #3a3a3c;
+            border-radius: 12px;
+            min-height: 44px;
+            padding: 10px 12px;
+            font-size: 0.95rem;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.15s ease;
+            transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        .eye-select-btn:hover:not(:disabled) {
+            background: #e5e7eb;
+            transform: translateY(-1px);
+        }
+
+        .eye-select-btn:active:not(:disabled) {
+            transform: scale(0.98);
         }
 
         .eye-select-btn.active {
-            background: rgba(14, 116, 144, 0.9);
-            border-color: rgba(56, 189, 248, 0.95);
-            color: #f0f9ff;
+            background: var(--primary);
+            color: #ffffff;
+            box-shadow: 0 8px 16px rgba(0, 122, 255, 0.18);
         }
 
         .eye-select-btn:disabled {
             opacity: 0.4;
             cursor: not-allowed;
+        }
+
+        [data-theme="dark"] .eye-select-row {
+            background: #111827;
+            border-top-color: #334155;
+        }
+
+        [data-theme="dark"] .eye-select-btn {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        [data-theme="dark"] .eye-select-btn:hover:not(:disabled) {
+            background: #3f4f67;
+        }
+
+        [data-theme="dark"] .eye-select-btn.active {
+            background: var(--primary);
+            color: #ffffff;
         }
 
         .cam-toggle-btn:disabled {
@@ -408,13 +441,13 @@
             }
 
             .eye-select-row {
-                padding: 8px 10px;
-                gap: 6px;
+                padding: 10px 12px;
+                gap: 8px;
             }
 
             .eye-select-btn {
-                min-height: 40px;
-                font-size: 0.82rem;
+                min-height: 48px;
+                font-size: 0.9rem;
             }
 
             .right-panel {
@@ -470,9 +503,9 @@
         </div>
 
         <div class="eye-select-row">
-            <button id="btn-view-original" class="eye-select-btn active" onclick="setEyePhotoView('ORIGINAL')">원본 보기</button>
-            <button id="btn-view-left" class="eye-select-btn" onclick="setEyePhotoView('L')">좌안 보기</button>
-            <button id="btn-view-right" class="eye-select-btn" onclick="setEyePhotoView('R')">우안 보기</button>
+            <button id="btn-view-original" class="eye-select-btn active" onclick="setEyePhotoView('ORIGINAL')">🖼️ 원본 보기</button>
+            <button id="btn-view-left" class="eye-select-btn" onclick="setEyePhotoView('L')">👁️ 좌안 보기</button>
+            <button id="btn-view-right" class="eye-select-btn" onclick="setEyePhotoView('R')">👁️ 우안 보기</button>
         </div>
 
         <div class="camera-bottom-btns">
@@ -601,6 +634,12 @@
             if (conf >= 80) return 'tag-danger';
             if (conf >= 60) return 'tag-warning';
             return 'tag-normal';
+        }
+
+        function confidenceToNormalLevel(conf) {
+            if (conf >= 80) return 'tag-normal';
+            if (conf >= 60) return 'tag-warning';
+            return 'tag-danger';
         }
 
         function formatResultText(conf) {
@@ -1026,7 +1065,7 @@
             renderSelectedEyeImageForMode(analysis);
 
             const scores = extractDiseaseScores(analysis);
-            setStatusTag(normalEl, confidenceToLevel(scores.normal), formatNormalText(scores.normal));
+            setStatusTag(normalEl, confidenceToNormalLevel(scores.normal), formatNormalText(scores.normal));
             setStatusTag(conjEl, confidenceToLevel(scores.conj), formatResultText(scores.conj));
             setStatusTag(uveitisEl, confidenceToLevel(scores.uveitis), formatResultText(scores.uveitis));
             setStatusTag(eyelidEl, confidenceToLevel(scores.eyelid), formatResultText(scores.eyelid));

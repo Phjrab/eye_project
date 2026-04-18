@@ -28,6 +28,13 @@ print('database/database.db initialized')
 PY
 fi
 
+# Stop legacy minimal API server if running so port 5000 is available for eye_server.py.
+if pgrep -af "python.*[ /]server.py" >/dev/null; then
+  echo "[INFO] Stopping legacy server.py before starting eye_server.py"
+  pkill -f "python.*[ /]server.py" || true
+  sleep 1
+fi
+
 start_if_not_running() {
   local name="$1"
   local pattern="$2"
@@ -55,9 +62,9 @@ start_if_not_running() {
 }
 
 start_if_not_running \
-  "server.py (port 5000)" \
-  "python.*[ /]server.py" \
-  "cd '$PROJECT_DIR' && source venv/bin/activate && python server.py" \
+  "eye_server.py (port 5000)" \
+  "python.*[ /]eye_server.py" \
+  "cd '$PROJECT_DIR' && source venv/bin/activate && python eye_server.py" \
   "logs/server.log"
 
 start_if_not_running \
@@ -83,7 +90,7 @@ wait_for_http() {
   return 1
 }
 
-wait_for_http "server.py" "http://127.0.0.1:5000/health" || true
+wait_for_http "eye_server.py" "http://127.0.0.1:5000/" || true
 wait_for_http "kakao_login" "http://127.0.0.1:5001/kakao/login?phone=01012341234" || true
 
 echo ""
@@ -94,32 +101,72 @@ echo "=========================================="
 
 # ── Epiphany 브라우저 전체화면 자동 실행 ──
 export DISPLAY=:0
-BROWSER_URL="http://127.0.0.1:5000/health"
+BROWSER_URL="http://127.0.0.1:5000/"
+CLOSE_EXISTING_BROWSERS="${CLOSE_EXISTING_BROWSERS:-1}"
 
-# 이미 실행 중이면 건너뛰기
+close_existing_browser_processes() {
+  local closed_any=0
+  local names=(
+    "epiphany"
+    "epiphany-browse"
+    "epiphany-browser"
+    "chromium"
+    "chromium-browser"
+    "google-chrome"
+    "firefox"
+  )
+
+  for name in "${names[@]}"; do
+    if pgrep -x "$name" >/dev/null 2>&1; then
+      echo "[INFO] Closing existing browser process: $name"
+      pkill -x "$name" || true
+      closed_any=1
+    fi
+  done
+
+  if pgrep -af "epiphany.*browser" >/dev/null 2>&1; then
+    echo "[INFO] Closing existing Epiphany browser windows"
+    pkill -f "epiphany.*browser" || true
+    closed_any=1
+  fi
+
+  if [[ "$closed_any" -eq 1 ]]; then
+    sleep 1
+  else
+    echo "[OK] No existing browser windows to close"
+  fi
+}
+
+if [[ "$CLOSE_EXISTING_BROWSERS" == "1" ]]; then
+  close_existing_browser_processes
+fi
+
+# Keep startup behavior deterministic: reopen browser on the index URL.
 if pgrep -x epiphany-browse >/dev/null 2>&1 || pgrep -af "epiphany.*browser" >/dev/null 2>&1; then
-  echo "[OK] Epiphany browser already running"
-else
-  echo "[INFO] Launching Epiphany browser (fullscreen)..."
-  nohup epiphany-browser "$BROWSER_URL" > logs/browser.log 2>&1 &
-  BROWSER_PID=$!
+  echo "[INFO] Restarting Epiphany browser to open index page"
+  pkill -f "epiphany.*browser" || true
+  sleep 1
+fi
 
-  # 브라우저 창이 뜰 때까지 대기 후 F11 전체화면
-  sleep 4
-  if command -v xdotool >/dev/null 2>&1; then
-    # epiphany 창 찾아서 전체화면 전환
-    WID=$(xdotool search --name "Web" 2>/dev/null | head -1 || true)
-    if [[ -z "$WID" ]]; then
-      WID=$(xdotool search --pid "$BROWSER_PID" 2>/dev/null | head -1 || true)
-    fi
-    if [[ -n "$WID" ]]; then
-      xdotool windowactivate "$WID" 2>/dev/null || true
-      sleep 0.5
-      xdotool key F11 2>/dev/null || true
-      echo "[OK] Browser fullscreen activated (window=$WID)"
-    else
-      echo "[WARN] Could not find browser window for fullscreen"
-    fi
+echo "[INFO] Launching Epiphany browser (fullscreen)..."
+nohup epiphany-browser "$BROWSER_URL" > logs/browser.log 2>&1 &
+BROWSER_PID=$!
+
+# 브라우저 창이 뜰 때까지 대기 후 F11 전체화면
+sleep 4
+if command -v xdotool >/dev/null 2>&1; then
+  # epiphany 창 찾아서 전체화면 전환
+  WID=$(xdotool search --name "Web" 2>/dev/null | head -1 || true)
+  if [[ -z "$WID" ]]; then
+    WID=$(xdotool search --pid "$BROWSER_PID" 2>/dev/null | head -1 || true)
+  fi
+  if [[ -n "$WID" ]]; then
+    xdotool windowactivate "$WID" 2>/dev/null || true
+    sleep 0.5
+    xdotool key F11 2>/dev/null || true
+    echo "[OK] Browser fullscreen activated (window=$WID)"
+  else
+    echo "[WARN] Could not find browser window for fullscreen"
   fi
 fi
 

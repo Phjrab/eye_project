@@ -164,6 +164,31 @@
         [data-theme="dark"] input,
         [data-theme="dark"] select,
         [data-theme="dark"] textarea {
+            background: #0f172a !important;
+            color: var(--text) !important;
+            border-color: #334155 !important;
+            -webkit-text-fill-color: var(--text);
+            caret-color: var(--text);
+            color-scheme: dark;
+        }
+
+        [data-theme="dark"] input:focus,
+        [data-theme="dark"] select:focus,
+        [data-theme="dark"] textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #111827 !important;
+            color: var(--text) !important;
+            -webkit-text-fill-color: var(--text);
+        }
+
+        [data-theme="dark"] input::placeholder,
+        [data-theme="dark"] textarea::placeholder {
+            color: #94a3b8;
+        }
+
+        [data-theme="dark"] select option,
+        [data-theme="dark"] select optgroup {
             background: #0f172a;
             color: var(--text);
         }

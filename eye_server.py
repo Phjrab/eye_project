@@ -145,8 +145,11 @@ model_manager = None  # 싱글톤 모델 매니저
 models_initialized = False  # 모델 초기화 완료 여부
 camera_thread = None  # 카메라 스레드
 camera_running = False  # 카메라 스레드 실행 상태
+camera_session_count = 0  # capture 페이지 활성 세션 수
+camera_session_lock = threading.Lock()
 debug_boxes_cache = []
 debug_frame_counter = 0
+YOLO_STREAM_DEBUG_OVERLAY = os.getenv('YOLO_STREAM_DEBUG_OVERLAY', '0') == '1'
 
 HISTORY_DB_PATH = os.path.join(config.BASE_DIR, 'database', 'history.db')
 REPORT_EXPORT_DIR = os.path.join(config.BASE_DIR, 'web', 'static', 'reports')
@@ -1123,6 +1126,36 @@ def should_auto_capture():
     
     return False
 
+
+def _is_yolo_cuda_oom_error(exc):
+    text = str(exc).lower()
+    return ('out of memory' in text) or ('cuda error' in text and 'memory' in text)
+
+
+def safe_yolo_detect(detector, image, conf_threshold=None):
+    """YOLO 추론을 수행하되 CUDA OOM 발생 시 캐시 정리 후 1회 재시도한다."""
+    try:
+        return detector.detect(image, conf_threshold=conf_threshold)
+    except Exception as e:
+        if not _is_yolo_cuda_oom_error(e):
+            raise
+
+        print(f"[WARNING] YOLO CUDA OOM 감지, 캐시 정리 후 재시도: {e}")
+        try:
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                if hasattr(torch.cuda, 'ipc_collect'):
+                    torch.cuda.ipc_collect()
+        except Exception as cleanup_error:
+            print(f"[WARNING] CUDA 캐시 정리 실패: {cleanup_error}")
+
+        try:
+            return detector.detect(image, conf_threshold=conf_threshold)
+        except Exception as retry_error:
+            print(f"[WARNING] YOLO 재시도 실패: {retry_error}")
+            return None
+
 # ========================================
 # [2] LED 하드웨어 설정 (Jetson)
 # ========================================
@@ -1159,7 +1192,7 @@ def check_eye_detection(frame):
     try:
         manager = get_models()
         detector = manager.get_detector()
-        detections = detector.detect(frame, conf_threshold=config.YOLO_STATUS_CONF_THRESHOLD)
+        detections = safe_yolo_detect(detector, frame, conf_threshold=config.YOLO_STATUS_CONF_THRESHOLD)
 
         if detections is None or not hasattr(detections, 'boxes'):
             return False, 0
@@ -1424,13 +1457,13 @@ def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None
         # Step 1) YOLO 검출 + 크롭
         yolo_start = time.time()
         used_conf_threshold = float(config.YOLO_CONF_THRESHOLD)
-        detections = detector.detect(img_bgr, conf_threshold=used_conf_threshold)
+        detections = safe_yolo_detect(detector, img_bgr, conf_threshold=used_conf_threshold)
         raw_eye_crops = detector.crop_eyes(img_bgr, detections)
 
         # 검출이 전혀 없으면 완화된 임계값으로 1회 재시도
         if len(raw_eye_crops) == 0 and config.YOLO_STATUS_CONF_THRESHOLD < config.YOLO_CONF_THRESHOLD:
             used_conf_threshold = float(config.YOLO_STATUS_CONF_THRESHOLD)
-            detections = detector.detect(img_bgr, conf_threshold=used_conf_threshold)
+            detections = safe_yolo_detect(detector, img_bgr, conf_threshold=used_conf_threshold)
             raw_eye_crops = detector.crop_eyes(img_bgr, detections)
 
         yolo_elapsed_ms = (time.time() - yolo_start) * 1000.0
@@ -1743,13 +1776,49 @@ def start_camera_thread():
 
 def stop_camera_thread():
     """카메라 스레드 안전 종료"""
-    global camera_running, camera_thread
+    global camera_running, camera_thread, current_frame
     camera_running = False
 
     if camera_thread is not None and camera_thread.is_alive():
         camera_thread.join(timeout=2.0)
 
     camera_thread = None
+    current_frame = None
+
+
+def acquire_camera_session():
+    """capture 페이지 활성화 시 카메라 세션을 획득하고 필요하면 카메라를 시작한다."""
+    global camera_session_count
+    with camera_session_lock:
+        camera_session_count += 1
+        active_sessions = camera_session_count
+
+    if not camera_running:
+        start_camera_thread()
+
+    return active_sessions
+
+
+def release_camera_session(force=False):
+    """capture 페이지 이탈 시 카메라 세션을 해제하고 마지막 세션이면 카메라를 종료한다."""
+    global camera_session_count
+    with camera_session_lock:
+        if force:
+            camera_session_count = 0
+        elif camera_session_count > 0:
+            camera_session_count -= 1
+        active_sessions = camera_session_count
+
+    if active_sessions == 0:
+        stop_camera_thread()
+
+    return active_sessions
+
+
+def get_camera_session_count():
+    """현재 활성 카메라 세션 수 조회"""
+    with camera_session_lock:
+        return camera_session_count
 
 
 # ========================================
@@ -1776,40 +1845,42 @@ def gen_frames():
             
         frame_to_send = current_frame.copy()
 
-        # 임시 디버그: YOLO 박스 오버레이
-        try:
-            debug_frame_counter += 1
-            if debug_frame_counter % 5 == 0 or len(debug_boxes_cache) == 0:
-                manager = get_models()
-                detector = manager.get_detector()
-                detections = detector.detect(
-                    frame_to_send,
-                    conf_threshold=config.YOLO_STATUS_CONF_THRESHOLD
-                )
+        # 스트림 오버레이 YOLO는 GPU 메모리 사용량이 커서 기본 비활성화한다.
+        if YOLO_STREAM_DEBUG_OVERLAY:
+            try:
+                debug_frame_counter += 1
+                if debug_frame_counter % 10 == 0 or len(debug_boxes_cache) == 0:
+                    manager = get_models()
+                    detector = manager.get_detector()
+                    detections = safe_yolo_detect(
+                        detector,
+                        frame_to_send,
+                        conf_threshold=config.YOLO_STATUS_CONF_THRESHOLD
+                    )
 
-                boxes = []
-                if detections is not None and hasattr(detections, 'boxes') and detections.boxes is not None:
-                    for box in detections.boxes:
-                        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-                        conf = float(box.conf.item()) if box.conf is not None else 0.0
-                        boxes.append((x1, y1, x2, y2, conf))
+                    boxes = []
+                    if detections is not None and hasattr(detections, 'boxes') and detections.boxes is not None:
+                        for box in detections.boxes:
+                            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                            conf = float(box.conf.item()) if box.conf is not None else 0.0
+                            boxes.append((x1, y1, x2, y2, conf))
 
-                debug_boxes_cache = boxes
+                    debug_boxes_cache = boxes
 
-            for (x1, y1, x2, y2, conf) in debug_boxes_cache:
-                cv2.rectangle(frame_to_send, (x1, y1), (x2, y2), (40, 205, 65), 2)
-                label = f"Eye {conf*100:.1f}%"
-                cv2.putText(
-                    frame_to_send,
-                    label,
-                    (x1, max(20, y1 - 8)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.55,
-                    (40, 205, 65),
-                    2
-                )
-        except Exception as e:
-            print(f"[WARNING] YOLO 박스 오버레이 실패: {e}")
+                for (x1, y1, x2, y2, conf) in debug_boxes_cache:
+                    cv2.rectangle(frame_to_send, (x1, y1), (x2, y2), (40, 205, 65), 2)
+                    label = f"Eye {conf*100:.1f}%"
+                    cv2.putText(
+                        frame_to_send,
+                        label,
+                        (x1, max(20, y1 - 8)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.55,
+                        (40, 205, 65),
+                        2
+                    )
+            except Exception as e:
+                print(f"[WARNING] YOLO 박스 오버레이 실패: {e}")
 
         ret, buffer = cv2.imencode('.jpg', frame_to_send)
         if not ret:
@@ -1860,7 +1931,7 @@ def run_diagnosis_pipeline(snapshot):
         print("[Stage 1] YOLO 눈 검출 시작...")
         start_time = time.time()
         
-        detections = detector.detect(snapshot)
+        detections = safe_yolo_detect(detector, snapshot)
         eye_crops = detector.crop_eyes(snapshot, detections)
         
         elapsed = time.time() - start_time
@@ -2099,6 +2170,46 @@ def video_feed():
     """실시간 영상 스트림 (MJPEG)"""
     return Response(gen_frames(),
                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/camera/session/start', methods=['POST'])
+def camera_session_start():
+    """capture 화면 진입 시 카메라 세션 시작"""
+    try:
+        if not session.get('capture_camera_active', False):
+            active_sessions = acquire_camera_session()
+            session['capture_camera_active'] = True
+        else:
+            if not camera_running:
+                start_camera_thread()
+            active_sessions = get_camera_session_count()
+
+        return jsonify({
+            'status': 'ok',
+            'camera_running': camera_running,
+            'active_sessions': active_sessions
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/camera/session/stop', methods=['POST'])
+def camera_session_stop():
+    """capture 화면 이탈 시 카메라 세션 종료"""
+    try:
+        if session.get('capture_camera_active', False):
+            active_sessions = release_camera_session()
+            session['capture_camera_active'] = False
+        else:
+            active_sessions = get_camera_session_count()
+
+        return jsonify({
+            'status': 'ok',
+            'camera_running': camera_running,
+            'active_sessions': active_sessions
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/video_frame')
@@ -2733,8 +2844,8 @@ def survey():
 
 @app.before_request
 def initialize_on_first_request():
-    """서버 시작 시 모델 로드 및 카메라 스레드 시작 (Flask 2.3+ 호환)"""
-    global model_manager, models_initialized, camera_running
+    """서버 시작 시 모델만 로드 (Flask 2.3+ 호환)"""
+    global model_manager, models_initialized
     if not models_initialized:
         models_initialized = True
         init_history_db()
@@ -2742,15 +2853,8 @@ def initialize_on_first_request():
         print("[Eye Disease Detection Server]")
         print("="*50)
         model_manager = initialize_models()
-        
-        # 카메라 백그라운드 스레드 시작
-        start_camera_thread()
-        
-        print("\n✓ 서버 준비 완료! http://0.0.0.0:5000 에서 접속하세요\n")
 
-    # 디버그 리로더/예외 상황에서 카메라 스레드가 내려갔으면 재시작
-    if models_initialized and (not camera_running):
-        start_camera_thread()
+        print("\n✓ 서버 준비 완료! http://0.0.0.0:5000 에서 접속하세요\n")
 
 
 def cleanup_resources():
@@ -2769,8 +2873,8 @@ atexit.register(cleanup_resources)
 
 if __name__ == '__main__':
     print("Starting Eye Disease Detection Server...")
-    
-    # 서버 시작 전에 모델과 카메라 초기화
+
+    # 서버 시작 전에 모델만 초기화
     if not models_initialized:
         models_initialized = True
         init_history_db()
@@ -2778,10 +2882,7 @@ if __name__ == '__main__':
         print("[Eye Disease Detection Server]")
         print("="*50)
         model_manager = initialize_models()
-        
-        # 카메라 백그라운드 스레드 시작
-        start_camera_thread()
-        
+
         print("\n✓ 서버 준비 완료! http://0.0.0.0:5000 에서 접속하세요\n")
     
     app.run(

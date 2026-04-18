@@ -506,6 +506,7 @@
         let autoCooldownUntil = 0;
         let previewMode = 'camera'; // 'camera' | 'upload'
         let mobileUploadOnlyMode = false;
+        let captureCameraSessionActive = false;
         let videoFallbackInterval = null;
         const AUTO_SHUTTER_CONF_THRESHOLD = 0.70; // 70%
         const LAST_UPLOAD_KEY = 'last_mobile_upload_capture';
@@ -608,6 +609,63 @@
             } else {
                 useLastBtn.classList.remove('show');
             }
+        }
+
+        async function startCaptureCameraSession() {
+            if (mobileUploadOnlyMode) {
+                return true;
+            }
+
+            if (captureCameraSessionActive) {
+                return true;
+            }
+
+            try {
+                const response = await fetch('/camera/session/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source: 'capture_page' })
+                });
+                if (!response.ok) {
+                    throw new Error(`camera-session-start-failed:${response.status}`);
+                }
+
+                const data = await response.json();
+                captureCameraSessionActive = data.status === 'ok';
+                return captureCameraSessionActive;
+            } catch (error) {
+                console.error('[Camera Session Start Error]', error);
+                captureCameraSessionActive = false;
+                return false;
+            }
+        }
+
+        function stopCaptureCameraSession() {
+            if (!captureCameraSessionActive || mobileUploadOnlyMode) {
+                return;
+            }
+
+            captureCameraSessionActive = false;
+            const payload = JSON.stringify({ source: 'capture_page' });
+
+            try {
+                if (navigator.sendBeacon) {
+                    const blob = new Blob([payload], { type: 'application/json' });
+                    navigator.sendBeacon('/camera/session/stop', blob);
+                    return;
+                }
+            } catch (error) {
+                console.warn('[Camera Session Stop Beacon Error]', error);
+            }
+
+            fetch('/camera/session/stop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload,
+                keepalive: true
+            }).catch((error) => {
+                console.warn('[Camera Session Stop Error]', error);
+            });
         }
 
         function stopVideoFallbackPolling() {
@@ -755,12 +813,20 @@
             document.getElementById('upload-image-input').click();
         }
 
-        function restoreCameraPreview() {
+        async function restoreCameraPreview() {
             if (mobileUploadOnlyMode) {
                 return;
             }
+
             const videoImg = document.getElementById('video-feed');
             const captureMessage = document.getElementById('capture-message');
+
+            const cameraReady = await startCaptureCameraSession();
+            if (!cameraReady) {
+                captureMessage.textContent = '카메라를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+                return;
+            }
+
             previewMode = 'camera';
             stopVideoFallbackPolling();
             videoImg.onerror = () => {
@@ -1115,7 +1181,7 @@
         }
 
         // 화면 로딩 시 프레임 스트리밍 및 감지 폴링 시작
-        window.onload = () => {
+        window.onload = async () => {
             syncUserScopedCaptureCache();
             clearSessionCaptureData();
 
@@ -1132,15 +1198,30 @@
             capturedPhoto = null;
             analysisReady = false;
             setLastUploadAvailability();
+            let canPollDetection = false;
             if (mobileUploadOnlyMode) {
                 previewMode = 'upload';
             } else {
-                restoreCameraPreview();
+                const cameraReady = await startCaptureCameraSession();
+                if (cameraReady) {
+                    await restoreCameraPreview();
+                    canPollDetection = true;
+                } else {
+                    const statusDot = document.getElementById('status-dot');
+                    const statusMessage = document.getElementById('status-message');
+                    const captureMessage = document.getElementById('capture-message');
+
+                    if (statusDot) statusDot.style.background = '#ef4444';
+                    if (statusMessage) statusMessage.textContent = '카메라 시작 실패';
+                    if (captureMessage) {
+                        captureMessage.textContent = '카메라 연결에 실패했습니다. 케이블 연결 후 새로고침해 주세요.';
+                    }
+                }
             }
             setResultButtonState(false);
 
             // 감지 상태 즉시 조회 & 주기적으로 폴링 (500ms)
-            if (!mobileUploadOnlyMode) {
+            if (!mobileUploadOnlyMode && canPollDetection) {
                 pollDetectionStatus();
                 detectionPollingInterval = setInterval(pollDetectionStatus, 500);
             }
@@ -1152,7 +1233,12 @@
                 clearInterval(detectionPollingInterval);
             }
             stopVideoFallbackPolling();
+            stopCaptureCameraSession();
         };
+
+        window.addEventListener('pagehide', () => {
+            stopCaptureCameraSession();
+        });
     </script>
     <script>
         (function () {

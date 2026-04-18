@@ -99,6 +99,44 @@ echo "=========================================="
 
 # ── Epiphany 브라우저 전체화면 자동 실행 ──
 export DISPLAY="${DISPLAY:-:0}"
+CLOSE_EXISTING_BROWSERS="${CLOSE_EXISTING_BROWSERS:-1}"
+
+close_existing_browser_processes() {
+  local closed_any=0
+  local names=(
+    "epiphany"
+    "epiphany-browse"
+    "epiphany-browser"
+    "chromium"
+    "chromium-browser"
+    "google-chrome"
+    "firefox"
+  )
+
+  for name in "${names[@]}"; do
+    if pgrep -x "$name" >/dev/null 2>&1; then
+      echo "[INFO] Closing existing browser process: $name"
+      pkill -x "$name" || true
+      closed_any=1
+    fi
+  done
+
+  if pgrep -af "epiphany.*browser" >/dev/null 2>&1; then
+    echo "[INFO] Closing existing Epiphany browser windows"
+    pkill -f "epiphany.*browser" || true
+    closed_any=1
+  fi
+
+  if [[ "$closed_any" -eq 1 ]]; then
+    sleep 1
+  else
+    echo "[OK] No existing browser windows to close"
+  fi
+}
+
+if [[ "$CLOSE_EXISTING_BROWSERS" == "1" ]]; then
+  close_existing_browser_processes
+fi
 
 if [[ -z "${XAUTHORITY:-}" ]]; then
   XA_FROM_MUTTER="$(ls /run/user/"$(id -u)"/.mutter-Xwaylandauth.* 2>/dev/null | head -1 || true)"
