@@ -8,8 +8,6 @@ __pycache__/
 logs/
 *.log
 *.out
-*.pt
-*.pth
 database/history.db
 eye_photo/
 PHOTO/
