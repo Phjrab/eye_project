@@ -5,8 +5,20 @@
 - analyzer: 홍채 제거 및 충혈도 분석
 """
 
-from .detector import EyeDetector
-from .classifier import DiseaseClassifier
-from .analyzer import EyeAnalyzer
-
 __all__ = ['EyeDetector', 'DiseaseClassifier', 'EyeAnalyzer']
+
+
+def __getattr__(name):
+    if name == 'EyeDetector':
+        from .detector import EyeDetector
+
+        return EyeDetector
+    if name == 'DiseaseClassifier':
+        from .classifier import DiseaseClassifier
+
+        return DiseaseClassifier
+    if name == 'EyeAnalyzer':
+        from .analyzer import EyeAnalyzer
+
+        return EyeAnalyzer
+    raise AttributeError(f"module 'modules' has no attribute '{name}'")

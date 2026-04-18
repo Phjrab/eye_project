@@ -1,4 +1,5 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
 .pyo
@@ -8,6 +9,8 @@ __pycache__/
 logs/
 *.log
 *.out
+*.onnx
+*.onnx.data
 database/history.db
 eye_photo/
 PHOTO/
