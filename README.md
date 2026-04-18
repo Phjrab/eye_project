@@ -77,6 +77,19 @@ CLASSIFIER_ONNX_PATH=models/efficientnet.onnx
 bash scripts/rpi_preflight.sh
 ```
 
+### 3-1) ONNX 자동 변환 (필요 시)
+
+YOLO `.pt` + 분류기 `.pth`를 RPi 실행용 ONNX로 자동 변환합니다.
+
+```bash
+bash scripts/export_onnx_rpi.sh
+```
+
+기본 출력:
+
+- `models/yolo.onnx`
+- `models/efficientnet.onnx`
+
 ### 4) Jetson 파일 보호 훅 설치 (권장)
 
 ```bash
