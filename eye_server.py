@@ -101,7 +101,7 @@ Eye Disease Detection Server
 웹 인터페이스와 AI 파이프라인의 오케스트레이터
 """
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 load_dotenv()
 
 from flask import Flask, render_template, Response, jsonify, request, session, redirect, url_for
@@ -125,6 +125,7 @@ import random
 import uuid
 import socket
 import subprocess
+import hmac
 from datetime import datetime
 from PIL import Image
 
@@ -137,7 +138,16 @@ from utils.image_proc import resize_image, enhance_contrast
 # ========================================
 app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.secret_key = os.getenv('EYE_APP_SECRET_KEY', 'eye-project-admin-secret')
+app_secret = os.getenv('EYE_APP_SECRET_KEY', '').strip()
+if not app_secret:
+    # 고정 기본 키를 제거하고, 미설정 시 재시작마다 바뀌는 임시키를 사용한다.
+    app_secret = os.urandom(32).hex()
+    print('[WARNING] EYE_APP_SECRET_KEY 미설정: 임시 세션 키를 사용합니다. 운영 환경에서는 .env에 반드시 설정하세요.')
+
+app.secret_key = app_secret
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', '0').strip().lower() in ('1', 'true', 'yes', 'on')
 
 # 전역 변수
 current_frame = None  # 실시간 카메라 프레임
@@ -176,10 +186,132 @@ ADMIN_EDITABLE_CONFIG_KEYS = {
 MOBILE_PIN_STORE = {}
 MOBILE_PIN_LOCK = threading.Lock()
 MOBILE_PIN_TTL_SECONDS = 300
+ENV_FILE_PATH = os.path.join(config.BASE_DIR, '.env')
+
+
+def _read_env_int(name, default):
+    try:
+        return int(str(os.getenv(name, str(default))).strip())
+    except Exception:
+        return int(default)
+
+ADMIN_LOGIN_NAME = os.getenv('ADMIN_LOGIN_NAME', 'admin').strip().lower() or 'admin'
+ADMIN_LOGIN_PASSWORD = os.getenv('ADMIN_LOGIN_PASSWORD', '').strip()
+ADMIN_LOGIN_MAX_ATTEMPTS = _read_env_int('ADMIN_LOGIN_MAX_ATTEMPTS', 5)
+ADMIN_LOGIN_WINDOW_SECONDS = _read_env_int('ADMIN_LOGIN_WINDOW_SECONDS', 300)
+ADMIN_LOGIN_LOCK_SECONDS = _read_env_int('ADMIN_LOGIN_LOCK_SECONDS', 300)
+
+ADMIN_LOGIN_ATTEMPTS = {}
+ADMIN_LOGIN_ATTEMPTS_LOCK = threading.Lock()
+
+ADMIN_LLM_EDITABLE_KEYS = {
+    'LLM_PROVIDER': str,
+    'OPENAI_MODEL': str,
+    'GEMINI_MODEL': str,
+    'OPENAI_API_KEY': str,
+    'GEMINI_API_KEY': str
+}
 
 
 def is_admin_session():
     return bool(session.get('is_admin', False))
+
+
+def get_client_ip_address():
+    forwarded_for = str(request.headers.get('X-Forwarded-For', '')).strip()
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip() or 'unknown'
+    return str(request.remote_addr or 'unknown').strip() or 'unknown'
+
+
+def _cleanup_admin_attempts_locked(now_ts):
+    stale_ips = []
+    for ip, payload in ADMIN_LOGIN_ATTEMPTS.items():
+        lock_until = float(payload.get('lock_until', 0))
+        latest = float(payload.get('latest', 0))
+        if now_ts > lock_until and (now_ts - latest) > (ADMIN_LOGIN_WINDOW_SECONDS * 2):
+            stale_ips.append(ip)
+
+    for ip in stale_ips:
+        ADMIN_LOGIN_ATTEMPTS.pop(ip, None)
+
+
+def check_admin_login_rate_limit(ip_addr):
+    now_ts = time.time()
+    with ADMIN_LOGIN_ATTEMPTS_LOCK:
+        _cleanup_admin_attempts_locked(now_ts)
+        payload = ADMIN_LOGIN_ATTEMPTS.get(ip_addr)
+        if not payload:
+            return True, 0
+
+        lock_until = float(payload.get('lock_until', 0))
+        if now_ts < lock_until:
+            return False, int(lock_until - now_ts)
+
+    return True, 0
+
+
+def record_admin_login_attempt(ip_addr, success):
+    now_ts = time.time()
+    with ADMIN_LOGIN_ATTEMPTS_LOCK:
+        payload = ADMIN_LOGIN_ATTEMPTS.get(ip_addr, {
+            'failures': [],
+            'lock_until': 0,
+            'latest': now_ts,
+        })
+
+        payload['latest'] = now_ts
+        if success:
+            payload['failures'] = []
+            payload['lock_until'] = 0
+            ADMIN_LOGIN_ATTEMPTS[ip_addr] = payload
+            return
+
+        recent_failures = [
+            ts for ts in payload.get('failures', [])
+            if (now_ts - float(ts)) <= ADMIN_LOGIN_WINDOW_SECONDS
+        ]
+        recent_failures.append(now_ts)
+        payload['failures'] = recent_failures
+
+        if len(recent_failures) >= ADMIN_LOGIN_MAX_ATTEMPTS:
+            payload['lock_until'] = now_ts + ADMIN_LOGIN_LOCK_SECONDS
+            payload['failures'] = []
+
+        ADMIN_LOGIN_ATTEMPTS[ip_addr] = payload
+
+
+def create_admin_csrf_token():
+    token = uuid.uuid4().hex
+    session['admin_csrf_token'] = token
+    return token
+
+
+def is_valid_admin_csrf_token(incoming_token):
+    saved = str(session.get('admin_csrf_token', '')).strip()
+    incoming = str(incoming_token or '').strip()
+    if not saved or not incoming:
+        return False
+    return hmac.compare_digest(saved, incoming)
+
+
+def require_admin_csrf():
+    if not is_admin_session():
+        return jsonify({'status': 'error', 'message': '관리자 권한이 필요합니다.'}), 403
+
+    header_token = request.headers.get('X-Admin-CSRF', '')
+    body_token = ''
+    try:
+        body = request.json or {}
+        if isinstance(body, dict):
+            body_token = body.get('csrf_token', '')
+    except Exception:
+        body_token = ''
+
+    if not is_valid_admin_csrf_token(header_token or body_token):
+        return jsonify({'status': 'error', 'message': '유효하지 않은 관리자 요청입니다(CSRF).'}), 403
+
+    return None
 
 
 def normalize_bool(value):
@@ -207,30 +339,37 @@ def cast_config_value(key, value):
     return str(value)
 
 
-def format_python_literal(value):
-    if isinstance(value, str):
-        return repr(value)
+def _env_serialize_value(value):
     if isinstance(value, bool):
-        return 'True' if value else 'False'
+        return '1' if value else '0'
     return str(value)
 
 
-def update_config_file_values(updates):
-    config_file_path = os.path.join(config.BASE_DIR, 'config.py')
-    with open(config_file_path, 'r', encoding='utf-8') as file:
-        source = file.read()
+def apply_admin_config_updates(updates):
+    if not updates:
+        return {}
 
-    updated_source = source
+    os.makedirs(config.BASE_DIR, exist_ok=True)
+    if not os.path.exists(ENV_FILE_PATH):
+        with open(ENV_FILE_PATH, 'a', encoding='utf-8'):
+            pass
+
+    normalized_updates = {}
     for key, value in updates.items():
-        pattern = rf'^{key}\s*=\s*.*$'
-        replacement = f"{key} = {format_python_literal(value)}"
-        new_source, count = re.subn(pattern, replacement, updated_source, flags=re.MULTILINE)
-        if count == 0:
-            raise ValueError(f'config.py에서 항목을 찾지 못했습니다: {key}')
-        updated_source = new_source
+        if key not in ADMIN_EDITABLE_CONFIG_KEYS:
+            continue
 
-    with open(config_file_path, 'w', encoding='utf-8') as file:
-        file.write(updated_source)
+        env_value = _env_serialize_value(value)
+        set_key(ENV_FILE_PATH, key, env_value)
+        os.environ[key] = env_value
+        normalized_updates[key] = value
+
+        # SERVER_HOST를 사용하는 기존 환경과의 호환 유지
+        if key == 'SERVER_IP':
+            set_key(ENV_FILE_PATH, 'SERVER_HOST', env_value)
+            os.environ['SERVER_HOST'] = env_value
+
+    return normalized_updates
 
 
 def get_admin_config_snapshot():
@@ -238,6 +377,65 @@ def get_admin_config_snapshot():
     for key in ADMIN_EDITABLE_CONFIG_KEYS:
         snapshot[key] = getattr(config, key, None)
     return snapshot
+
+
+def mask_secret_value(value):
+    text = str(value or '').strip()
+    if not text:
+        return ''
+    if len(text) <= 8:
+        return '*' * len(text)
+    return f"{text[:4]}{'*' * (len(text) - 8)}{text[-4:]}"
+
+
+def get_admin_llm_settings_snapshot():
+    openai_key = os.getenv('OPENAI_API_KEY', '')
+    gemini_key = os.getenv('GEMINI_API_KEY', '')
+
+    provider = os.getenv('LLM_PROVIDER', 'openai').strip().lower()
+    if provider not in ('openai', 'gemini'):
+        provider = 'openai'
+
+    return {
+        'LLM_PROVIDER': provider,
+        'OPENAI_MODEL': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+        'GEMINI_MODEL': os.getenv('GEMINI_MODEL', 'gemini-1.5-flash'),
+        'OPENAI_API_KEY_MASKED': mask_secret_value(openai_key),
+        'GEMINI_API_KEY_MASKED': mask_secret_value(gemini_key),
+        'OPENAI_API_KEY_CONFIGURED': bool(str(openai_key).strip()),
+        'GEMINI_API_KEY_CONFIGURED': bool(str(gemini_key).strip())
+    }
+
+
+def apply_admin_llm_updates(updates):
+    if not updates:
+        return {}
+
+    os.makedirs(config.BASE_DIR, exist_ok=True)
+    if not os.path.exists(ENV_FILE_PATH):
+        with open(ENV_FILE_PATH, 'a', encoding='utf-8'):
+            pass
+
+    normalized_updates = {}
+    for key, raw_value in updates.items():
+        if key not in ADMIN_LLM_EDITABLE_KEYS:
+            continue
+
+        value = str(raw_value or '').strip()
+        if key == 'LLM_PROVIDER':
+            value = value.lower()
+            if value not in ('openai', 'gemini'):
+                raise ValueError('LLM_PROVIDER는 openai 또는 gemini만 허용됩니다.')
+
+        # API 키는 빈 값이면 "변경 안 함"으로 처리
+        if key in ('OPENAI_API_KEY', 'GEMINI_API_KEY') and value == '':
+            continue
+
+        set_key(ENV_FILE_PATH, key, value)
+        os.environ[key] = value
+        normalized_updates[key] = value
+
+    return normalized_updates
 
 
 def cleanup_expired_mobile_pins():
@@ -319,29 +517,53 @@ class CaptureState:
     
     # 자동 촬영 준비 상태
     auto_capture_ready = False
+    state_lock = threading.Lock()
     
     @classmethod
     def reset(cls):
         """촬영 시퀀스 초기화"""
-        cls.ACCEPTED_FRAMES = 0
-        cls.current_eye = "LEFT_EYE"
-        cls.captured_eyes = {"LEFT_EYE": False, "RIGHT_EYE": False}
-        cls.auto_capture_ready = False
+        with cls.state_lock:
+            cls.ACCEPTED_FRAMES = 0
+            cls.current_eye = "LEFT_EYE"
+            cls.captured_eyes = {"LEFT_EYE": False, "RIGHT_EYE": False}
+            cls.auto_capture_ready = False
     
     @classmethod
     def move_to_next_eye(cls):
         """다음 눈으로 이동"""
-        if cls.current_eye == "LEFT_EYE":
-            cls.current_eye = "RIGHT_EYE"
-        else:
-            cls.current_eye = "LEFT_EYE"
-        cls.ACCEPTED_FRAMES = 0
-        cls.auto_capture_ready = False
+        with cls.state_lock:
+            if cls.current_eye == "LEFT_EYE":
+                cls.current_eye = "RIGHT_EYE"
+            else:
+                cls.current_eye = "LEFT_EYE"
+            cls.ACCEPTED_FRAMES = 0
+            cls.auto_capture_ready = False
     
     @classmethod
     def mark_captured(cls, eye_type):
         """촬영 완료 표시"""
-        cls.captured_eyes[eye_type] = True
+        with cls.state_lock:
+            cls.captured_eyes[eye_type] = True
+
+    @classmethod
+    def next_accepted_frame(cls):
+        with cls.state_lock:
+            cls.ACCEPTED_FRAMES += 1
+            return cls.ACCEPTED_FRAMES
+
+    @classmethod
+    def reset_accepted_frames(cls):
+        with cls.state_lock:
+            cls.ACCEPTED_FRAMES = 0
+
+    @classmethod
+    def get_snapshot(cls):
+        with cls.state_lock:
+            return {
+                'current_eye': cls.current_eye,
+                'captured_eyes': cls.captured_eyes.copy(),
+                'auto_capture_ready': bool(cls.auto_capture_ready),
+            }
 
 
 def init_history_db():
@@ -1117,11 +1339,11 @@ def should_auto_capture():
     Returns:
         bool: 자동 촬영 실행 여부
     """
-    CaptureState.ACCEPTED_FRAMES += 1
+    accepted_frames = CaptureState.next_accepted_frame()
     
     # AUTO_CAPTURE_HOLD_FRAMES만큼 프레임이 조건을 만족하면 True
-    if CaptureState.ACCEPTED_FRAMES >= config.AUTO_CAPTURE_HOLD_FRAMES:
-        CaptureState.ACCEPTED_FRAMES = 0
+    if accepted_frames >= config.AUTO_CAPTURE_HOLD_FRAMES:
+        CaptureState.reset_accepted_frames()
         return True
     
     return False
@@ -2446,6 +2668,188 @@ def api_survey_delete(survey_id):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+def _normalize_diagnosis_result_for_chat(diagnosis_result):
+    """채팅 프롬프트에 넣기 전에 진단 결과를 JSON 직렬화 가능한 형태로 정규화한다."""
+    if diagnosis_result is None:
+        return {}
+
+    if isinstance(diagnosis_result, (dict, list)):
+        try:
+            # numpy scalar 등 비표준 타입이 섞여 있을 수 있어 round-trip 정규화
+            return json.loads(json.dumps(diagnosis_result, ensure_ascii=False, default=str))
+        except Exception:
+            return {'raw_result': str(diagnosis_result)}
+
+    return {'raw_result': str(diagnosis_result)}
+
+
+def _build_chat_system_prompt(diagnosis_result):
+    diagnosis_text = json.dumps(diagnosis_result, ensure_ascii=False)
+    return (
+        "You are a friendly and professional AI eye-care assistant. "
+        "You must read the provided diagnosis_result and answer the user's question based on that context. "
+        "Provide practical and easy-to-understand guidance in Korean. "
+        "Do not claim a definitive medical diagnosis, and always remind the user to consult a real ophthalmologist for final diagnosis and treatment. "
+        f"diagnosis_result: {diagnosis_text}"
+    )
+
+
+def _call_openai_chat(system_prompt, user_message):
+    api_key = os.getenv('OPENAI_API_KEY', '').strip()
+    if not api_key:
+        raise RuntimeError('OPENAI_API_KEY is not configured')
+
+    model_name = os.getenv('OPENAI_MODEL', 'gpt-4o-mini').strip() or 'gpt-4o-mini'
+    url = 'https://api.openai.com/v1/chat/completions'
+    payload = {
+        'model': model_name,
+        'temperature': 0.4,
+        'messages': [
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': user_message}
+        ]
+    }
+
+    response = requests.post(
+        url,
+        headers={
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        },
+        json=payload,
+        timeout=35
+    )
+
+    if response.status_code != 200:
+        detail = response.text[:400] if response.text else 'no detail'
+        raise RuntimeError(f'OpenAI API error ({response.status_code}): {detail}')
+
+    data = response.json()
+    choices = data.get('choices') or []
+    if not choices:
+        raise RuntimeError('OpenAI API returned empty choices')
+
+    message = (choices[0] or {}).get('message') or {}
+    content = (message.get('content') or '').strip()
+    if not content:
+        raise RuntimeError('OpenAI API returned empty content')
+
+    return content
+
+
+def _call_gemini_chat(system_prompt, user_message):
+    api_key = os.getenv('GEMINI_API_KEY', '').strip()
+    if not api_key:
+        raise RuntimeError('GEMINI_API_KEY is not configured')
+
+    model_name = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash').strip() or 'gemini-1.5-flash'
+    url = f'https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}'
+
+    prompt = (
+        f"System instruction:\n{system_prompt}\n\n"
+        f"User question:\n{user_message}"
+    )
+    payload = {
+        'contents': [
+            {
+                'role': 'user',
+                'parts': [{'text': prompt}]
+            }
+        ],
+        'generationConfig': {
+            'temperature': 0.4
+        }
+    }
+
+    response = requests.post(
+        url,
+        headers={'Content-Type': 'application/json'},
+        json=payload,
+        timeout=35
+    )
+
+    if response.status_code != 200:
+        detail = response.text[:400] if response.text else 'no detail'
+        raise RuntimeError(f'Gemini API error ({response.status_code}): {detail}')
+
+    data = response.json()
+    candidates = data.get('candidates') or []
+    if not candidates:
+        raise RuntimeError('Gemini API returned empty candidates')
+
+    parts = ((candidates[0] or {}).get('content') or {}).get('parts') or []
+    text_chunks = []
+    for part in parts:
+        text = str((part or {}).get('text') or '').strip()
+        if text:
+            text_chunks.append(text)
+
+    content = '\n'.join(text_chunks).strip()
+    if not content:
+        raise RuntimeError('Gemini API returned empty content')
+
+    return content
+
+
+def generate_llm_chat_reply(user_message, diagnosis_result):
+    """LLM 공급자(OpenAI/Gemini)를 선택해 채팅 응답을 생성한다."""
+    provider = os.getenv('LLM_PROVIDER', 'openai').strip().lower()
+    normalized_result = _normalize_diagnosis_result_for_chat(diagnosis_result)
+    system_prompt = _build_chat_system_prompt(normalized_result)
+
+    if provider == 'gemini':
+        return _call_gemini_chat(system_prompt, user_message), 'gemini'
+
+    # 기본값은 openai
+    return _call_openai_chat(system_prompt, user_message), 'openai'
+
+
+@app.route('/api/chat', methods=['POST'])
+def api_chat():
+    """
+    채팅 요청을 받아 LLM(OpenAI/Gemini)으로 상담 응답을 생성한다.
+
+    Request JSON:
+      - user_message: 사용자 질문
+      - diagnosis_result: 진단 결과 JSON
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        user_message = str(data.get('user_message', '')).strip()
+        diagnosis_result = data.get('diagnosis_result', {})
+
+        if not user_message:
+            return jsonify({
+                'status': 'error',
+                'message': 'user_message is required'
+            }), 400
+
+        if len(user_message) > 2000:
+            return jsonify({
+                'status': 'error',
+                'message': 'user_message is too long (max 2000 chars)'
+            }), 400
+
+        reply_text, provider = generate_llm_chat_reply(user_message, diagnosis_result)
+        return jsonify({
+            'status': 'ok',
+            'provider': provider,
+            'reply': reply_text
+        }), 200
+
+    except RuntimeError as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 503
+    except Exception as e:
+        print(f"[ERROR] /api/chat failed: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
 @app.route('/api/report/share', methods=['POST'])
 def api_report_share():
     """
@@ -2535,12 +2939,14 @@ def diagnose():
         
         # 6. 촬영 상태 관리 및 UI 가이드라인 업데이트
         if diagnosis_result['status'] == 'success':
-            current_eye = CaptureState.current_eye
+            state_snapshot = CaptureState.get_snapshot()
+            current_eye = state_snapshot['current_eye']
             
             # 현재 촬영 눈 표시
             CaptureState.mark_captured(current_eye)
+            state_snapshot = CaptureState.get_snapshot()
             diagnosis_result['current_eye'] = current_eye
-            diagnosis_result['captured_eyes'] = CaptureState.captured_eyes.copy()
+            diagnosis_result['captured_eyes'] = state_snapshot['captured_eyes']
             
             # UI 가이드라인 텍스트 업데이트
             if current_eye == "LEFT_EYE":
@@ -2549,17 +2955,20 @@ def diagnose():
             else:
                 diagnosis_result['next_guide_text'] = "진단이 완료되었습니다."
                 # 양쪽 눈 촬영 완료
-                if CaptureState.captured_eyes["LEFT_EYE"] and CaptureState.captured_eyes["RIGHT_EYE"]:
+                completed_snapshot = CaptureState.get_snapshot()
+                captured = completed_snapshot['captured_eyes']
+                if captured.get("LEFT_EYE") and captured.get("RIGHT_EYE"):
                     diagnosis_result['diagnosis_complete'] = True
                     CaptureState.reset()  # 시퀀스 초기화
         
         # 7. 스냅샷 저장
         if diagnosis_result['status'] == 'success':
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            eye_label = CaptureState.captured_eyes
+            state_snapshot = CaptureState.get_snapshot()
+            eye_label = state_snapshot['captured_eyes']
             img_path = os.path.join(
                 config.IMAGE_SAVE_DIR, 
-                f"diagnosis_{timestamp}_{CaptureState.current_eye}.jpg"
+                f"diagnosis_{timestamp}_{state_snapshot['current_eye']}.jpg"
             )
             cv2.imwrite(img_path, snapshot)
             diagnosis_result['snapshot_path'] = img_path
@@ -2592,15 +3001,16 @@ def get_capture_state():
         - guide_text: UI에 표시할 가이드 텍스트
     """
     try:
+        state_snapshot = CaptureState.get_snapshot()
         guide_text = "왼쪽 눈을 맞춰주세요. 진단 시작을 누르세요."
-        if CaptureState.current_eye == "RIGHT_EYE":
+        if state_snapshot['current_eye'] == "RIGHT_EYE":
             guide_text = "오른쪽 눈을 맞춰주세요. 진단 시작을 누르세요."
         
         return jsonify({
             'status': 'ok',
-            'current_eye': CaptureState.current_eye,
-            'captured_eyes': CaptureState.captured_eyes,
-            'auto_capture_ready': CaptureState.auto_capture_ready,
+            'current_eye': state_snapshot['current_eye'],
+            'captured_eyes': state_snapshot['captured_eyes'],
+            'auto_capture_ready': state_snapshot['auto_capture_ready'],
             'guide_text': guide_text
         }), 200
     
@@ -2691,12 +3101,37 @@ def api_admin_login():
     try:
         data = request.json or {}
         identifier = str(data.get('identifier', '')).strip().lower()
+        password = str(data.get('password', '')).strip()
+        client_ip = get_client_ip_address()
 
-        if identifier == 'admin':
-            session['is_admin'] = True
-            return jsonify({'status': 'ok', 'role': 'admin'}), 200
+        allowed, wait_sec = check_admin_login_rate_limit(client_ip)
+        if not allowed:
+            return jsonify({
+                'status': 'error',
+                'message': f'로그인 시도가 너무 많습니다. {wait_sec}초 후 다시 시도해 주세요.'
+            }), 429
+
+        if identifier == ADMIN_LOGIN_NAME:
+            if not ADMIN_LOGIN_PASSWORD:
+                session['is_admin'] = False
+                return jsonify({
+                    'status': 'error',
+                    'message': 'ADMIN_LOGIN_PASSWORD가 설정되지 않았습니다. .env에 설정 후 재시작해 주세요.'
+                }), 503
+
+            if hmac.compare_digest(password, ADMIN_LOGIN_PASSWORD):
+                session['is_admin'] = True
+                csrf_token = create_admin_csrf_token()
+                record_admin_login_attempt(client_ip, True)
+                return jsonify({'status': 'ok', 'role': 'admin', 'csrf_token': csrf_token}), 200
+
+            session['is_admin'] = False
+            session.pop('admin_csrf_token', None)
+            record_admin_login_attempt(client_ip, False)
+            return jsonify({'status': 'error', 'message': '관리자 비밀번호가 올바르지 않습니다.'}), 401
 
         session['is_admin'] = False
+        session.pop('admin_csrf_token', None)
         return jsonify({'status': 'ok', 'role': 'user'}), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -2708,23 +3143,38 @@ def api_admin_config_get():
     if not is_admin_session():
         return jsonify({'status': 'error', 'message': '관리자 권한이 필요합니다.'}), 403
 
+    csrf_token = str(session.get('admin_csrf_token', '')).strip()
+    if not csrf_token:
+        csrf_token = create_admin_csrf_token()
+
     return jsonify({
         'status': 'ok',
         'config': get_admin_config_snapshot(),
-        'editable_keys': list(ADMIN_EDITABLE_CONFIG_KEYS.keys())
+        'editable_keys': list(ADMIN_EDITABLE_CONFIG_KEYS.keys()),
+        'llm_settings': get_admin_llm_settings_snapshot(),
+        'llm_editable_keys': list(ADMIN_LLM_EDITABLE_KEYS.keys()),
+        'csrf_token': csrf_token
     }), 200
 
 
 @app.route('/api/admin/config', methods=['POST'])
 def api_admin_config_update():
     """관리자 설정 저장"""
-    if not is_admin_session():
-        return jsonify({'status': 'error', 'message': '관리자 권한이 필요합니다.'}), 403
+    csrf_error = require_admin_csrf()
+    if csrf_error:
+        return csrf_error
 
     try:
         data = request.json or {}
         updates_raw = data.get('updates') or {}
-        if not isinstance(updates_raw, dict) or not updates_raw:
+        llm_updates_raw = data.get('llm_updates') or {}
+
+        if not isinstance(updates_raw, dict):
+            updates_raw = {}
+        if not isinstance(llm_updates_raw, dict):
+            llm_updates_raw = {}
+
+        if not updates_raw and not llm_updates_raw:
             return jsonify({'status': 'error', 'message': '저장할 설정값이 없습니다.'}), 400
 
         casted_updates = {}
@@ -2733,21 +3183,41 @@ def api_admin_config_update():
                 continue
             casted_updates[key] = cast_config_value(key, raw_value)
 
-        if not casted_updates:
+        applied_llm_updates = apply_admin_llm_updates(llm_updates_raw)
+
+        if not casted_updates and not applied_llm_updates:
             return jsonify({'status': 'error', 'message': '유효한 설정 항목이 없습니다.'}), 400
 
-        update_config_file_values(casted_updates)
-
-        for key, value in casted_updates.items():
+        persisted_updates = apply_admin_config_updates(casted_updates)
+        for key, value in persisted_updates.items():
             setattr(config, key, value)
+
+        safe_llm_updates = {}
+        for key, value in applied_llm_updates.items():
+            if key in ('OPENAI_API_KEY', 'GEMINI_API_KEY'):
+                safe_llm_updates[key] = 'updated'
+            else:
+                safe_llm_updates[key] = value
 
         return jsonify({
             'status': 'ok',
             'message': '설정이 저장되었습니다. 일부 항목은 재시작 후 완전 적용됩니다.',
-            'updated': casted_updates
+            'updated': persisted_updates,
+            'llm_updated': safe_llm_updates
         }), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/logout', methods=['POST'])
+def api_admin_logout():
+    csrf_error = require_admin_csrf()
+    if csrf_error:
+        return csrf_error
+
+    session['is_admin'] = False
+    session.pop('admin_csrf_token', None)
+    return jsonify({'status': 'ok', 'message': '관리자 세션이 종료되었습니다.'}), 200
 
 
 def schedule_server_action(action):
@@ -2755,45 +3225,117 @@ def schedule_server_action(action):
     thread.start()
 
 
+def resolve_service_script_paths():
+    """환경(MODEL_DEVICE)에 맞는 서비스 제어 스크립트 경로를 반환한다."""
+    project_dir = config.BASE_DIR
+    model_device = os.getenv('MODEL_DEVICE', 'jetson').strip().lower()
+
+    if model_device == 'rpi':
+        start_name = 'start_services_rpi.sh'
+        stop_name = 'stop_services_rpi.sh'
+    else:
+        start_name = 'start_services_jetson.sh'
+        stop_name = 'stop_services_jetson.sh'
+
+    start_path = os.path.join(project_dir, start_name)
+    stop_path = os.path.join(project_dir, stop_name)
+
+    # 선택된 디바이스 스크립트가 없으면 Jetson 기본 스크립트로 폴백
+    if not (os.path.exists(start_path) and os.path.exists(stop_path)):
+        start_name = 'start_services_jetson.sh'
+        stop_name = 'stop_services_jetson.sh'
+        start_path = os.path.join(project_dir, start_name)
+        stop_path = os.path.join(project_dir, stop_name)
+
+    if not os.path.exists(start_path) or not os.path.exists(stop_path):
+        raise FileNotFoundError('서비스 제어 스크립트를 찾을 수 없습니다.')
+
+    return {
+        'start_name': start_name,
+        'stop_name': stop_name,
+        'start_path': start_path,
+        'stop_path': stop_path,
+        'device': model_device,
+    }
+
+
+def launch_service_control_script(restart=False):
+    """서비스 제어 스크립트를 별도 세션에서 실행한다."""
+    scripts = resolve_service_script_paths()
+    project_dir = config.BASE_DIR
+    log_dir = os.path.join(project_dir, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, 'admin_server_control.log')
+
+    if restart:
+        command = f"cd '{project_dir}' && bash '{scripts['stop_path']}' && bash '{scripts['start_path']}'"
+    else:
+        command = f"cd '{project_dir}' && bash '{scripts['stop_path']}'"
+
+    log_file = open(log_path, 'a', encoding='utf-8')
+    log_file.write(
+        f"\n[{datetime.now().isoformat()}] action={'restart' if restart else 'shutdown'} "
+        f"device={scripts['device']} start={scripts['start_name']} stop={scripts['stop_name']}\n"
+    )
+    log_file.flush()
+
+    subprocess.Popen(
+        ['/bin/bash', '-lc', command],
+        stdout=log_file,
+        stderr=log_file,
+        start_new_session=True
+    )
+
+
 def shutdown_process_delayed():
     time.sleep(1.0)
     try:
-        cleanup_resources()
-    finally:
-        os._exit(0)
+        launch_service_control_script(restart=False)
+    except Exception as error:
+        print(f"[ERROR] shutdown script 실행 실패, 프로세스 종료로 폴백: {error}")
+        try:
+            cleanup_resources()
+        finally:
+            os._exit(0)
 
 
 def restart_process_delayed():
-    time.sleep(0.5)
-
-    project_dir = config.BASE_DIR
-    python_exec = sys.executable
-    restart_cmd = (
-        f"sleep 2; cd '{project_dir}' && "
-        f"nohup '{python_exec}' eye_server.py > logs/server.out 2>&1 &"
-    )
+    time.sleep(0.7)
 
     try:
-        subprocess.Popen(
-            ['/bin/bash', '-lc', restart_cmd],
-            start_new_session=True
+        launch_service_control_script(restart=True)
+    except Exception as error:
+        print(f"[ERROR] 재시작 스크립트 실행 실패, 기존 방식으로 폴백: {error}")
+
+        project_dir = config.BASE_DIR
+        python_exec = sys.executable
+        restart_cmd = (
+            f"sleep 2; cd '{project_dir}' && "
+            f"nohup '{python_exec}' eye_server.py > logs/server.out 2>&1 &"
         )
-    except Exception as error:
-        print(f"[ERROR] 재시작 프로세스 생성 실패: {error}")
-        return
 
-    try:
-        cleanup_resources()
-    except Exception as error:
-        print(f"[WARNING] 재시작 전 리소스 정리 중 오류: {error}")
-    finally:
-        os._exit(0)
+        try:
+            subprocess.Popen(
+                ['/bin/bash', '-lc', restart_cmd],
+                start_new_session=True
+            )
+        except Exception as fallback_error:
+            print(f"[ERROR] 재시작 폴백 실패: {fallback_error}")
+            return
+
+        try:
+            cleanup_resources()
+        except Exception as cleanup_error:
+            print(f"[WARNING] 재시작 전 리소스 정리 중 오류: {cleanup_error}")
+        finally:
+            os._exit(0)
 
 
 @app.route('/api/admin/server/restart', methods=['POST'])
 def api_admin_server_restart():
-    if not is_admin_session():
-        return jsonify({'status': 'error', 'message': '관리자 권한이 필요합니다.'}), 403
+    csrf_error = require_admin_csrf()
+    if csrf_error:
+        return csrf_error
 
     schedule_server_action(restart_process_delayed)
     return jsonify({
@@ -2804,8 +3346,9 @@ def api_admin_server_restart():
 
 @app.route('/api/admin/server/shutdown', methods=['POST'])
 def api_admin_server_shutdown():
-    if not is_admin_session():
-        return jsonify({'status': 'error', 'message': '관리자 권한이 필요합니다.'}), 403
+    csrf_error = require_admin_csrf()
+    if csrf_error:
+        return csrf_error
 
     schedule_server_action(shutdown_process_delayed)
     return jsonify({

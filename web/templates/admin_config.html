@@ -179,6 +179,20 @@
             gap: 12px;
         }
 
+        .section-title {
+            margin: 16px 0 10px 0;
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .llm-note {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
         .field {
             border: 1px solid var(--border);
             border-radius: 12px;
@@ -346,11 +360,19 @@
             <h1>⚙️ 관리자 Config 설정</h1>
             <div class="desc">admin 로그인 상태에서만 접근 가능합니다. 저장 시 일부 항목은 서버 재시작 후 완전 적용됩니다.</div>
         </div>
-        <button class="btn btn-secondary" onclick="location.href='/'">메인으로</button>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" onclick="logoutAdmin()">로그아웃</button>
+            <button class="btn btn-secondary" onclick="location.href='/'">메인으로</button>
+        </div>
     </div>
 
     <div class="card">
+        <div class="section-title">일반 시스템 설정</div>
         <div id="config-grid" class="config-grid"></div>
+
+        <div class="section-title">LLM/API 키 설정</div>
+        <div class="llm-note">API 키는 마스킹되어 표시됩니다. 비워두면 기존 키 유지, 새 값을 입력하면 즉시 갱신됩니다.</div>
+        <div id="llm-config-grid" class="config-grid"></div>
     </div>
 
     <div class="actions">
@@ -371,7 +393,8 @@
 </div>
 
 <script>
-    const configState = { values: {}, keys: [] };
+    const configState = { values: {}, keys: [], llmSettings: {} };
+    let adminCsrfToken = '';
     const CONFIG_HELP = {
         SERVER_IP: {
             title: '서버 바인딩 IP',
@@ -450,6 +473,34 @@
         }
     };
 
+    const LLM_HELP = {
+        LLM_PROVIDER: {
+            title: 'LLM 제공자',
+            description: '채팅 API(/api/chat)에서 사용할 LLM 벤더를 선택합니다.',
+            hint: 'openai 또는 gemini 중 하나를 선택하세요.'
+        },
+        OPENAI_MODEL: {
+            title: 'OpenAI 모델',
+            description: 'OpenAI 제공자 선택 시 사용할 모델명입니다.',
+            hint: '예: gpt-4o-mini, gpt-4.1-mini'
+        },
+        GEMINI_MODEL: {
+            title: 'Gemini 모델',
+            description: 'Gemini 제공자 선택 시 사용할 모델명입니다.',
+            hint: '예: gemini-1.5-flash, gemini-1.5-pro'
+        },
+        OPENAI_API_KEY: {
+            title: 'OpenAI API Key',
+            description: 'OpenAI API 인증 키입니다.',
+            hint: '새 키를 입력하면 기존 키를 덮어씁니다. 비워두면 기존 키 유지.'
+        },
+        GEMINI_API_KEY: {
+            title: 'Gemini API Key',
+            description: 'Google Gemini API 인증 키입니다.',
+            hint: '새 키를 입력하면 기존 키를 덮어씁니다. 비워두면 기존 키 유지.'
+        }
+    };
+
     function getConfigMeta(key) {
         return CONFIG_HELP[key] || {
             title: key,
@@ -462,6 +513,27 @@
         const el = document.getElementById('status');
         el.textContent = text;
         el.style.color = isError ? '#dc2626' : '#64748b';
+    }
+
+    function getAdminCsrfToken() {
+        if (adminCsrfToken) return adminCsrfToken;
+        try {
+            const token = sessionStorage.getItem('admin_csrf_token') || '';
+            if (token) {
+                adminCsrfToken = token;
+                return token;
+            }
+        } catch (e) {}
+        return '';
+    }
+
+    function buildAdminHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        const token = getAdminCsrfToken();
+        if (token) {
+            headers['X-Admin-CSRF'] = token;
+        }
+        return headers;
     }
 
     function renderConfigFields() {
@@ -507,6 +579,68 @@
         }).join('');
     }
 
+    function renderLLMFields() {
+        const grid = document.getElementById('llm-config-grid');
+        const llm = configState.llmSettings || {};
+
+        grid.innerHTML = `
+            <div class="field">
+                <div class="field-top">
+                    <label>${LLM_HELP.LLM_PROVIDER.title}</label>
+                    <span class="key-chip">LLM_PROVIDER</span>
+                </div>
+                <div class="field-desc">${LLM_HELP.LLM_PROVIDER.description}</div>
+                <div class="field-hint">💡 ${LLM_HELP.LLM_PROVIDER.hint}</div>
+                <select data-llm-key="LLM_PROVIDER">
+                    <option value="openai" ${(llm.LLM_PROVIDER || 'openai') === 'openai' ? 'selected' : ''}>openai</option>
+                    <option value="gemini" ${(llm.LLM_PROVIDER || 'openai') === 'gemini' ? 'selected' : ''}>gemini</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <div class="field-top">
+                    <label>${LLM_HELP.OPENAI_MODEL.title}</label>
+                    <span class="key-chip">OPENAI_MODEL</span>
+                </div>
+                <div class="field-desc">${LLM_HELP.OPENAI_MODEL.description}</div>
+                <div class="field-hint">💡 ${LLM_HELP.OPENAI_MODEL.hint}</div>
+                <input data-llm-key="OPENAI_MODEL" value="${String(llm.OPENAI_MODEL || 'gpt-4o-mini')}">
+            </div>
+
+            <div class="field">
+                <div class="field-top">
+                    <label>${LLM_HELP.GEMINI_MODEL.title}</label>
+                    <span class="key-chip">GEMINI_MODEL</span>
+                </div>
+                <div class="field-desc">${LLM_HELP.GEMINI_MODEL.description}</div>
+                <div class="field-hint">💡 ${LLM_HELP.GEMINI_MODEL.hint}</div>
+                <input data-llm-key="GEMINI_MODEL" value="${String(llm.GEMINI_MODEL || 'gemini-1.5-flash')}">
+            </div>
+
+            <div class="field">
+                <div class="field-top">
+                    <label>${LLM_HELP.OPENAI_API_KEY.title}</label>
+                    <span class="key-chip">OPENAI_API_KEY</span>
+                </div>
+                <div class="field-desc">${LLM_HELP.OPENAI_API_KEY.description}</div>
+                <div class="field-hint">💡 ${LLM_HELP.OPENAI_API_KEY.hint}</div>
+                <input type="password" data-llm-key="OPENAI_API_KEY" placeholder="현재: ${String(llm.OPENAI_API_KEY_MASKED || '미설정')}">
+                <div style="margin-top:6px; font-size:0.78rem; color:#64748b;">상태: ${llm.OPENAI_API_KEY_CONFIGURED ? '설정됨' : '미설정'}</div>
+            </div>
+
+            <div class="field">
+                <div class="field-top">
+                    <label>${LLM_HELP.GEMINI_API_KEY.title}</label>
+                    <span class="key-chip">GEMINI_API_KEY</span>
+                </div>
+                <div class="field-desc">${LLM_HELP.GEMINI_API_KEY.description}</div>
+                <div class="field-hint">💡 ${LLM_HELP.GEMINI_API_KEY.hint}</div>
+                <input type="password" data-llm-key="GEMINI_API_KEY" placeholder="현재: ${String(llm.GEMINI_API_KEY_MASKED || '미설정')}">
+                <div style="margin-top:6px; font-size:0.78rem; color:#64748b;">상태: ${llm.GEMINI_API_KEY_CONFIGURED ? '설정됨' : '미설정'}</div>
+            </div>
+        `;
+    }
+
     async function loadConfig() {
         try {
             setStatus('설정을 불러오는 중...');
@@ -519,7 +653,13 @@
 
             configState.values = data.config || {};
             configState.keys = data.editable_keys || Object.keys(configState.values);
+            configState.llmSettings = data.llm_settings || {};
+            adminCsrfToken = String(data.csrf_token || '').trim();
+            if (adminCsrfToken) {
+                try { sessionStorage.setItem('admin_csrf_token', adminCsrfToken); } catch (e) {}
+            }
             renderConfigFields();
+            renderLLMFields();
             setStatus('설정 로드 완료');
         } catch (error) {
             setStatus(`조회 실패: ${error.message || error}`, true);
@@ -540,6 +680,26 @@
             updates[key] = next;
         });
         return updates;
+    }
+
+    function collectLlmUpdates() {
+        const llmUpdates = {};
+        document.querySelectorAll('[data-llm-key]').forEach((el) => {
+            const key = el.dataset.llmKey;
+            let value = String(el.value || '').trim();
+
+            if (key === 'LLM_PROVIDER') {
+                value = value.toLowerCase();
+            }
+
+            // API 키는 빈 입력이면 기존 유지
+            if ((key === 'OPENAI_API_KEY' || key === 'GEMINI_API_KEY') && value === '') {
+                return;
+            }
+
+            llmUpdates[key] = value;
+        });
+        return llmUpdates;
     }
 
     function showToastPopup(message, options = {}) {
@@ -593,12 +753,13 @@
     async function saveConfig() {
         try {
             const updates = collectUpdates();
+            const llmUpdates = collectLlmUpdates();
             setStatus('설정 저장 중...');
 
             const res = await fetch('/api/admin/config', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ updates })
+                headers: buildAdminHeaders(),
+                body: JSON.stringify({ updates, llm_updates: llmUpdates })
             });
             const data = await res.json();
 
@@ -628,7 +789,10 @@
 
         try {
             setStatus(`서버 ${label} 요청 중...`);
-            const res = await fetch(endpoint, { method: 'POST' });
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: buildAdminHeaders()
+            });
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok || data.status !== 'ok') {
@@ -640,6 +804,33 @@
         } catch (error) {
             setStatus(`서버 ${label} 실패: ${error.message || error}`, true);
             await showAlert(`서버 ${label} 실패: ${error.message || error}`);
+        }
+    }
+
+    async function logoutAdmin() {
+        const ok = await showConfirm('관리자 세션을 로그아웃하시겠습니까?', '로그아웃');
+        if (!ok) return;
+
+        try {
+            const res = await fetch('/api/admin/logout', {
+                method: 'POST',
+                headers: buildAdminHeaders(),
+                body: JSON.stringify({})
+            });
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok || data.status !== 'ok') {
+                throw new Error(data.message || '로그아웃 실패');
+            }
+
+            try {
+                sessionStorage.removeItem('admin_csrf_token');
+                sessionStorage.removeItem('user_role');
+                sessionStorage.removeItem('user_id');
+            } catch (e) {}
+            location.href = '/login';
+        } catch (error) {
+            await showAlert(`로그아웃 실패: ${error.message || error}`);
         }
     }
 
