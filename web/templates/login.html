@@ -270,6 +270,11 @@
                    placeholder="010-1234-5678 또는 email@example.com" required>
         </div>
 
+        <div class="input-group" id="admin-password-group" style="display:none;">
+            <label for="admin-password">관리자 비밀번호</label>
+            <input type="password" id="admin-password" name="admin-password" placeholder="관리자 비밀번호를 입력하세요" autocomplete="current-password">
+        </div>
+
         <div class="info-message">
             <p style="margin:0; font-size:1rem; color:var(--text-sub); line-height:1.6;">
                 ℹ️ <strong>비식별화 아키텍처</strong>를 통해 개인정보를 보호합니다.<br>
@@ -348,14 +353,32 @@
         
         const identifier = document.getElementById('identifier').value.trim();
         const normalized = identifier.toLowerCase();
+        const adminPassword = document.getElementById('admin-password').value;
+
+        function setSessionIdentity(userId, role) {
+            try {
+                sessionStorage.setItem('user_id', userId);
+                sessionStorage.setItem('user_role', role);
+                if (role !== 'admin') {
+                    sessionStorage.removeItem('admin_csrf_token');
+                }
+                localStorage.removeItem('user_id');
+                localStorage.removeItem('user_role');
+            } catch (e) {}
+        }
 
         // 관리자 로그인 분기
         if (normalized === 'admin') {
+            if (!adminPassword) {
+                await showAlert('관리자 비밀번호를 입력해 주세요.');
+                return false;
+            }
+
             try {
                 const res = await fetch('/api/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ identifier: 'admin' })
+                    body: JSON.stringify({ identifier: 'admin', password: adminPassword })
                 });
                 const data = await res.json();
 
@@ -363,8 +386,10 @@
                     throw new Error(data.message || '관리자 로그인 실패');
                 }
 
-                localStorage.setItem('user_id', 'admin');
-                localStorage.setItem('user_role', 'admin');
+                setSessionIdentity('admin', 'admin');
+                if (data.csrf_token) {
+                    try { sessionStorage.setItem('admin_csrf_token', data.csrf_token); } catch (e) {}
+                }
                 await showAlert('관리자 로그인 성공! 설정 페이지로 이동합니다.');
                 window.location.href = '/admin/config';
                 return false;
@@ -380,8 +405,7 @@
 
         if (phoneRegex.test(identifier) || emailRegex.test(identifier)) {
             // 사용자 식별자를 로컬 스토리지에 저장하여 나중에 survey에서 활용
-            localStorage.setItem('user_id', identifier);
-            localStorage.setItem('user_role', 'user');
+            setSessionIdentity(identifier, 'user');
             
             // 성공 알림 후 설문 페이지(survey)로 이동
             await showAlert("인증 성공! 사전 설문 페이지로 이동합니다.");
@@ -392,6 +416,25 @@
         
         return false;
     }
+
+    (function bindAdminPasswordField() {
+        const identifierInput = document.getElementById('identifier');
+        const adminGroup = document.getElementById('admin-password-group');
+
+        if (!identifierInput || !adminGroup) return;
+
+        const toggle = () => {
+            const isAdmin = String(identifierInput.value || '').trim().toLowerCase() === 'admin';
+            adminGroup.style.display = isAdmin ? 'block' : 'none';
+            if (!isAdmin) {
+                const passInput = document.getElementById('admin-password');
+                if (passInput) passInput.value = '';
+            }
+        };
+
+        identifierInput.addEventListener('input', toggle);
+        toggle();
+    })();
 </script>
 
 <script>
