@@ -236,43 +236,48 @@ python database/backfill_guides.py --db database/history.db
 ## 현재 프로젝트 구조
 
 ```text
-eye_project/
-├── config.py
-├── eye_server.py
-├── model_loader.py
-├── README.md
-├── database/
-│   ├── app.py
-│   ├── backfill_guides.py
-│   ├── db.py
-│   └── schema.sql
-├── models/
-│   └── Augmented_EffNet_V1_B0_best.pth
-├── modules/
-│   ├── __init__.py
-│   ├── analyzer.py
-│   ├── classifier.py
-│   └── detector.py
-├── utils/
-│   ├── image_proc.py
-│   ├── logger.py
-│   └── security_utils.py
-└── web/
-    ├── static/
-    │   ├── captures/
-    │   ├── css/
-    │   │   └── style.css
-    │   ├── images/
-    │   └── js/
-    │       └── main.js
-    └── templates/
-        ├── admin_config.html
-        ├── capture.html
-        ├── index.html
-        ├── login.html
-        ├── report.html
-        ├── result.html
-        └── survey.html
+- config.py
+- eye_server.py
+- model_loader.py
+- README.md
+- requirements.txt
+- requirements_jetson.txt
+- requirements_rpi.txt
+- start_services.sh
+- stop_services.sh
+- docs/RPI5_UBUNTU_RUNBOOK.md
+- scripts/export_onnx_rpi.sh
+- scripts/install_git_hooks.sh
+- scripts/rpi_preflight.sh
+- database/app.py
+- database/appopen.py
+- database/backfill_guides.py
+- database/db.py
+- database/schema.sql
+- inference/
+- logs/
+- models/Augmented_EffNet_V1_B0_best.pth
+- modules/__init__.py
+- modules/analyzer.py
+- modules/classifier.py
+- modules/detector.py
+- utils/image_proc.py
+- utils/logger.py
+- utils/security_utils.py
+- web/static/captures/
+- web/static/images/
+- web/static/css/chat-widget.css
+- web/static/js/chat-widget.js
+- web/static/reports/
+- web/templates/admin_config.html
+- web/templates/capture.html
+- web/templates/index.html
+- web/templates/login.html
+- web/templates/m_dashboard.html
+- web/templates/m_login.html
+- web/templates/report.html
+- web/templates/result.html
+- web/templates/survey.html
 ```
 
 ---
