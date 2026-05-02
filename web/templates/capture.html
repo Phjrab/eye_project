@@ -512,6 +512,27 @@
         const LAST_UPLOAD_KEY = 'last_mobile_upload_capture';
         const MOBILE_HINT_SEEN_KEY = 'mobile_upload_hint_seen_v1';
 
+        function readSessionValue(key) {
+            const current = sessionStorage.getItem(key);
+            if (current !== null) return current;
+
+            const legacy = localStorage.getItem(key);
+            if (legacy !== null) {
+                sessionStorage.setItem(key, legacy);
+                localStorage.removeItem(key);
+            }
+            return legacy;
+        }
+
+        function writeSessionValue(key, value) {
+            sessionStorage.setItem(key, value);
+        }
+
+        function removeSessionValue(key) {
+            sessionStorage.removeItem(key);
+            localStorage.removeItem(key);
+        }
+
         function isMobileClient() {
             const ua = navigator.userAgent || '';
             const maybeMobileUA = /Android|iPhone|iPad|iPod|Mobile|IEMobile|Opera Mini/i.test(ua);
@@ -712,22 +733,22 @@
         }
 
         function clearSessionCaptureData() {
-            localStorage.removeItem('eye_analysis_L');
-            localStorage.removeItem('eye_analysis_R');
-            localStorage.removeItem('bilateral_capture');
-            localStorage.removeItem('bilateral_analysis');
-            localStorage.removeItem('data_updated');
+            removeSessionValue('eye_analysis_L');
+            removeSessionValue('eye_analysis_R');
+            removeSessionValue('bilateral_capture');
+            removeSessionValue('bilateral_analysis');
+            removeSessionValue('data_updated');
         }
 
         function syncUserScopedCaptureCache() {
-            const currentUserId = (localStorage.getItem('user_id') || 'anonymous').trim() || 'anonymous';
-            const lastUserId = localStorage.getItem('active_capture_user_id') || '';
+            const currentUserId = (readSessionValue('user_id') || 'anonymous').trim() || 'anonymous';
+            const lastUserId = readSessionValue('active_capture_user_id') || '';
 
             if (lastUserId && lastUserId !== currentUserId) {
                 clearSessionCaptureData();
             }
 
-            localStorage.setItem('active_capture_user_id', currentUserId);
+            writeSessionValue('active_capture_user_id', currentUserId);
         }
 
         // ==========================================
@@ -940,7 +961,7 @@
 
         function hasAnalysisResult() {
             // 최소 한쪽 눈 분석 데이터가 있어야 결과 보기 허용
-            return !!localStorage.getItem('eye_analysis_L') || !!localStorage.getItem('eye_analysis_R');
+            return !!readSessionValue('eye_analysis_L') || !!readSessionValue('eye_analysis_R');
         }
 
         function goToResult() {
@@ -953,7 +974,7 @@
         }
 
         function parseStoredJson(key) {
-            const raw = localStorage.getItem(key);
+            const raw = readSessionValue(key);
             if (!raw) return null;
             try {
                 return JSON.parse(raw);
@@ -997,7 +1018,7 @@
                 ...getCombinedAnalysis(),
                 ...extra
             };
-            localStorage.setItem('bilateral_analysis', JSON.stringify(combined));
+            writeSessionValue('bilateral_analysis', JSON.stringify(combined));
             return combined;
         }
 
@@ -1124,7 +1145,7 @@
             const captureMessage = document.getElementById('capture-message');
             try {
                 captureMessage.textContent = '서버 분석 중 (YOLO 눈 자동 감지)...';
-                const userId = localStorage.getItem('user_id') || 'anonymous';
+                const userId = readSessionValue('user_id') || 'anonymous';
                 const selectedEyeHint = inferSelectedEyeHint();
                 const response = await fetch('/analyze', {
                     method: 'POST',
@@ -1142,8 +1163,8 @@
 
                 if (response.ok) {
                     // YOLO가 감지한 좌/우 눈을 각각 저장 (없으면 이전 값 유지)
-                    if (result.left_eye)  localStorage.setItem('eye_analysis_L', JSON.stringify(result.left_eye));
-                    if (result.right_eye) localStorage.setItem('eye_analysis_R', JSON.stringify(result.right_eye));
+                    if (result.left_eye)  writeSessionValue('eye_analysis_L', JSON.stringify(result.left_eye));
+                    if (result.right_eye) writeSessionValue('eye_analysis_R', JSON.stringify(result.right_eye));
 
                     const isUploadNoYoloMode = result?.meta?.analysis_mode === 'upload_single_eye_no_yolo';
                     const detectedSides = [result.left_eye ? '좌안' : null, result.right_eye ? '우안' : null].filter(Boolean);
@@ -1161,7 +1182,7 @@
                         saved_image_url: result.saved_image_url
                     });
 
-                    if (capturedPhoto) localStorage.setItem('bilateral_capture', capturedPhoto);
+                    if (capturedPhoto) writeSessionValue('bilateral_capture', capturedPhoto);
 
                     captureMessage.textContent = detectedText;
                     setResultButtonState(hasAnalysisResult());

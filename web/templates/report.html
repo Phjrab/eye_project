@@ -15,6 +15,8 @@
             }
         })();
     </script>
+    <link rel="stylesheet" href="/static/css/chat-widget.css">
+    <script defer src="/static/js/chat-widget.js"></script>
     <style>
         :root {
             --primary: #007AFF;
@@ -1065,9 +1067,21 @@
         let surveyRecords = [];
         let activeUserId = 'anonymous';
 
+        function readSessionValue(key) {
+            const current = sessionStorage.getItem(key);
+            if (current !== null) return current;
+
+            const legacy = localStorage.getItem(key);
+            if (legacy !== null) {
+                sessionStorage.setItem(key, legacy);
+                localStorage.removeItem(key);
+            }
+            return legacy;
+        }
+
         document.addEventListener('DOMContentLoaded', async function() {
-            const age = localStorage.getItem('user_age') || "24";
-            const userId = localStorage.getItem('user_id') || "anonymous";
+            const age = readSessionValue('user_age') || "24";
+            const userId = readSessionValue('user_id') || "anonymous";
             activeUserId = userId;
             document.getElementById('user-display').innerText = `사용자: ${userId} 님 (${age}세)`;
 

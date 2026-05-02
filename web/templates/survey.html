@@ -485,9 +485,21 @@
             return showToastPopup(message, { hideCancel: false, confirmText, cancelText: '취소' });
         }
 
+        function readSessionValue(key) {
+            const current = sessionStorage.getItem(key);
+            if (current !== null) return current;
+
+            const legacy = localStorage.getItem(key);
+            if (legacy !== null) {
+                sessionStorage.setItem(key, legacy);
+                localStorage.removeItem(key);
+            }
+            return legacy;
+        }
+
         async function submitSurvey() {
             const ageInput = document.getElementById('user-age');
-            const userId = (localStorage.getItem('user_id') || '').trim();
+            const userId = (readSessionValue('user_id') || '').trim();
             
             // 나이 입력 여부 검사
             if (!ageInput.value) {
@@ -534,7 +546,8 @@
                     }
 
                     // 결과 리포트 표시용 로컬 저장
-                    localStorage.setItem('user_age', String(surveyPayload.age));
+                    sessionStorage.setItem('user_age', String(surveyPayload.age));
+                    localStorage.removeItem('user_age');
                     location.href = '/capture';
                 } catch (error) {
                     await showAlert(`문진 저장에 실패했습니다.\n${error.message || error}`);

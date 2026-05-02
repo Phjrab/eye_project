@@ -16,6 +16,8 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="/static/css/chat-widget.css">
+    <script defer src="/static/js/chat-widget.js"></script>
     <style>
         :root {
             --primary: #007AFF;
@@ -752,11 +754,23 @@
         return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
     }
 
+    function readSessionValue(key) {
+        const current = sessionStorage.getItem(key);
+        if (current !== null) return current;
+
+        const legacy = localStorage.getItem(key);
+        if (legacy !== null) {
+            sessionStorage.setItem(key, legacy);
+            localStorage.removeItem(key);
+        }
+        return legacy;
+    }
+
     function openKakaoLinkModal() {
         const overlay = document.getElementById('kakao-link-overlay');
         const input = document.getElementById('kakao-phone-input');
         const status = document.getElementById('kakao-link-status');
-        const saved = (localStorage.getItem('user_id') || '').trim();
+        const saved = (readSessionValue('user_id') || '').trim();
 
         status.textContent = '';
         input.value = normalizeKakaoPhone(saved);
@@ -786,7 +800,8 @@
             return;
         }
 
-        localStorage.setItem('user_id', normalized);
+        sessionStorage.setItem('user_id', normalized);
+        localStorage.removeItem('user_id');
         status.textContent = '카카오 로그인 창을 여는 중입니다...';
 
         const baseUrl = `${window.location.protocol}//${window.location.hostname}:5001`;
