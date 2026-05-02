@@ -241,7 +241,6 @@ eye_project/
 ├── eye_server.py
 ├── model_loader.py
 ├── README.md
-├── README.html
 ├── database/
 │   ├── app.py
 │   ├── backfill_guides.py
