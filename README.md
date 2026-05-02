@@ -235,49 +235,69 @@ python database/backfill_guides.py --db database/history.db
 
 ## 현재 프로젝트 구조
 
+실행에 직접 필요한 항목과, 운영 중 생성되는 산출물/보조 디렉터리를 함께 정리했습니다.
+
 ```text
-- config.py
-- eye_server.py
-- model_loader.py
-- README.md
-- requirements.txt
-- requirements_jetson.txt
-- requirements_rpi.txt
-- start_services.sh
-- stop_services.sh
-- docs/RPI5_UBUNTU_RUNBOOK.md
-- scripts/export_onnx_rpi.sh
-- scripts/install_git_hooks.sh
-- scripts/rpi_preflight.sh
-- database/app.py
-- database/appopen.py
-- database/backfill_guides.py
-- database/db.py
-- database/schema.sql
-- inference/
-- logs/
-- models/Augmented_EffNet_V1_B0_best.pth
-- modules/__init__.py
-- modules/analyzer.py
-- modules/classifier.py
-- modules/detector.py
-- utils/image_proc.py
-- utils/logger.py
-- utils/security_utils.py
-- web/static/captures/
-- web/static/images/
-- web/static/css/chat-widget.css
-- web/static/js/chat-widget.js
-- web/static/reports/
-- web/templates/admin_config.html
-- web/templates/capture.html
-- web/templates/index.html
-- web/templates/login.html
-- web/templates/m_dashboard.html
-- web/templates/m_login.html
-- web/templates/report.html
-- web/templates/result.html
-- web/templates/survey.html
+eye_project/
+├── .env
+├── .env.example
+├── config.py
+├── config.local.json
+├── eye_server.py
+├── server.py
+├── model_loader.py
+├── README.md
+├── requirements.txt
+├── requirements_jetson.txt
+├── requirements_rpi.txt
+├── start_services.sh
+├── stop_services.sh
+├── PHOTO/
+├── eye_photo/
+├── docs/
+│   └── RPI5_UBUNTU_RUNBOOK.md
+├── scripts/
+│   ├── export_onnx_rpi.sh
+│   ├── install_git_hooks.sh
+│   └── rpi_preflight.sh
+├── database/
+│   ├── app.py
+│   ├── appopen.py
+│   ├── backfill_guides.py
+│   ├── db.py
+│   └── schema.sql
+├── inference/
+├── logs/
+├── models/
+│   └── Augmented_EffNet_V1_B0_best.pth
+├── modules/
+│   ├── __init__.py
+│   ├── analyzer.py
+│   ├── classifier.py
+│   └── detector.py
+├── utils/
+│   ├── image_proc.py
+│   ├── logger.py
+│   └── security_utils.py
+└── web/
+    ├── static/
+    │   ├── captures/
+    │   ├── images/
+    │   ├── reports/
+    │   ├── css/
+    │   │   └── chat-widget.css
+    │   └── js/
+    │       └── chat-widget.js
+    └── templates/
+        ├── admin_config.html
+        ├── capture.html
+        ├── index.html
+        ├── login.html
+        ├── m_dashboard.html
+        ├── m_login.html
+        ├── report.html
+        ├── result.html
+        └── survey.html
 ```
 
 ---
