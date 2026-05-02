@@ -1,1 +1,0 @@
-stop_services.sh
