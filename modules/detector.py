@@ -6,7 +6,7 @@
 import cv2
 import numpy as np
 from ultralytics import YOLO
-import config
+import config as config
 
 
 class EyeDetector:

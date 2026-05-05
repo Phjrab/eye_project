@@ -7,7 +7,7 @@ import csv
 import os
 from datetime import datetime
 import json
-import config
+import config as config
 
 
 class ResultLogger:

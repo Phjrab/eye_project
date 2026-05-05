@@ -5,7 +5,7 @@
 
 import cv2
 import numpy as np
-import config
+import config as config
 
 
 class EyeAnalyzer:

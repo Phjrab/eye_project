@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-import config
+import config as config
 from utils.logger import ResultLogger
 from modules import EyeDetector, DiseaseClassifier, EyeAnalyzer
 from inference.base import InferenceBackend

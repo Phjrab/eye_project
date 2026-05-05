@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 import threading
 from PIL import Image
-import config
+import config as config
 
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget

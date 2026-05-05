@@ -129,7 +129,7 @@ import hmac
 from datetime import datetime
 from PIL import Image
 
-import config
+import config as config
 from model_loader import initialize_models, get_models
 from utils.image_proc import resize_image, enhance_contrast
 
