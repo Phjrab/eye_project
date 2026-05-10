@@ -468,6 +468,121 @@
             color: var(--helper);
         }
 
+        /* ============================================
+           LANGUAGE SELECTOR CARD (Card-based Modular)
+           ============================================ */
+        .language-selector-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 16px 20px;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+            border: 1px solid var(--border);
+            margin-bottom: 40px;
+            max-width: 600px;
+            transition: all 0.3s ease;
+        }
+
+        .language-selector-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-sub);
+            margin-bottom: 12px;
+            display: block;
+            text-align: center;
+            letter-spacing: -0.3px;
+        }
+
+        .language-buttons-container {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .language-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60px;
+            padding: 10px 20px;
+            border: 2px solid var(--border);
+            background: var(--card-bg);
+            border-radius: 14px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            gap: 6px;
+            flex: 0 0 auto;
+            min-width: 100px;
+            box-sizing: border-box;
+        }
+
+        .language-btn:hover {
+            border-color: var(--primary);
+            background: #f8fafc;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.1);
+        }
+
+        [data-theme="dark"] .language-btn:hover {
+            background: #1a2230;
+            box-shadow: 0 4px 12px rgba(78, 161, 255, 0.15);
+        }
+
+        .language-btn:active {
+            transform: scale(0.95);
+        }
+
+        .language-btn-flag {
+            font-size: 1.8rem;
+            line-height: 1;
+        }
+
+        .language-btn-name {
+            font-size: 0.85rem;
+            letter-spacing: -0.2px;
+        }
+
+        /* Active language button state */
+        .language-btn.lang-active {
+            border: 2px solid var(--primary);
+            background: #f0f7ff;
+            color: var(--primary);
+            font-weight: 700;
+            box-shadow: 0 4px 16px rgba(0, 122, 255, 0.2);
+        }
+
+        [data-theme="dark"] .language-btn.lang-active {
+            background: #0f2a4d;
+            box-shadow: 0 4px 16px rgba(78, 161, 255, 0.25);
+            color: #4ea1ff;
+        }
+
+        /* Mobile responsive */
+        @media screen and (max-width: 768px) {
+            .language-selector-card {
+                margin-bottom: 28px;
+                padding: 14px 16px;
+            }
+
+            .language-buttons-container {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .language-btn {
+                min-height: 70px;
+                min-width: auto;
+                flex: 1;
+                padding: 12px 16px;
+            }
+        }
+
         @keyframes pulse {
             0% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.1); opacity: 0.8; }
@@ -608,14 +723,6 @@
 <body>
 
 <div class="welcome-container">
-    <!-- Language Selector -->
-    <div id="lang-selector-widget" style="position: fixed; top: 16px; left: 16px; z-index: 2900; display: flex; gap: 8px; flex-wrap: wrap; max-width: 300px;">
-        <button id="lang-ko" class="lang-btn lang-btn-active" onclick="i18n.changeLanguage('ko')" style="padding: 8px 12px; border: 1px solid var(--border); background: var(--primary); color: white; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">한국어</button>
-        <button id="lang-en" class="lang-btn" onclick="i18n.changeLanguage('en')" style="padding: 8px 12px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-dark); border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">English</button>
-        <button id="lang-zh" class="lang-btn" onclick="i18n.changeLanguage('zh')" style="padding: 8px 12px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-dark); border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">中文</button>
-        <button id="lang-vi" class="lang-btn" onclick="i18n.changeLanguage('vi')" style="padding: 8px 12px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-dark); border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">Tiếng Việt</button>
-    </div>
-    
     <button id="global-theme-toggle" class="theme-toggle-floating" type="button" aria-label="Toggle theme">
         <span data-role="icon" data-i18n="theme_icon_dark">🌙</span>
         <span data-role="label" data-i18n="theme_dark_mode">Dark Mode</span>
@@ -623,6 +730,29 @@
 
     <div class="main-visual">
         <span class="eye-scan-icon">👁️</span>
+    </div>
+
+    <!-- Language Selector Card (Card-based Modular Design) -->
+    <div class="language-selector-card">
+        <label class="language-selector-label" data-i18n="lang_selector_title">Select Language / 选择语言 / Chọn Ngôn Ngữ</label>
+        <div class="language-buttons-container">
+            <button id="lang-ko" class="language-btn lang-active" onclick="changeLanguageAndUpdateUI('ko')" aria-label="Korean">
+                <span class="language-btn-flag">🇰🇷</span>
+                <span class="language-btn-name">한국어</span>
+            </button>
+            <button id="lang-en" class="language-btn" onclick="changeLanguageAndUpdateUI('en')" aria-label="English">
+                <span class="language-btn-flag">🇺🇸</span>
+                <span class="language-btn-name">English</span>
+            </button>
+            <button id="lang-zh" class="language-btn" onclick="changeLanguageAndUpdateUI('zh')" aria-label="Chinese">
+                <span class="language-btn-flag">🇨🇳</span>
+                <span class="language-btn-name">中文</span>
+            </button>
+            <button id="lang-vi" class="language-btn" onclick="changeLanguageAndUpdateUI('vi')" aria-label="Vietnamese">
+                <span class="language-btn-flag">🇻🇳</span>
+                <span class="language-btn-name">Tiếng Việt</span>
+            </button>
+        </div>
     </div>
 
     <h1 data-i18n="main_title">Eye Health Diagnosis Service</h1>
@@ -738,22 +868,49 @@
 
         // Update language selector button styles on language change
         i18n.onLanguageChange((lang) => {
-            document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.classList.remove('lang-btn-active');
-                btn.style.background = 'var(--card-bg)';
-                btn.style.color = 'var(--text-dark)';
+            document.querySelectorAll('.language-btn').forEach(btn => {
+                btn.classList.remove('lang-active');
             });
             const activeBtn = document.getElementById(`lang-${lang}`);
             if (activeBtn) {
-                activeBtn.classList.add('lang-btn-active');
-                activeBtn.style.background = 'var(--primary)';
-                activeBtn.style.color = 'white';
+                activeBtn.classList.add('lang-active');
             }
         });
     })();
 </script>
 
 <script>
+    /**
+     * Change language and update UI
+     * This function is called when a language button is clicked
+     * It updates the i18n language and ensures the active button state is updated
+     */
+    function changeLanguageAndUpdateUI(langCode) {
+        // Validate language code
+        if (!['ko', 'en', 'zh', 'vi'].includes(langCode)) {
+            console.warn(`[Language Selector] Invalid language code: ${langCode}`);
+            return;
+        }
+
+        // Update all language buttons - remove active state
+        document.querySelectorAll('.language-btn').forEach(btn => {
+            btn.classList.remove('lang-active');
+        });
+
+        // Set active state on the clicked button
+        const activeBtn = document.getElementById(`lang-${langCode}`);
+        if (activeBtn) {
+            activeBtn.classList.add('lang-active');
+        }
+
+        // Call the i18n language change function
+        if (typeof i18n !== 'undefined' && i18n.changeLanguage) {
+            i18n.changeLanguage(langCode);
+        } else {
+            console.warn('[Language Selector] i18n object not ready');
+        }
+    }
+
     let kakaoPopupRef = null;
 
     function openCenteredPopup(url, name, width, height) {
