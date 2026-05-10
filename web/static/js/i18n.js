@@ -11,7 +11,7 @@
 class I18nEngine {
   constructor() {
     this.currentLanguage = this.loadLanguage();
-    this.supportedLanguages = ['ko', 'en', 'zh', 'vi'];
+    this.supportedLanguages = ['ko', 'en', 'zh', 'vi', 'ru', 'ja'];
     this.listeners = [];
     this.init();
   }
@@ -31,7 +31,7 @@ class I18nEngine {
 
   /**
    * Load language preference from localStorage
-   * @returns {string} Language code (ko, en, zh, vi)
+   * @returns {string} Language code (ko, en, zh, vi, ru, ja)
    */
   loadLanguage() {
     try {
@@ -80,7 +80,7 @@ class I18nEngine {
 
   /**
    * Change the current language and update DOM
-   * @param {string} lang - Language code (ko, en, zh, vi)
+   * @param {string} lang - Language code (ko, en, zh, vi, ru, ja)
    */
   changeLanguage(lang) {
     if (!this.supportedLanguages.includes(lang)) {
@@ -350,7 +350,7 @@ i18n.callAPI = async function(endpoint, data = {}, method = 'POST') {
  * ============================================================================
  * 
  * Step 1: ✓ i18n.getCurrentLanguage()
- *   - Returns current language code: 'ko' | 'en' | 'zh' | 'vi'
+ *   - Returns current language code: 'ko' | 'en' | 'zh' | 'vi' | 'ru' | 'ja'
  * 
  * Step 2: ✓ API Request with Language
  *   - Use i18n.diagnosisWithLanguage(image) or i18n.callAPI(endpoint, data)

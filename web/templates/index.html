@@ -752,6 +752,14 @@
                 <span class="language-btn-flag">🇻🇳</span>
                 <span class="language-btn-name">Tiếng Việt</span>
             </button>
+            <button id="lang-ru" class="language-btn" onclick="changeLanguageAndUpdateUI('ru')" aria-label="Russian">
+                <span class="language-btn-flag">🇷🇺</span>
+                <span class="language-btn-name">Русский</span>
+            </button>
+            <button id="lang-ja" class="language-btn" onclick="changeLanguageAndUpdateUI('ja')" aria-label="Japanese">
+                <span class="language-btn-flag">🇯🇵</span>
+                <span class="language-btn-name">日本語</span>
+            </button>
         </div>
     </div>
 
@@ -887,7 +895,7 @@
      */
     function changeLanguageAndUpdateUI(langCode) {
         // Validate language code
-        if (!['ko', 'en', 'zh', 'vi'].includes(langCode)) {
+        if (!['ko', 'en', 'zh', 'vi', 'ru', 'ja'].includes(langCode)) {
             console.warn(`[Language Selector] Invalid language code: ${langCode}`);
             return;
         }

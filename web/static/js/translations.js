@@ -1,6 +1,6 @@
 /**
  * Smart Eye Diagnosis System - Translation Dictionary
- * Supports: Korean (ko), English (en), Chinese (zh), Vietnamese (vi)
+ * Supports: Korean (ko), English (en), Chinese (zh), Vietnamese (vi), Russian (ru), Japanese (ja)
  */
 
 const translations = {
@@ -238,5 +238,128 @@ const translations = {
     kakao_link_popup_blocked: 'Popup bị chặn. Vui lòng cho phép popup trong cài đặt trình duyệt.',
     kakao_link_status_wait: 'Cửa sổ sẽ tự động đóng sau khi đồng ý.',
     kakao_link_error: 'Liên kết không thành công.',
+  },
+
+  ru: {
+    // Main title and subtitle
+    main_title: 'Сервис диагностики здоровья глаз',
+    subtitle_line1: 'Работает на базе <strong>NVIDIA Jetson AI</strong>',
+    subtitle_line2: 'Быстро и точно проверьте состояние ваших глаз.',
+    
+    // Feature tags
+    tag_conjunctivitis: '#Конъюнктивит',
+    tag_cataract: '#Катаракта',
+    tag_pterygium: '#Птеригиум',
+    
+    // Main buttons
+    btn_start_diagnosis: 'Начать диагностику',
+    btn_kakao_link: '💬 Связать аккаунт Kakao',
+    btn_mobile_access: '📱 Доступ с мобильного устройства',
+    
+    // Helper text
+    helper_disclaimer: '※ Этот сервис предоставляется в целях медицинской поддержки и скрининга.',
+    
+    // Theme toggle
+    theme_dark_mode: 'Темный режим',
+    theme_light_mode: 'Светлый режим',
+    theme_icon_dark: '🌙',
+    theme_icon_light: '☀️',
+    
+    // Language selector
+    lang_selector_title: 'Выбрать язык',
+    lang_ko: '한국어',
+    lang_en: 'English',
+    lang_zh: '中文',
+    lang_vi: 'Tiếng Việt',
+    lang_ru: 'Русский',
+    lang_ja: '日本語',
+    
+    // Mobile O2O modal
+    mobile_o2o_title: 'Мобильный доступ (O2O)',
+    mobile_o2o_close: 'Закрыть',
+    mobile_o2o_step1: 'Шаг 1: Отсканируйте QR-код ниже на своем смартфоне.',
+    mobile_o2o_step2: 'Шаг 2: Введите PIN-код, отображаемый на вашем смартфоне',
+    mobile_o2o_waiting: 'Ожидание доступа с мобильного устройства...',
+    mobile_o2o_connected: 'Мобильное устройство обнаружено. Введите PIN-код.',
+    mobile_o2o_verified: 'Аутентификация мобильного устройства завершена.',
+    mobile_o2o_redirect: 'Возврат на главный экран через {count} секунд.',
+    mobile_qr_preparing: 'Подготовка QR-кода...',
+    mobile_qr_placeholder: 'Инициализация...',
+    
+    // Kakao link modal
+    kakao_link_title: 'Связать аккаунт Kakao',
+    kakao_link_close: 'Закрыть',
+    kakao_link_description: 'Введите номер телефона и согласитесь с входом Kakao, чтобы связать ваш аккаунт с этим устройством.',
+    kakao_link_placeholder: '010-1234-5678',
+    kakao_link_cancel: 'Отмена',
+    kakao_link_submit: 'Открыть всплывающее окно входа',
+    kakao_link_error_format: 'Пожалуйста, введите 11 цифр. Пример: 010-1234-5678',
+    kakao_link_loading: 'Открытие входа Kakao...',
+    kakao_link_success: 'Связано: {phone}',
+    kakao_link_popup_blocked: 'Всплывающее окно заблокировано. Разрешите всплывающие окна в настройках браузера.',
+    kakao_link_status_wait: 'Окно закроется автоматически после согласия.',
+    kakao_link_error: 'Ошибка связи.',
+  },
+
+  ja: {
+    // Main title and subtitle
+    main_title: '眼の健康診断サービス',
+    subtitle_line1: '<strong>NVIDIA Jetson AI</strong>を利用',
+    subtitle_line2: 'あなたの眼の状態を迅速かつ正確に検査してください。',
+    
+    // Feature tags
+    tag_conjunctivitis: '#結膜炎',
+    tag_cataract: '#白内障',
+    tag_pterygium: '#翼状片',
+    
+    // Main buttons
+    btn_start_diagnosis: '診断を開始',
+    btn_kakao_link: '💬 Kakaoアカウントをリンク',
+    btn_mobile_access: '📱 モバイルデバイスからアクセス',
+    
+    // Helper text
+    helper_disclaimer: '※ このサービスは医療補助とスクリーニング目的で提供されます。',
+    
+    // Theme toggle
+    theme_dark_mode: 'ダークモード',
+    theme_light_mode: 'ライトモード',
+    theme_icon_dark: '🌙',
+    theme_icon_light: '☀️',
+    
+    // Language selector
+    lang_selector_title: '言語を選択',
+    lang_ko: '한국어',
+    lang_en: 'English',
+    lang_zh: '中文',
+    lang_vi: 'Tiếng Việt',
+    lang_ru: 'Русский',
+    lang_ja: '日本語',
+    
+    // Mobile O2O modal
+    mobile_o2o_title: 'モバイルアクセス (O2O)',
+    mobile_o2o_close: '閉じる',
+    mobile_o2o_step1: 'ステップ1: 下のQRコードをスマートフォンでスキャンしてください。',
+    mobile_o2o_step2: 'ステップ2: スマートフォンに表示されているPINコードを入力してください',
+    mobile_o2o_waiting: 'モバイルデバイスからのアクセスを待機中...',
+    mobile_o2o_connected: 'モバイルデバイスが検出されました。PINコードを入力してください。',
+    mobile_o2o_verified: 'モバイルデバイスの認証が完了しました。',
+    mobile_o2o_redirect: '{count}秒後にホーム画面に戻ります。',
+    mobile_qr_preparing: 'QRコードを準備中...',
+    mobile_qr_placeholder: '初期化中...',
+    
+    // Kakao link modal
+    kakao_link_title: 'Kakaoアカウントをリンク',
+    kakao_link_close: '閉じる',
+    kakao_link_description: '電話番号を入力し、Kakaoログインに同意してアカウントをこのデバイスにリンクしてください。',
+    kakao_link_placeholder: '010-1234-5678',
+    kakao_link_cancel: 'キャンセル',
+    kakao_link_submit: 'ログインポップアップを開く',
+    kakao_link_error_format: '11桁を入力してください。例: 010-1234-5678',
+    kakao_link_loading: 'Kakaoログインを開いています...',
+    kakao_link_success: 'リンク完了: {phone}',
+    kakao_link_popup_blocked: 'ポップアップがブロックされました。ブラウザ設定でポップアップを許可してください。',
+    kakao_link_status_wait: '同意後、ウィンドウは自動的に閉じます。',
+    kakao_link_error: 'リンクに失敗しました。',
   }
 };
+
