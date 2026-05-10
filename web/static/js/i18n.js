@@ -2,62 +2,114 @@
  * Smart Eye Diagnosis System - Internationalization (i18n) Engine
  * 
  * Features:
- * - Load user language preference from localStorage (default: 'ko')
- * - Change language dynamically with DOM update
- * - Apply translations to DOM elements with data-i18n attributes
- * - Expose current language to backend API for LLM requests
+ * - Global persistence: saves language choice to localStorage
+ * - Automatic restoration on page load
+ * - Seamless translation across all pages in the workspace
+ * - Reactive UI updates when language changes
  */
 
 class I18nEngine {
   constructor() {
+    // Load saved language or detect from browser
     this.currentLanguage = this.loadLanguage();
     this.supportedLanguages = ['ko', 'en', 'zh', 'vi', 'ru', 'ja'];
     this.listeners = [];
+    
+    console.log(`[i18n] Initialized with language: ${this.currentLanguage}`);
+    
+    // Initialize immediately and on DOMContentLoaded
     this.init();
   }
 
   /**
-   * Initialize i18n engine on DOMContentLoaded
+   * Initialize i18n engine - applies translations when DOM is ready
    */
   init() {
+    // If DOM not ready yet, wait for it
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
         console.log('[i18n] DOMContentLoaded - applying translations');
         this.applyTranslations();
       });
     } else {
+      // DOM already loaded
       console.log('[i18n] Document already loaded - applying translations immediately');
       this.applyTranslations();
     }
 
-    // Also ensure translations are applied after a short delay
+    // Reapply after short delay to ensure all elements are rendered
     setTimeout(() => {
+      console.log('[i18n] Applying translations after 300ms delay');
       this.applyTranslations();
-      console.log('[i18n] Translations reapplied after delay');
-    }, 500);
+    }, 300);
+
+    // Watch for dynamically added elements with data-i18n attributes
+    this.observeDOMChanges();
   }
 
   /**
-   * Load language preference from localStorage
+   * Observe DOM for dynamically added elements with data-i18n attributes
+   */
+  observeDOMChanges() {
+    try {
+      const observer = new MutationObserver((mutations) => {
+        let hasNewI18nElements = false;
+        for (const mutation of mutations) {
+          if (mutation.addedNodes.length > 0) {
+            for (const node of mutation.addedNodes) {
+              if (node.nodeType === 1 && (node.hasAttribute('data-i18n') || node.querySelector('[data-i18n]'))) {
+                hasNewI18nElements = true;
+                break;
+              }
+            }
+          }
+        }
+        if (hasNewI18nElements) {
+          this.applyTranslations();
+        }
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: false,
+        characterData: false
+      });
+    } catch (e) {
+      console.warn('[i18n] MutationObserver not available:', e);
+    }
+  }
+
+  /**
+   * Load language preference from localStorage with fallbacks
    * @returns {string} Language code (ko, en, zh, vi, ru, ja)
    */
   loadLanguage() {
     try {
-      const saved = localStorage.getItem('i18n_language');
-      if (saved && this.supportedLanguages.includes(saved)) {
+      // First check localStorage for saved language
+      const saved = localStorage.getItem('i18n_language') || localStorage.getItem('selectedLanguage');
+      if (saved && this.supportedLanguages && this.supportedLanguages.includes(saved)) {
+        console.log(`[i18n.loadLanguage] Found saved language: ${saved}`);
         return saved;
       }
     } catch (e) {
-      // localStorage not available
+      console.warn('[i18n.loadLanguage] localStorage access error:', e);
     }
 
-    // Fallback to browser language
-    const browserLang = navigator.language?.split('-')[0]?.toLowerCase();
-    if (browserLang && this.supportedLanguages.includes(browserLang)) {
-      return browserLang;
+    // Try to detect from browser language
+    try {
+      const browserLang = navigator.language?.split('-')[0]?.toLowerCase();
+      if (browserLang && this.supportedLanguages && this.supportedLanguages.includes(browserLang)) {
+        console.log(`[i18n.loadLanguage] Using browser language: ${browserLang}`);
+        return browserLang;
+      }
+    } catch (e) {
+      console.warn('[i18n.loadLanguage] Browser language detection failed:', e);
     }
 
-    return 'ko'; // Default to Korean
+    // Default to Korean
+    console.log('[i18n.loadLanguage] Defaulting to Korean (ko)');
+    return 'ko';
   }
 
   /**
@@ -75,6 +127,12 @@ class I18nEngine {
    * @returns {string} Translated string
    */
   getTranslation(key, params = {}) {
+    // Check if translations object exists and has current language
+    if (typeof translations === 'undefined' || !translations) {
+      console.warn(`[i18n.getTranslation] Translations object not available for key: ${key}`);
+      return key;
+    }
+
     const langDict = translations[this.currentLanguage];
     let text = langDict && langDict[key] ? langDict[key] : key;
 
@@ -92,28 +150,34 @@ class I18nEngine {
    */
   changeLanguage(lang) {
     if (!this.supportedLanguages.includes(lang)) {
-      console.warn(`Unsupported language: ${lang}`);
+      console.warn(`[i18n.changeLanguage] Unsupported language: ${lang}`);
       return;
     }
 
     console.log(`[i18n.changeLanguage] Changing language from ${this.currentLanguage} to ${lang}`);
     this.currentLanguage = lang;
 
-    // Save to localStorage
+    // Save to localStorage (both keys for compatibility)
     try {
       localStorage.setItem('i18n_language', lang);
+      localStorage.setItem('selectedLanguage', lang);
       console.log(`[i18n.changeLanguage] Saved language to localStorage: ${lang}`);
     } catch (e) {
-      // localStorage not available
       console.warn('[i18n.changeLanguage] Failed to save to localStorage:', e);
     }
 
-    // Update DOM
+    // Update DOM with new translations
     this.applyTranslations();
 
-    // Notify listeners
-    console.log(`[i18n.changeLanguage] Notifying ${this.listeners.length} listeners of language change`);
-    this.listeners.forEach(callback => callback(lang));
+    // Notify all registered listeners
+    console.log(`[i18n.changeLanguage] Notifying ${this.listeners.length} listeners`);
+    this.listeners.forEach(callback => {
+      try {
+        callback(lang);
+      } catch (e) {
+        console.warn('[i18n.changeLanguage] Listener error:', e);
+      }
+    });
   }
 
   /**
@@ -128,46 +192,60 @@ class I18nEngine {
 
   /**
    * Apply translations to all elements with data-i18n attribute
+   * This method scans the entire DOM and updates all translatable elements
    */
   applyTranslations() {
     // Update document language attribute
     document.documentElement.lang = this.currentLanguage;
-    console.log(`[i18n.applyTranslations] Applying translations for language: ${this.currentLanguage}`);
 
     // Find all elements with data-i18n attribute
     const elements = document.querySelectorAll('[data-i18n]');
-    console.log(`[i18n.applyTranslations] Found ${elements.length} elements with data-i18n attribute`);
+    console.log(`[i18n.applyTranslations] Found ${elements.length} elements with data-i18n attribute for language: ${this.currentLanguage}`);
 
     let updateCount = 0;
-    elements.forEach(element => {
-      const key = element.getAttribute('data-i18n');
-      const params = this.extractParamsFromElement(element);
-      const text = this.getTranslation(key, params);
+    let errorCount = 0;
 
-      // Handle different element types
-      if (element.tagName === 'INPUT' && element.type === 'text') {
-        // For input elements, update placeholder
-        element.placeholder = text;
-        updateCount++;
-      } else if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-        // For textarea or other input types
-        if (element.hasAttribute('data-i18n-placeholder')) {
-          element.placeholder = text;
+    elements.forEach(element => {
+      try {
+        const key = element.getAttribute('data-i18n');
+        const params = this.extractParamsFromElement(element);
+        const text = this.getTranslation(key, params);
+
+        // Handle different element types
+        if (element.tagName === 'INPUT') {
+          // For input elements, check for placeholder attribute
+          if (element.hasAttribute('data-i18n-placeholder')) {
+            element.placeholder = text;
+          } else {
+            element.value = text;
+          }
+          updateCount++;
+        } else if (element.tagName === 'TEXTAREA') {
+          // For textarea, handle placeholder or value
+          if (element.hasAttribute('data-i18n-placeholder')) {
+            element.placeholder = text;
+          } else {
+            element.value = text;
+          }
+          updateCount++;
         } else {
-          element.value = text;
+          // For other elements (div, button, span, p, etc.)
+          if (element.hasAttribute('data-i18n-html')) {
+            // If HTML flag is set, use innerHTML
+            element.innerHTML = text;
+          } else {
+            // Otherwise use textContent (safer)
+            element.textContent = text;
+          }
+          updateCount++;
         }
-        updateCount++;
-      } else {
-        // For other elements, update textContent or innerHTML based on data-i18n-html
-        if (element.hasAttribute('data-i18n-html')) {
-          element.innerHTML = text;
-        } else {
-          element.textContent = text;
-        }
-        updateCount++;
+      } catch (e) {
+        console.warn(`[i18n.applyTranslations] Error updating element:`, e);
+        errorCount++;
       }
     });
-    console.log(`[i18n.applyTranslations] Updated ${updateCount} elements`);
+
+    console.log(`[i18n.applyTranslations] Updated ${updateCount} elements (${errorCount} errors)`);
   }
 
   /**

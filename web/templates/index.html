@@ -19,8 +19,10 @@
     <link rel="stylesheet" href="/static/css/chat-widget.css">
     <script defer src="/static/js/chat-widget.js"></script>
     <!-- i18n (Internationalization) System -->
+        <link rel="stylesheet" href="/static/css/i18n-common.css">
     <script src="/static/js/translations.js"></script>
     <script src="/static/js/i18n.js"></script>
+        <script defer src="/static/js/i18n-global.js"></script>
     <style>
         :root {
             --primary: #007AFF;
@@ -469,188 +471,132 @@
         }
 
         /* ============================================
-           LANGUAGE SELECTOR DROPDOWN (Expandable)
+           LANGUAGE SELECTOR FAB (Bottom-Right)
            ============================================ */
-        .language-selector-container {
-            position: relative;
-            display: inline-flex;
-            flex-direction: column;
+        .language-selector-fab {
+            position: fixed;
+            right: 100px;
+            bottom: 20px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: row-reverse;
             gap: 0;
-            width: 100%;
-            max-width: 400px;
-            margin: 0 auto 30px;
+            align-items: center;
         }
 
-        .language-toggle-btn {
+        /* Current language flag - circular FAB button */
+        .language-fab-toggle {
             display: flex;
-            flex-direction: row;
             align-items: center;
-            justify-content: space-between;
-            padding: 14px 20px;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
             background: var(--card-bg);
             border: 2px solid var(--primary);
-            border-radius: 14px 14px 0 0;
             cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--primary);
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 2px 8px rgba(0, 122, 255, 0.1);
-            min-height: 50px;
-            box-sizing: border-box;
-        }
-
-        .language-toggle-btn:hover {
-            background: #f0f7ff;
-            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
-        }
-
-        [data-theme="dark"] .language-toggle-btn:hover {
-            background: #0f2a4d;
-        }
-
-        .language-toggle-btn:active {
-            transform: scale(0.98);
-        }
-
-        .language-toggle-btn.expanded {
-            border-radius: 14px 14px 0 0;
-            background: #f0f7ff;
-            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
-        }
-
-        [data-theme="dark"] .language-toggle-btn.expanded {
-            background: #0f2a4d;
-        }
-
-        .language-toggle-label {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex: 1;
-        }
-
-        .language-current-flag {
-            font-size: 1.6rem;
+            font-size: 1.8rem;
             line-height: 1;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0;
+            z-index: 2001;
         }
 
-        .language-current-name {
-            font-size: 0.95rem;
-            font-weight: 600;
+        .language-fab-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(0, 122, 255, 0.3);
         }
 
-        .language-toggle-arrow {
-            font-size: 1.2rem;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            transform: rotate(0deg);
+        .language-fab-toggle:active {
+            transform: scale(0.95);
         }
 
-        .language-toggle-btn.expanded .language-toggle-arrow {
-            transform: rotate(180deg);
+        [data-theme="dark"] .language-fab-toggle {
+            box-shadow: 0 4px 12px rgba(78, 161, 255, 0.25);
         }
 
-        /* Language menu dropdown */
-        .language-dropdown-menu {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
+        [data-theme="dark"] .language-fab-toggle:hover {
+            box-shadow: 0 6px 16px rgba(78, 161, 255, 0.35);
+        }
+
+        /* Language menu - expands to the left */
+        .language-fab-menu {
+            display: flex;
+            flex-direction: row-reverse;
+            gap: 8px;
             background: var(--card-bg);
             border: 2px solid var(--primary);
-            border-top: none;
-            border-radius: 0 0 14px 14px;
-            box-shadow: 0 8px 24px rgba(0, 122, 255, 0.15);
-            max-height: 0;
+            border-radius: 18px;
+            padding: 8px 12px;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.15);
+            max-width: 0;
             overflow: hidden;
-            transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 1000;
-            box-sizing: border-box;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            align-items: center;
         }
 
-        .language-dropdown-menu.open {
-            max-height: 400px;
+        .language-fab-menu.open {
+            max-width: 320px;
         }
 
-        .language-options-list {
-            display: flex;
-            flex-direction: column;
-            list-style: none;
-            margin: 0;
-            padding: 8px 0;
-            gap: 0;
-        }
-
-        .language-option {
+        /* Language option buttons in FAB menu */
+        .language-fab-option {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px 20px;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: transparent;
+            border: 1px solid var(--border);
             cursor: pointer;
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: var(--text-dark);
-            transition: all 0.2s ease;
-            border-left: 4px solid transparent;
-        }
-
-        .language-option:hover {
-            background: #f8fafc;
-            border-left-color: var(--primary);
-        }
-
-        [data-theme="dark"] .language-option:hover {
-            background: #1a2230;
-        }
-
-        .language-option.selected {
-            background: #f0f7ff;
-            border-left-color: var(--primary);
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        [data-theme="dark"] .language-option.selected {
-            background: #0f2a4d;
-            color: #4ea1ff;
-        }
-
-        .language-option-flag {
             font-size: 1.4rem;
             line-height: 1;
-            min-width: 30px;
-            text-align: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            padding: 0;
+            margin: 0;
         }
 
-        .language-option-name {
-            flex: 1;
+        .language-fab-option:hover {
+            background: #f0f7ff;
+            border-color: var(--primary);
+            transform: scale(1.1);
         }
 
-        /* Mobile responsive */
+        [data-theme="dark"] .language-fab-option:hover {
+            background: #0f2a4d;
+        }
+
+        .language-fab-option.selected {
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+        }
+
+        /* Mobile adjustments */
         @media screen and (max-width: 768px) {
-            .language-selector-container {
-                margin: 0 auto 20px;
+            .language-selector-fab {
+                right: 80px;
+                bottom: 16px;
             }
 
-            .language-toggle-btn {
-                padding: 12px 16px;
-                font-size: 0.95rem;
-                min-height: 45px;
+            .language-fab-toggle {
+                width: 48px;
+                height: 48px;
+                font-size: 1.6rem;
             }
 
-            .language-current-flag {
-                font-size: 1.4rem;
+            .language-fab-option {
+                width: 36px;
+                height: 36px;
+                font-size: 1.2rem;
             }
 
-            .language-option {
-                padding: 10px 16px;
-                font-size: 0.9rem;
-            }
-        }
-
-        /* Mobile responsive - moved to new language selector CSS */
-                flex: 1;
-                padding: 12px 16px;
+            .language-fab-menu {
+                padding: 6px 10px;
+                gap: 6px;
             }
         }
 
@@ -815,45 +761,6 @@
         <span data-i18n="tag_pterygium">#Pterygium</span>
     </div>
 
-    <!-- Language Selector Dropdown (moved to bottom) -->
-    <div class="language-selector-container">
-        <button type="button" class="language-toggle-btn" id="language-toggle-btn" onclick="toggleLanguageDropdown()">
-            <div class="language-toggle-label">
-                <span class="language-current-flag" id="language-current-flag">🇰🇷</span>
-                <span class="language-current-name" id="language-current-name" data-i18n="lang_ko">한국어</span>
-            </div>
-            <span class="language-toggle-arrow">▼</span>
-        </button>
-        <div class="language-dropdown-menu" id="language-dropdown-menu">
-            <ul class="language-options-list">
-                <li class="language-option selected" data-lang="ko" onclick="selectLanguageAndClose('ko')">
-                    <span class="language-option-flag">🇰🇷</span>
-                    <span class="language-option-name">한국어</span>
-                </li>
-                <li class="language-option" data-lang="en" onclick="selectLanguageAndClose('en')">
-                    <span class="language-option-flag">🇺🇸</span>
-                    <span class="language-option-name">English</span>
-                </li>
-                <li class="language-option" data-lang="zh" onclick="selectLanguageAndClose('zh')">
-                    <span class="language-option-flag">🇨🇳</span>
-                    <span class="language-option-name">中文</span>
-                </li>
-                <li class="language-option" data-lang="vi" onclick="selectLanguageAndClose('vi')">
-                    <span class="language-option-flag">🇻🇳</span>
-                    <span class="language-option-name">Tiếng Việt</span>
-                </li>
-                <li class="language-option" data-lang="ru" onclick="selectLanguageAndClose('ru')">
-                    <span class="language-option-flag">🇷🇺</span>
-                    <span class="language-option-name">Русский</span>
-                </li>
-                <li class="language-option" data-lang="ja" onclick="selectLanguageAndClose('ja')">
-                    <span class="language-option-flag">🇯🇵</span>
-                    <span class="language-option-name">日本語</span>
-                </li>
-            </ul>
-        </div>
-    </div>
-
     <div class="start-section">
         <a href="{{ url_for('login') }}" class="btn-start" data-i18n="btn_start_diagnosis">
             Start Diagnosis
@@ -862,6 +769,21 @@
         <button type="button" class="btn-mobile-access" onclick="openMobileAccessModal()" data-i18n="btn_mobile_access">📱 Access via Mobile Device</button>
         <p class="helper-text" data-i18n="helper_disclaimer">※ This service is provided for medical support and screening purposes.</p>
     </div>
+</div>
+
+<!-- Language Selector FAB (Bottom-Right Corner) -->
+<div class="language-selector-fab" id="language-selector-fab">
+    <div class="language-fab-menu" id="language-fab-menu">
+        <button type="button" class="language-fab-option" data-lang="ko" onclick="selectLanguageFromFab('ko')" title="한국어" aria-label="Korean">🇰🇷</button>
+        <button type="button" class="language-fab-option" data-lang="en" onclick="selectLanguageFromFab('en')" title="English" aria-label="English">🇺🇸</button>
+        <button type="button" class="language-fab-option" data-lang="zh" onclick="selectLanguageFromFab('zh')" title="中文" aria-label="Chinese">🇨🇳</button>
+        <button type="button" class="language-fab-option" data-lang="vi" onclick="selectLanguageFromFab('vi')" title="Tiếng Việt" aria-label="Vietnamese">🇻🇳</button>
+        <button type="button" class="language-fab-option" data-lang="ru" onclick="selectLanguageFromFab('ru')" title="Русский" aria-label="Russian">🇷🇺</button>
+        <button type="button" class="language-fab-option" data-lang="ja" onclick="selectLanguageFromFab('ja')" title="日本語" aria-label="Japanese">🇯🇵</button>
+    </div>
+    <button type="button" class="language-fab-toggle" id="language-fab-toggle" onclick="toggleLanguageFab()" title="Change Language" aria-label="Language Selector">
+        <span id="language-fab-flag">🇰🇷</span>
+    </button>
 </div>
 
 <div id="mobile-o2o-overlay" class="mobile-o2o-overlay" onclick="closeMobileAccessModal(event)">
@@ -968,7 +890,7 @@
 
 <script>
     /**
-     * Language metadata for dropdown display
+     * Language metadata for dropdown and FAB display
      */
     const languageMetadata = {
         'ko': { flag: '🇰🇷', name: '한국어' },
@@ -980,7 +902,7 @@
     };
 
     /**
-     * Initialize language selector on page load
+     * Initialize language selector on page load with persistent language
      */
     window.addEventListener('load', function() {
         setTimeout(() => {
@@ -989,7 +911,7 @@
     });
 
     /**
-     * Initialize language selector with current language
+     * Initialize language selector with current language from i18n
      */
     function initializeLanguageSelector() {
         if (typeof i18n === 'undefined') {
@@ -998,6 +920,7 @@
         }
 
         const currentLang = i18n.getCurrentLanguage();
+        console.log(`[Language Selector] Initializing with language: ${currentLang}`);
         updateLanguageSelectorUI(currentLang);
     }
 
@@ -1006,19 +929,34 @@
      */
     function updateLanguageSelectorUI(langCode) {
         const metadata = languageMetadata[langCode];
-        if (!metadata) return;
-
-        // Update toggle button display
-        const flagEl = document.getElementById('language-current-flag');
-        const nameEl = document.getElementById('language-current-name');
-        if (flagEl) flagEl.textContent = metadata.flag;
-        if (nameEl) {
-            nameEl.textContent = metadata.name;
-            // Update i18n key for dropdown button label
-            nameEl.setAttribute('data-i18n', `lang_${langCode}`);
+        if (!metadata) {
+            console.warn(`[Language Selector] Unknown language: ${langCode}`);
+            return;
         }
 
-        // Update selected state in dropdown options
+        // Update FAB flag
+        const fabFlag = document.getElementById('language-fab-flag');
+        if (fabFlag) fabFlag.textContent = metadata.flag;
+
+        // Update FAB menu - mark selected language
+        document.querySelectorAll('.language-fab-option').forEach(btn => {
+            if (btn.getAttribute('data-lang') === langCode) {
+                btn.classList.add('selected');
+            } else {
+                btn.classList.remove('selected');
+            }
+        });
+
+        // Also update old dropdown UI if it exists
+        const nameEl = document.getElementById('language-current-name');
+        if (nameEl) {
+            nameEl.textContent = metadata.name;
+        }
+        
+        const flagEl = document.getElementById('language-current-flag');
+        if (flagEl) flagEl.textContent = metadata.flag;
+
+        // Update selected state in dropdown options if they exist
         document.querySelectorAll('.language-option').forEach(option => {
             option.classList.remove('selected');
         });
@@ -1029,11 +967,59 @@
     }
 
     /**
-     * Toggle language dropdown menu
+     * Toggle language FAB menu expansion
+     */
+    function toggleLanguageFab() {
+        const menu = document.getElementById('language-fab-menu');
+        if (menu) {
+            menu.classList.toggle('open');
+            console.log('[Language FAB] Menu toggled');
+        }
+    }
+
+    /**
+     * Close language FAB menu
+     */
+    function closeLanguageFab() {
+        const menu = document.getElementById('language-fab-menu');
+        if (menu) {
+            menu.classList.remove('open');
+        }
+    }
+
+    /**
+     * Select language from FAB and update
+     */
+    function selectLanguageFromFab(langCode) {
+        if (!['ko', 'en', 'zh', 'vi', 'ru', 'ja'].includes(langCode)) {
+            console.warn(`[Language FAB] Invalid language code: ${langCode}`);
+            return;
+        }
+
+        console.log(`[Language FAB] Selected language: ${langCode}`);
+        
+        // Update UI
+        updateLanguageSelectorUI(langCode);
+
+        // Call i18n language change function
+        if (typeof i18n !== 'undefined' && i18n.changeLanguage) {
+            i18n.changeLanguage(langCode);
+        } else {
+            console.warn('[Language FAB] i18n object not ready');
+        }
+
+        // Close FAB menu
+        closeLanguageFab();
+    }
+
+    /**
+     * Toggle language dropdown menu (old UI for compatibility)
      */
     function toggleLanguageDropdown() {
         const dropdown = document.getElementById('language-dropdown-menu');
         const toggleBtn = document.getElementById('language-toggle-btn');
+
+        if (!dropdown || !toggleBtn) return;
 
         if (dropdown.classList.contains('open')) {
             dropdown.classList.remove('open');
@@ -1050,8 +1036,8 @@
     function closeLanguageDropdown() {
         const dropdown = document.getElementById('language-dropdown-menu');
         const toggleBtn = document.getElementById('language-toggle-btn');
-        dropdown.classList.remove('open');
-        toggleBtn.classList.remove('expanded');
+        if (dropdown) dropdown.classList.remove('open');
+        if (toggleBtn) toggleBtn.classList.remove('expanded');
     }
 
     /**
@@ -1083,6 +1069,13 @@
      * Close dropdown when clicking outside
      */
     document.addEventListener('click', function(event) {
+        // Close FAB menu if clicking outside
+        const fab = document.getElementById('language-selector-fab');
+        if (fab && !fab.contains(event.target)) {
+            closeLanguageFab();
+        }
+
+        // Close dropdown if clicking outside
         const languageContainer = document.querySelector('.language-selector-container');
         if (languageContainer && !languageContainer.contains(event.target)) {
             closeLanguageDropdown();
