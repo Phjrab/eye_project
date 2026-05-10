@@ -2117,9 +2117,9 @@ def gen_frames():
 # ========================================
 # [5] 핵심 진단 파이프라인 (3단계)
 # ========================================
-def run_diagnosis_pipeline(snapshot):
+def run_diagnosis_pipeline(snapshot, language='ko'):
     """
-    3단계 진단 파이프라인 실행
+    3단계 진단 파이프라인 - i18n 언어 지원 추가
     
     Stage 1: YOLO 눈 검출 및 크롭
     Stage 2: EfficientNet 질환 분류
@@ -2127,9 +2127,10 @@ def run_diagnosis_pipeline(snapshot):
     
     Args:
         snapshot (np.ndarray): 캡처된 프레임
+        language (str): i18n 언어 코드 (ko|en|zh|vi)
         
     Returns:
-        dict: 진단 결과
+        dict: 진단 결과 (language 필드 포함)
     """
     try:
         # 모델 매니저 가져오기
@@ -2142,6 +2143,7 @@ def run_diagnosis_pipeline(snapshot):
         result = {
             'status': 'success',
             'timestamp': datetime.now().isoformat(),
+            'language': language,
             'left_eye': None,
             'right_eye': None,
             'pipeline_steps': []
@@ -2901,24 +2903,115 @@ def api_report_share():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/generate_report', methods=['POST'])
+def api_generate_report():
+    """
+    LLM을 사용해 의료 진단 보고서 생성 (다국어 지원)
+    i18n.js의 i18n.generateMedicalReport()에서 호출
+    """
+    try:
+        data = request.json or {}
+        language = data.get('language', 'ko')
+        if language not in ['ko', 'en', 'zh', 'vi']:
+            language = 'ko'
+        
+        diagnosis_result = data.get('diagnosis_result', {})
+        if not diagnosis_result:
+            return jsonify({
+                'status': 'error',
+                'message': '진단 결과가 필요합니다.',
+                'language': language
+            }), 400
+        
+        print(f"[/api/generate_report] Generating report in language: {language}")
+        
+        # 언어별 템플릿 (데모 보고서)
+        templates = {
+            'ko': """진단 보고서 (한국어)
+질병: {disease}
+신뢰도: {confidence:.1%}
+
+진단:
+안구 진단 검사가 완료되었습니다.
+추가 진료가 필요한 경우 안과 의사와 상담하십시오.""",
+            'en': """Medical Report (English)
+Disease: {disease}
+Confidence: {confidence:.1%}
+
+Diagnosis:
+Your eye examination has been completed.
+Please consult an ophthalmologist if further treatment is needed.""",
+            'zh': """医疗报告 (中文)
+疾病: {disease}
+置信度: {confidence:.1%}
+
+诊断:
+您的眼睛检查已完成。
+如需进一步治疗,请咨询眼科医生。""",
+            'vi': """Báo Cáo Y Tế (Tiếng Việt)
+Bệnh: {disease}
+Độ tin cậy: {confidence:.1%}
+
+Chẩn đoán:
+Kiểm tra mắt của bạn đã hoàn thành.
+Vui lòng tham khảo ý kiến bác sĩ nhãn khoa nếu cần điều trị thêm."""
+        }
+        
+        # 진단 데이터 추출
+        left_eye = diagnosis_result.get('left_eye', {})
+        disease = left_eye.get('disease', 'Normal')
+        confidence = left_eye.get('confidence', 0.0)
+        
+        # 보고서 생성
+        template = templates.get(language, templates['ko'])
+        report_text = template.format(disease=disease, confidence=confidence)
+        
+        return jsonify({
+            'status': 'ok',
+            'report': report_text,
+            'language': language,
+            'generated_at': datetime.now().isoformat(),
+            'model_version': '1.0'
+        }), 200
+    
+    except Exception as e:
+        print(f"[ERROR] /api/generate_report failed: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'language': data.get('language', 'ko') if data else 'ko'
+        }), 500
+
+
 @app.route('/diagnose', methods=['POST'])
 def diagnose():
     """
-    진단 실행 라우트
+    진단 실행 라우트 - i18n 언어 지원 추가
     클라이언트에서 '진단 시작' 버튼 클릭 시 호출
-    
-    촬영 상태:
-    - 왼쪽 눈 촬영 → 오른쪽 눈으로 이동 → 오른쪽 눈 촬영 → 시퀀스 초기화
+    Request Body: {"language": "ko"|"en"|"zh"|"vi"}
     """
     global current_frame
     
     if current_frame is None:
         return jsonify({
             'status': 'error',
-            'message': '카메라 연결을 확인하세요.'
+            'message': '카메라 연결을 확인하세요.',
+            'language': 'ko'
         }), 400
     
     try:
+        # Language 파라미터 추출 (프론트엔드에서 i18n.js를 통해 전달)
+        language = 'ko'
+        if request.is_json and request.json:
+            language = request.json.get('language', 'ko')
+        elif request.form:
+            language = request.form.get('language', 'ko')
+        
+        if language not in ['ko', 'en', 'zh', 'vi']:
+            language = 'ko'
+        
+        print(f"[/diagnose] Request language: {language}")
+        
         # 1. 조명 제어 (LED 플래시)
         if LED_AVAILABLE:
             pwm_led.ChangeDutyCycle(100)  # 최대 밝기
@@ -2934,8 +3027,8 @@ def diagnose():
         if LED_AVAILABLE:
             pwm_led.ChangeDutyCycle(10)
         
-        # 5. 진단 파이프라인 실행
-        diagnosis_result = run_diagnosis_pipeline(snapshot)
+        # 5. 진단 파이프라인 실행 (language 전달)
+        diagnosis_result = run_diagnosis_pipeline(snapshot, language=language)
         
         # 6. 촬영 상태 관리 및 UI 가이드라인 업데이트
         if diagnosis_result['status'] == 'success':

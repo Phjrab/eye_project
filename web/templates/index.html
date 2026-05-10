@@ -18,6 +18,9 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <link rel="stylesheet" href="/static/css/chat-widget.css">
     <script defer src="/static/js/chat-widget.js"></script>
+    <!-- i18n (Internationalization) System -->
+    <script src="/static/js/translations.js"></script>
+    <script src="/static/js/i18n.js"></script>
     <style>
         :root {
             --primary: #007AFF;
@@ -605,52 +608,60 @@
 <body>
 
 <div class="welcome-container">
-    <button id="global-theme-toggle" class="theme-toggle-floating" type="button" aria-label="다크 모드 토글">
-        <span data-role="icon">🌙</span>
-        <span data-role="label">다크 모드</span>
+    <!-- Language Selector -->
+    <div id="lang-selector-widget" style="position: fixed; top: 16px; left: 16px; z-index: 2900; display: flex; gap: 8px; flex-wrap: wrap; max-width: 300px;">
+        <button id="lang-ko" class="lang-btn lang-btn-active" onclick="i18n.changeLanguage('ko')" style="padding: 8px 12px; border: 1px solid var(--border); background: var(--primary); color: white; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">한국어</button>
+        <button id="lang-en" class="lang-btn" onclick="i18n.changeLanguage('en')" style="padding: 8px 12px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-dark); border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">English</button>
+        <button id="lang-zh" class="lang-btn" onclick="i18n.changeLanguage('zh')" style="padding: 8px 12px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-dark); border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">中文</button>
+        <button id="lang-vi" class="lang-btn" onclick="i18n.changeLanguage('vi')" style="padding: 8px 12px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-dark); border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">Tiếng Việt</button>
+    </div>
+    
+    <button id="global-theme-toggle" class="theme-toggle-floating" type="button" aria-label="Toggle theme">
+        <span data-role="icon" data-i18n="theme_icon_dark">🌙</span>
+        <span data-role="label" data-i18n="theme_dark_mode">Dark Mode</span>
     </button>
 
     <div class="main-visual">
         <span class="eye-scan-icon">👁️</span>
     </div>
 
-    <h1>안구 건강 진단 서비스</h1>
+    <h1 data-i18n="main_title">Eye Health Diagnosis Service</h1>
     <p class="subtitle">
-        <strong>NVIDIA Jetson AI</strong> 기술을 활용하여<br>
-        빠르고 정확하게 눈 상태를 점검하세요.
+        <span data-i18n-html="true" data-i18n="subtitle_line1">Powered by <strong>NVIDIA Jetson AI</strong></span><br>
+        <span data-i18n="subtitle_line2">Check your eye condition quickly and accurately.</span>
     </p>
     
     <div class="feature-tags">
-        <span>#결막염</span>
-        <span>#백내장</span>
-        <span>#익상편</span>
+        <span data-i18n="tag_conjunctivitis">#Conjunctivitis</span>
+        <span data-i18n="tag_cataract">#Cataract</span>
+        <span data-i18n="tag_pterygium">#Pterygium</span>
     </div>
 
     <div class="start-section">
-        <a href="{{ url_for('login') }}" class="btn-start">
-            진단 시작하기
+        <a href="{{ url_for('login') }}" class="btn-start" data-i18n="btn_start_diagnosis">
+            Start Diagnosis
         </a>
-        <button type="button" class="btn-kakao-link" onclick="openKakaoLinkModal()">💬 카카오 연동</button>
-        <button type="button" class="btn-mobile-access" onclick="openMobileAccessModal()">📱 모바일 기기로 접속</button>
-        <p class="helper-text">※ 본 서비스는 의료 보조 및 스크리닝 목적으로 제공됩니다.</p>
+        <button type="button" class="btn-kakao-link" onclick="openKakaoLinkModal()" data-i18n="btn_kakao_link">💬 Link Kakao Account</button>
+        <button type="button" class="btn-mobile-access" onclick="openMobileAccessModal()" data-i18n="btn_mobile_access">📱 Access via Mobile Device</button>
+        <p class="helper-text" data-i18n="helper_disclaimer">※ This service is provided for medical support and screening purposes.</p>
     </div>
 </div>
 
 <div id="mobile-o2o-overlay" class="mobile-o2o-overlay" onclick="closeMobileAccessModal(event)">
     <div class="mobile-o2o-panel">
         <div class="mobile-o2o-header">
-            <div class="mobile-o2o-title">모바일 연동 (O2O)</div>
-            <button class="mobile-o2o-close" type="button" onclick="closeMobileAccessModal()">닫기</button>
+            <div class="mobile-o2o-title" data-i18n="mobile_o2o_title">Mobile Access (O2O)</div>
+            <button class="mobile-o2o-close" type="button" onclick="closeMobileAccessModal()" data-i18n="mobile_o2o_close">Close</button>
         </div>
         <div class="mobile-o2o-body">
-            <p class="mobile-step-note">1단계: 스마트폰으로 아래 QR 코드를 스캔해 접속하세요.</p>
-            <div id="mobile-qr-wrap"><span style="font-size:0.88rem; color:#94a3b8;">QR 준비 중...</span></div>
+            <p class="mobile-step-note" data-i18n="mobile_o2o_step1">Step 1: Scan the QR code below on your smartphone.</p>
+            <div id="mobile-qr-wrap"><span style="font-size:0.88rem; color:#94a3b8;" data-i18n="mobile_qr_preparing">QR Preparing...</span></div>
             <div id="mobile-server-url"></div>
 
-            <div id="mobile-connect-status">모바일 접속 대기 중...</div>
+            <div id="mobile-connect-status" data-i18n="mobile_o2o_waiting">Waiting for mobile access...</div>
 
             <div id="mobile-pin-box" class="mobile-pin-box">
-                <div style="font-size:0.92rem; color:var(--text-sub);">2단계: 스마트폰에 아래 PIN을 입력하세요</div>
+                <div style="font-size:0.92rem; color:var(--text-sub);" data-i18n="mobile_o2o_step2">Step 2: Enter the PIN displayed on your smartphone</div>
                 <div id="mobile-pin-number">----</div>
             </div>
 
@@ -662,15 +673,15 @@
 <div id="kakao-link-overlay" class="kakao-link-overlay" onclick="closeKakaoLinkModal(event)">
     <div class="kakao-link-panel">
         <div class="kakao-link-header">
-            <div class="kakao-link-title">카카오 계정 연동</div>
-            <button class="kakao-link-close" type="button" onclick="closeKakaoLinkModal()">닫기</button>
+            <div class="kakao-link-title" data-i18n="kakao_link_title">Link Kakao Account</div>
+            <button class="kakao-link-close" type="button" onclick="closeKakaoLinkModal()" data-i18n="kakao_link_close">Close</button>
         </div>
         <div class="kakao-link-body">
-            <p>전화번호를 입력한 뒤 카카오 로그인 창에서 동의하면 이 기기 사용자와 계정이 연결됩니다.</p>
-            <input id="kakao-phone-input" class="kakao-phone-input" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" />
+            <p data-i18n="kakao_link_description">Enter your phone number and consent to Kakao login to link your account with this device.</p>
+            <input id="kakao-phone-input" class="kakao-phone-input" type="tel" inputmode="numeric" maxlength="13" data-i18n="kakao_link_placeholder" data-i18n-placeholder="true" placeholder="010-1234-5678" />
             <div class="kakao-link-actions">
-                <button type="button" class="btn-kakao-cancel" onclick="closeKakaoLinkModal()">취소</button>
-                <button type="button" class="btn-kakao-submit" onclick="submitKakaoLink()">로그인 팝업 열기</button>
+                <button type="button" class="btn-kakao-cancel" onclick="closeKakaoLinkModal()" data-i18n="kakao_link_cancel">Cancel</button>
+                <button type="button" class="btn-kakao-submit" onclick="submitKakaoLink()" data-i18n="kakao_link_submit">Open Login Popup</button>
             </div>
             <div id="kakao-link-status" class="kakao-link-status"></div>
         </div>
@@ -711,6 +722,33 @@
         btn.addEventListener('click', function () {
             const next = getTheme() === 'dark' ? 'light' : 'dark';
             applyTheme(next);
+        });
+
+        // Update theme toggle label on language change
+        i18n.onLanguageChange(() => {
+            const theme = getTheme();
+            if (theme === 'dark') {
+                icon.textContent = i18n.getTranslation('theme_icon_light');
+                label.textContent = i18n.getTranslation('theme_light_mode');
+            } else {
+                icon.textContent = i18n.getTranslation('theme_icon_dark');
+                label.textContent = i18n.getTranslation('theme_dark_mode');
+            }
+        });
+
+        // Update language selector button styles on language change
+        i18n.onLanguageChange((lang) => {
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('lang-btn-active');
+                btn.style.background = 'var(--card-bg)';
+                btn.style.color = 'var(--text-dark)';
+            });
+            const activeBtn = document.getElementById(`lang-${lang}`);
+            if (activeBtn) {
+                activeBtn.classList.add('lang-btn-active');
+                activeBtn.style.background = 'var(--primary)';
+                activeBtn.style.color = 'white';
+            }
         });
     })();
 </script>
@@ -777,6 +815,9 @@
         overlay.style.display = 'flex';
 
         setTimeout(() => input.focus(), 50);
+
+        // Reapply translations for modal
+        setTimeout(() => i18n.applyTranslations(), 50);
     }
 
     function closeKakaoLinkModal(event) {
@@ -796,13 +837,13 @@
         input.value = normalized;
 
         if (digits.length !== 11) {
-            status.textContent = '전화번호 11자리를 입력해 주세요. 예: 010-1234-5678';
+            status.textContent = i18n.getTranslation('kakao_link_error_format');
             return;
         }
 
         sessionStorage.setItem('user_id', normalized);
         localStorage.removeItem('user_id');
-        status.textContent = '카카오 로그인 창을 여는 중입니다...';
+        status.textContent = i18n.getTranslation('kakao_link_loading');
 
         const baseUrl = `${window.location.protocol}//${window.location.hostname}:5001`;
         const loginUrl = `${baseUrl}/kakao/login?phone=${encodeURIComponent(normalized)}&popup=1`;
@@ -810,11 +851,11 @@
         kakaoPopupRef = openCenteredPopup(loginUrl, 'kakao-link-popup', 560, 820);
 
         if (!kakaoPopupRef) {
-            status.textContent = '팝업이 차단되었습니다. 브라우저 팝업 허용 후 다시 시도해 주세요.';
+            status.textContent = i18n.getTranslation('kakao_link_popup_blocked');
             return;
         }
 
-        status.textContent = '카카오 로그인/동의 후 창이 자동으로 닫힙니다.';
+        status.textContent = i18n.getTranslation('kakao_link_status_wait');
     }
 
     window.addEventListener('message', function (event) {
@@ -825,12 +866,12 @@
         if (!status) return;
 
         if (data.ok) {
-            status.textContent = `연동 완료: ${data.phone || ''}`;
+            status.textContent = i18n.getTranslation('kakao_link_success', { phone: data.phone || '' });
             setTimeout(() => {
                 closeKakaoLinkModal();
             }, 800);
         } else {
-            status.textContent = data.message || '연동에 실패했습니다.';
+            status.textContent = data.message || i18n.getTranslation('kakao_link_error');
         }
     });
 
@@ -896,7 +937,7 @@
 
         resetMobileAccessState();
         completeEl.textContent = '';
-        statusEl.textContent = '모바일 접속 대기 중...';
+        statusEl.textContent = i18n.getTranslation('mobile_o2o_waiting');
         pinBox.style.display = 'none';
         pinNumber.textContent = '----';
         overlay.style.display = 'flex';
@@ -923,16 +964,16 @@
                     }
 
                     if (statusData.mobile_connected) {
-                        statusEl.textContent = '모바일 접속 확인됨. PIN을 입력해 주세요.';
+                        statusEl.textContent = i18n.getTranslation('mobile_o2o_connected');
                         pinBox.style.display = 'block';
                         pinNumber.textContent = statusData.pin || '----';
                     }
 
                     if (statusData.verified) {
                         mobileAccessState.completed = true;
-                        statusEl.textContent = '모바일 인증이 완료되었습니다.';
+                        statusEl.textContent = i18n.getTranslation('mobile_o2o_verified');
                         mobileAccessState.countdown = 5;
-                        completeEl.textContent = `기본 화면으로 ${mobileAccessState.countdown}초 후 돌아갑니다.`;
+                        completeEl.textContent = i18n.getTranslation('mobile_o2o_redirect', { count: mobileAccessState.countdown });
 
                         if (mobileAccessState.pollTimer) {
                             clearInterval(mobileAccessState.pollTimer);
@@ -947,7 +988,7 @@
                                 window.location.href = '/';
                                 return;
                             }
-                            completeEl.textContent = `기본 화면으로 ${mobileAccessState.countdown}초 후 돌아갑니다.`;
+                            completeEl.textContent = i18n.getTranslation('mobile_o2o_redirect', { count: mobileAccessState.countdown });
                         }, 1000);
                     }
                 } catch (e) {
