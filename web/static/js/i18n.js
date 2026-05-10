@@ -22,11 +22,19 @@ class I18nEngine {
   init() {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
+        console.log('[i18n] DOMContentLoaded - applying translations');
         this.applyTranslations();
       });
     } else {
+      console.log('[i18n] Document already loaded - applying translations immediately');
       this.applyTranslations();
     }
+
+    // Also ensure translations are applied after a short delay
+    setTimeout(() => {
+      this.applyTranslations();
+      console.log('[i18n] Translations reapplied after delay');
+    }, 500);
   }
 
   /**
@@ -88,19 +96,23 @@ class I18nEngine {
       return;
     }
 
+    console.log(`[i18n.changeLanguage] Changing language from ${this.currentLanguage} to ${lang}`);
     this.currentLanguage = lang;
 
     // Save to localStorage
     try {
       localStorage.setItem('i18n_language', lang);
+      console.log(`[i18n.changeLanguage] Saved language to localStorage: ${lang}`);
     } catch (e) {
       // localStorage not available
+      console.warn('[i18n.changeLanguage] Failed to save to localStorage:', e);
     }
 
     // Update DOM
     this.applyTranslations();
 
     // Notify listeners
+    console.log(`[i18n.changeLanguage] Notifying ${this.listeners.length} listeners of language change`);
     this.listeners.forEach(callback => callback(lang));
   }
 
@@ -120,10 +132,13 @@ class I18nEngine {
   applyTranslations() {
     // Update document language attribute
     document.documentElement.lang = this.currentLanguage;
+    console.log(`[i18n.applyTranslations] Applying translations for language: ${this.currentLanguage}`);
 
     // Find all elements with data-i18n attribute
     const elements = document.querySelectorAll('[data-i18n]');
+    console.log(`[i18n.applyTranslations] Found ${elements.length} elements with data-i18n attribute`);
 
+    let updateCount = 0;
     elements.forEach(element => {
       const key = element.getAttribute('data-i18n');
       const params = this.extractParamsFromElement(element);
@@ -133,6 +148,7 @@ class I18nEngine {
       if (element.tagName === 'INPUT' && element.type === 'text') {
         // For input elements, update placeholder
         element.placeholder = text;
+        updateCount++;
       } else if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
         // For textarea or other input types
         if (element.hasAttribute('data-i18n-placeholder')) {
@@ -140,6 +156,7 @@ class I18nEngine {
         } else {
           element.value = text;
         }
+        updateCount++;
       } else {
         // For other elements, update textContent or innerHTML based on data-i18n-html
         if (element.hasAttribute('data-i18n-html')) {
@@ -147,8 +164,10 @@ class I18nEngine {
         } else {
           element.textContent = text;
         }
+        updateCount++;
       }
     });
+    console.log(`[i18n.applyTranslations] Updated ${updateCount} elements`);
   }
 
   /**
