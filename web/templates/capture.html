@@ -488,7 +488,7 @@
             <button class="btn-restore" onclick="restoreCameraPreview()">↩️ 실시간 카메라로 복귀</button>
             <button id="btn-go-result" class="btn-go-result" onclick="goToResult()" disabled>✅ 결과 보기</button>
             <input id="upload-image-input" type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleUploadedImage(event)">
-            <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;">안내: 얼굴 사진 한 장을 촬영하면 YOLO가 좌/우 눈을 자동으로 감지해 분석합니다.</div>
+            <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;">안내: 얼굴 사진 한 장을 촬영하면 MediaPipe Face Mesh가 좌/우 눈을 자동으로 감지해 분석합니다.</div>
         </div>
 
     </div>

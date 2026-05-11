@@ -13,7 +13,9 @@ class JetsonBackend(InferenceBackend):
 
     def __init__(self) -> None:
         # Lazy import by environment is handled by factory (model_loader.py).
-        self.detector = EyeDetector(config.YOLO_MODEL_PATH)
+        # [LEGACY YOLO] self.detector = EyeDetector(config.YOLO_MODEL_PATH)
+        # MediaPipe Face Mesh initialization (no model_path needed)
+        self.detector = EyeDetector()
         self.classifier = DiseaseClassifier(config.CLASSIFIER_MODEL_PATH)
         self.analyzer = EyeAnalyzer()
         self.logger = ResultLogger(config.LOG_FORMAT)

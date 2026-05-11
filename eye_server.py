@@ -689,61 +689,61 @@ def save_cam_image(user_id, eye_side, cam_image_bgr):
     return f"/static/captures/users/{safe_user_id}/{filename}"
 
 
-def build_yolo_overlay_image(source_bgr, eye_crops):
-    """원본 이미지 위에 YOLO 검출 기반 히트맵 오버레이를 생성한다."""
-    if source_bgr is None or source_bgr.size == 0:
-        return None
-    if not eye_crops:
-        return None
-
-    h, w = source_bgr.shape[:2]
-    heat_mask = np.zeros((h, w), dtype=np.uint8)
-
-    for crop in eye_crops:
-        bbox = crop.get('bbox')
-        conf = float(crop.get('confidence', 0.0))
-        if not bbox or len(bbox) != 4:
-            continue
-
-        x1, y1, x2, y2 = [int(v) for v in bbox]
-        x1 = max(0, min(w - 1, x1))
-        x2 = max(0, min(w, x2))
-        y1 = max(0, min(h - 1, y1))
-        y2 = max(0, min(h, y2))
-        if x2 <= x1 or y2 <= y1:
-            continue
-
-        intensity = int(max(80, min(255, 80 + conf * 175)))
-        region = heat_mask[y1:y2, x1:x2]
-        np.maximum(region, intensity, out=region)
-
-    if not np.any(heat_mask > 0):
-        return None
-
-    colored = cv2.applyColorMap(heat_mask, cv2.COLORMAP_JET)
-    overlay = source_bgr.copy()
-    active = heat_mask > 0
-    overlay[active] = cv2.addWeighted(source_bgr[active], 0.55, colored[active], 0.45, 0)
-
-    for crop in eye_crops:
-        bbox = crop.get('bbox')
-        conf = float(crop.get('confidence', 0.0))
-        if not bbox or len(bbox) != 4:
-            continue
-        x1, y1, x2, y2 = [int(v) for v in bbox]
-        cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 255, 255), 2)
-        cv2.putText(
-            overlay,
-            f"YOLO {conf*100:.1f}%",
-            (x1, max(18, y1 - 6)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (0, 255, 255),
-            1,
-            cv2.LINE_AA
-        )
-
-    return overlay
+# [LEGACY YOLO] def build_yolo_overlay_image(source_bgr, eye_crops):
+# [LEGACY YOLO]     """원본 이미지 위에 YOLO 검출 기반 히트맵 오버레이를 생성한다."""
+# [LEGACY YOLO]     if source_bgr is None or source_bgr.size == 0:
+# [LEGACY YOLO]         return None
+# [LEGACY YOLO]     if not eye_crops:
+# [LEGACY YOLO]         return None
+# [LEGACY YOLO]
+# [LEGACY YOLO]     h, w = source_bgr.shape[:2]
+# [LEGACY YOLO]     heat_mask = np.zeros((h, w), dtype=np.uint8)
+# [LEGACY YOLO]
+# [LEGACY YOLO]     for crop in eye_crops:
+# [LEGACY YOLO]         bbox = crop.get('bbox')
+# [LEGACY YOLO]         conf = float(crop.get('confidence', 0.0))
+# [LEGACY YOLO]         if not bbox or len(bbox) != 4:
+# [LEGACY YOLO]             continue
+# [LEGACY YOLO]
+# [LEGACY YOLO]         x1, y1, x2, y2 = [int(v) for v in bbox]
+# [LEGACY YOLO]         x1 = max(0, min(w - 1, x1))
+# [LEGACY YOLO]         x2 = max(0, min(w, x2))
+# [LEGACY YOLO]         y1 = max(0, min(h - 1, y1))
+# [LEGACY YOLO]         y2 = max(0, min(h, y2))
+# [LEGACY YOLO]         if x2 <= x1 or y2 <= y1:
+# [LEGACY YOLO]             continue
+# [LEGACY YOLO]
+# [LEGACY YOLO]         intensity = int(max(80, min(255, 80 + conf * 175)))
+# [LEGACY YOLO]         region = heat_mask[y1:y2, x1:x2]
+# [LEGACY YOLO]         np.maximum(region, intensity, out=region)
+# [LEGACY YOLO]
+# [LEGACY YOLO]     if not np.any(heat_mask > 0):
+# [LEGACY YOLO]         return None
+# [LEGACY YOLO]
+# [LEGACY YOLO]     colored = cv2.applyColorMap(heat_mask, cv2.COLORMAP_JET)
+# [LEGACY YOLO]     overlay = source_bgr.copy()
+# [LEGACY YOLO]     active = heat_mask > 0
+# [LEGACY YOLO]     overlay[active] = cv2.addWeighted(source_bgr[active], 0.55, colored[active], 0.45, 0)
+# [LEGACY YOLO]
+# [LEGACY YOLO]     for crop in eye_crops:
+# [LEGACY YOLO]         bbox = crop.get('bbox')
+# [LEGACY YOLO]         conf = float(crop.get('confidence', 0.0))
+# [LEGACY YOLO]         if not bbox or len(bbox) != 4:
+# [LEGACY YOLO]             continue
+# [LEGACY YOLO]         x1, y1, x2, y2 = [int(v) for v in bbox]
+# [LEGACY YOLO]         cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 255, 255), 2)
+# [LEGACY YOLO]         cv2.putText(
+# [LEGACY YOLO]             overlay,
+# [LEGACY YOLO]             f"YOLO {conf*100:.1f}%",
+# [LEGACY YOLO]             (x1, max(18, y1 - 6)),
+# [LEGACY YOLO]             cv2.FONT_HERSHEY_SIMPLEX,
+# [LEGACY YOLO]             0.5,
+# [LEGACY YOLO]             (0, 255, 255),
+# [LEGACY YOLO]             1,
+# [LEGACY YOLO]             cv2.LINE_AA
+# [LEGACY YOLO]         )
+# [LEGACY YOLO]
+# [LEGACY YOLO]     return overlay
 
 
 def list_history_records(user_id, limit=10):
@@ -1354,29 +1354,29 @@ def _is_yolo_cuda_oom_error(exc):
     return ('out of memory' in text) or ('cuda error' in text and 'memory' in text)
 
 
-def safe_yolo_detect(detector, image, conf_threshold=None):
-    """YOLO 추론을 수행하되 CUDA OOM 발생 시 캐시 정리 후 1회 재시도한다."""
-    try:
-        return detector.detect(image, conf_threshold=conf_threshold)
-    except Exception as e:
-        if not _is_yolo_cuda_oom_error(e):
-            raise
-
-        print(f"[WARNING] YOLO CUDA OOM 감지, 캐시 정리 후 재시도: {e}")
-        try:
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                if hasattr(torch.cuda, 'ipc_collect'):
-                    torch.cuda.ipc_collect()
-        except Exception as cleanup_error:
-            print(f"[WARNING] CUDA 캐시 정리 실패: {cleanup_error}")
-
-        try:
-            return detector.detect(image, conf_threshold=conf_threshold)
-        except Exception as retry_error:
-            print(f"[WARNING] YOLO 재시도 실패: {retry_error}")
-            return None
+# [LEGACY YOLO] def safe_yolo_detect(detector, image, conf_threshold=None):
+# [LEGACY YOLO]     """YOLO 추론을 수행하되 CUDA OOM 발생 시 캐시 정리 후 1회 재시도한다."""
+# [LEGACY YOLO]     try:
+# [LEGACY YOLO]         return detector.detect(image, conf_threshold=conf_threshold)
+# [LEGACY YOLO]     except Exception as e:
+# [LEGACY YOLO]         if not _is_yolo_cuda_oom_error(e):
+# [LEGACY YOLO]             raise
+# [LEGACY YOLO]
+# [LEGACY YOLO]         print(f"[WARNING] YOLO CUDA OOM 감지, 캐시 정리 후 재시도: {e}")
+# [LEGACY YOLO]         try:
+# [LEGACY YOLO]             gc.collect()
+# [LEGACY YOLO]             if torch.cuda.is_available():
+# [LEGACY YOLO]                 torch.cuda.empty_cache()
+# [LEGACY YOLO]                 if hasattr(torch.cuda, 'ipc_collect'):
+# [LEGACY YOLO]                     torch.cuda.ipc_collect()
+# [LEGACY YOLO]         except Exception as cleanup_error:
+# [LEGACY YOLO]             print(f"[WARNING] CUDA 캐시 정리 실패: {cleanup_error}")
+# [LEGACY YOLO]
+# [LEGACY YOLO]         try:
+# [LEGACY YOLO]             return detector.detect(image, conf_threshold=conf_threshold)
+# [LEGACY YOLO]         except Exception as retry_error:
+# [LEGACY YOLO]             print(f"[WARNING] YOLO 재시도 실패: {retry_error}")
+# [LEGACY YOLO]             return None
 
 # ========================================
 # [2] LED 하드웨어 설정 (Jetson)
@@ -1395,12 +1395,12 @@ except:
     LED_AVAILABLE = False
 
 
-# ========================================
-# [2-1] YOLO 눈 감지 여부 확인
-# ========================================
+# [LEGACY YOLO] ========================================
+# [LEGACY YOLO] [2-1] YOLO 눈 감지 여부 확인
+# [LEGACY YOLO] ========================================
 def check_eye_detection(frame):
     """
-    현재 프레임에서 눈이 감지되는지 확인
+    현재 프레임에서 눈이 감지되는지 확인 (MediaPipe 기반)
     
     Args:
         frame: 검사할 이미지 프레임
@@ -1414,23 +1414,16 @@ def check_eye_detection(frame):
     try:
         manager = get_models()
         detector = manager.get_detector()
-        detections = safe_yolo_detect(detector, frame, conf_threshold=config.YOLO_STATUS_CONF_THRESHOLD)
-
-        if detections is None or not hasattr(detections, 'boxes'):
+        
+        # MediaPipe Face Mesh 검출
+        detection_result = detector.detect(frame)
+        
+        if detection_result is None:
             return False, 0
-
-        boxes = detections.boxes
-        if boxes is None or len(boxes) == 0:
-            return False, 0
-
-        conf_tensor = boxes.conf
-        if conf_tensor is None or conf_tensor.numel() == 0:
-            return False, 0
-
-        best_confidence = float(conf_tensor.max().item())
-        detected = best_confidence >= config.YOLO_STATUS_CONF_THRESHOLD
-
-        return detected, best_confidence
+        
+        # MediaPipe은 얼굴 검출 시 랜드마크를 반환
+        # 눈이 포함된 랜드마크가 있으므로 1.0으로 신뢰도 설정
+        return True, 1.0
     except Exception as e:
         print(f"[WARNING] 눈 감지 확인 실패: {e}")
         return False, 0
@@ -1568,105 +1561,134 @@ def analyze_uploaded_single_eye_from_image(img_bgr, user_id='anonymous', selecte
 
 def select_distinct_eye_crops(eye_crops, frame_width, frame_height):
     """
-    YOLO 검출 결과에서 좌/우안 후보를 안정적으로 선택한다.
-    - 중복 박스(같은 눈 주변 다중 검출)로 좌/우가 깨지는 문제를 완화
-    - 가장 수평 분리가 큰 2개를 양안 후보로 선택
+    MediaPipe 검출 결과를 좌/우안으로 정리한다.
+    - MediaPipe는 이미 좌/우안을 명확하게 분리하므로 단순 정렬만 수행
+    - 'side' 필드로 LEFT_EYE, RIGHT_EYE를 구분
     """
+    # [LEGACY YOLO] if not eye_crops:
+    # [LEGACY YOLO]     return []
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] min_conf = max(float(config.YOLO_STATUS_CONF_THRESHOLD), 0.25)
+    # [LEGACY YOLO] min_box_w = max(20.0, float(frame_width) * 0.05)
+    # [LEGACY YOLO] min_box_h = max(14.0, float(frame_height) * 0.05)
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] filtered = []
+    # [LEGACY YOLO] for item in eye_crops:
+    # [LEGACY YOLO]     conf = float(item.get('confidence', 0.0))
+    # [LEGACY YOLO]     bbox = item.get('bbox') or (0, 0, 0, 0)
+    # [LEGACY YOLO]     try:
+    # [LEGACY YOLO]         bw = abs(float(bbox[2]) - float(bbox[0]))
+    # [LEGACY YOLO]         bh = abs(float(bbox[3]) - float(bbox[1]))
+    # [LEGACY YOLO]     except Exception:
+    # [LEGACY YOLO]         continue
+    # [LEGACY YOLO]
+    # [LEGACY YOLO]     if conf < min_conf:
+    # [LEGACY YOLO]         continue
+    # [LEGACY YOLO]     if bw < min_box_w or bh < min_box_h:
+    # [LEGACY YOLO]         continue
+    # [LEGACY YOLO]     filtered.append(item)
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] candidates = sorted(filtered, key=lambda item: float(item.get('confidence', 0.0)), reverse=True)[:6]
+    # [LEGACY YOLO] if not candidates:
+    # [LEGACY YOLO]     return []
+    # [LEGACY YOLO] if len(candidates) == 1:
+    # [LEGACY YOLO]     return [candidates[0]]
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] def center_x(item):
+    # [LEGACY YOLO]     x1, _, x2, _ = item['bbox']
+    # [LEGACY YOLO]     return (x1 + x2) / 2.0
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] best_pair = None
+    # [LEGACY YOLO] best_sep = -1.0
+    # [LEGACY YOLO] pair_min_conf = max(min_conf + 0.12, 0.38)
+    # [LEGACY YOLO] for idx in range(len(candidates)):
+    # [LEGACY YOLO]     for jdx in range(idx + 1, len(candidates)):
+    # [LEGACY YOLO]         if float(candidates[idx].get('confidence', 0.0)) < pair_min_conf:
+    # [LEGACY YOLO]             continue
+    # [LEGACY YOLO]         if float(candidates[jdx].get('confidence', 0.0)) < pair_min_conf:
+    # [LEGACY YOLO]             continue
+    # [LEGACY YOLO]         sep = abs(center_x(candidates[idx]) - center_x(candidates[jdx]))
+    # [LEGACY YOLO]         if sep > best_sep:
+    # [LEGACY YOLO]             best_sep = sep
+    # [LEGACY YOLO]             best_pair = (candidates[idx], candidates[jdx])
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] # 좌/우로 볼 수 있는 최소 수평 간격(프레임 폭의 12%)
+    # [LEGACY YOLO] min_sep = max(40.0, float(frame_width) * 0.12)
+    # [LEGACY YOLO] if best_pair and best_sep >= min_sep:
+    # [LEGACY YOLO]     return sorted([best_pair[0], best_pair[1]], key=center_x)
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] # 서로 충분히 떨어진 2안이 아니면 단안으로 처리 (selected_eye 매핑이 후속 보정)
+    # [LEGACY YOLO] return [candidates[0]]
+    
+    # MediaPipe: side 필드로 이미 구분되어 있음
     if not eye_crops:
         return []
-
-    min_conf = max(float(config.YOLO_STATUS_CONF_THRESHOLD), 0.25)
-    min_box_w = max(20.0, float(frame_width) * 0.05)
-    min_box_h = max(14.0, float(frame_height) * 0.05)
-
-    filtered = []
-    for item in eye_crops:
-        conf = float(item.get('confidence', 0.0))
-        bbox = item.get('bbox') or (0, 0, 0, 0)
-        try:
-            bw = abs(float(bbox[2]) - float(bbox[0]))
-            bh = abs(float(bbox[3]) - float(bbox[1]))
-        except Exception:
-            continue
-
-        if conf < min_conf:
-            continue
-        if bw < min_box_w or bh < min_box_h:
-            continue
-        filtered.append(item)
-
-    candidates = sorted(filtered, key=lambda item: float(item.get('confidence', 0.0)), reverse=True)[:6]
-    if not candidates:
-        return []
-    if len(candidates) == 1:
-        return [candidates[0]]
-
-    def center_x(item):
-        x1, _, x2, _ = item['bbox']
-        return (x1 + x2) / 2.0
-
-    best_pair = None
-    best_sep = -1.0
-    pair_min_conf = max(min_conf + 0.12, 0.38)
-    for idx in range(len(candidates)):
-        for jdx in range(idx + 1, len(candidates)):
-            if float(candidates[idx].get('confidence', 0.0)) < pair_min_conf:
-                continue
-            if float(candidates[jdx].get('confidence', 0.0)) < pair_min_conf:
-                continue
-            sep = abs(center_x(candidates[idx]) - center_x(candidates[jdx]))
-            if sep > best_sep:
-                best_sep = sep
-                best_pair = (candidates[idx], candidates[jdx])
-
-    # 좌/우로 볼 수 있는 최소 수평 간격(프레임 폭의 12%)
-    min_sep = max(40.0, float(frame_width) * 0.12)
-    if best_pair and best_sep >= min_sep:
-        return sorted([best_pair[0], best_pair[1]], key=center_x)
-
-    # 서로 충분히 떨어진 2안이 아니면 단안으로 처리 (selected_eye 매핑이 후속 보정)
-    return [candidates[0]]
+    
+    # side 필드가 있는 경우 (MediaPipe)
+    if eye_crops and 'side' in eye_crops[0]:
+        organized = {'LEFT_EYE': None, 'RIGHT_EYE': None}
+        for crop in eye_crops:
+            side = crop.get('side')
+            if side in organized:
+                organized[side] = crop
+        
+        # 좌안, 우안 순서로 반환
+        result = []
+        if organized['LEFT_EYE'] is not None:
+            result.append(organized['LEFT_EYE'])
+        if organized['RIGHT_EYE'] is not None:
+            result.append(organized['RIGHT_EYE'])
+        
+        return result
+    
+    # side 필드 없는 경우 (호환성)
+    return eye_crops
 
 
 def build_selected_eye_fallback_crop(img_bgr, selected_eye):
-    """YOLO 미검출 시 선택한 눈 방향의 ROI를 임시 크롭으로 생성한다."""
-    side = normalize_selected_eye(selected_eye)
-    if side not in ('L', 'R'):
-        return None
-
-    h, w = img_bgr.shape[:2]
-    crop_w = max(120, int(w * 0.38))
-    crop_h = max(90, int(h * 0.36))
-    center_x = int(w * 0.33) if side == 'L' else int(w * 0.67)
-    center_y = int(h * 0.44)
-
-    x1 = max(0, center_x - crop_w // 2)
-    y1 = max(0, center_y - crop_h // 2)
-    x2 = min(w, x1 + crop_w)
-    y2 = min(h, y1 + crop_h)
-
-    if x2 <= x1 or y2 <= y1:
-        return None
-
-    crop = img_bgr[y1:y2, x1:x2]
-    if crop is None or crop.size == 0:
-        return None
-
-    return {
-        'image': crop,
-        'bbox': (x1, y1, x2, y2),
-        'confidence': 0.0,
-        'fallback': True,
-        'fallback_side': side
-    }
+    """
+    [DEPRECATED] MediaPipe는 얼굴을 감지하지 못하면 None을 반환하므로 fallback crop이 필요 없음
+    에러 메시지로 사용자에게 재촬영을 유도
+    """
+    # [LEGACY YOLO] side = normalize_selected_eye(selected_eye)
+    # [LEGACY YOLO] if side not in ('L', 'R'):
+    # [LEGACY YOLO]     return None
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] h, w = img_bgr.shape[:2]
+    # [LEGACY YOLO] crop_w = max(120, int(w * 0.38))
+    # [LEGACY YOLO] crop_h = max(90, int(h * 0.36))
+    # [LEGACY YOLO] center_x = int(w * 0.33) if side == 'L' else int(w * 0.67)
+    # [LEGACY YOLO] center_y = int(h * 0.44)
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] x1 = max(0, center_x - crop_w // 2)
+    # [LEGACY YOLO] y1 = max(0, center_y - crop_h // 2)
+    # [LEGACY YOLO] x2 = min(w, x1 + crop_w)
+    # [LEGACY YOLO] y2 = min(h, y1 + crop_h)
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] if x2 <= x1 or y2 <= y1:
+    # [LEGACY YOLO]     return None
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] crop = img_bgr[y1:y2, x1:x2]
+    # [LEGACY YOLO] if crop is None or crop.size == 0:
+    # [LEGACY YOLO]     return None
+    # [LEGACY YOLO]
+    # [LEGACY YOLO] return {
+    # [LEGACY YOLO]     'image': crop,
+    # [LEGACY YOLO]     'bbox': (x1, y1, x2, y2),
+    # [LEGACY YOLO]     'confidence': 0.0,
+    # [LEGACY YOLO]     'fallback': True,
+    # [LEGACY YOLO]     'fallback_side': side
+    # [LEGACY YOLO] }
+    
+    return None
 
 
 def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None):
     """
     단일 캡처 이미지(양안 포함) 분석
-    1) YOLO 검출/크롭
-    2) 메모리 정리
-    3) EfficientNet 양안 순차 분류
+    1) MediaPipe Face Mesh로 얼굴 검출 및 눈 랜드마크 추출
+    2) 좌안(OS)과 우안(OD)에 대해 정방형 크롭 생성
+    3) EfficientNet으로 양안 순차 분류
     """
     try:
         manager = get_models()
@@ -1676,71 +1698,76 @@ def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None
 
         source_h, source_w = img_bgr.shape[:2]
 
-        # Step 1) YOLO 검출 + 크롭
-        yolo_start = time.time()
-        used_conf_threshold = float(config.YOLO_CONF_THRESHOLD)
-        detections = safe_yolo_detect(detector, img_bgr, conf_threshold=used_conf_threshold)
-        raw_eye_crops = detector.crop_eyes(img_bgr, detections)
-
-        # 검출이 전혀 없으면 완화된 임계값으로 1회 재시도
-        if len(raw_eye_crops) == 0 and config.YOLO_STATUS_CONF_THRESHOLD < config.YOLO_CONF_THRESHOLD:
-            used_conf_threshold = float(config.YOLO_STATUS_CONF_THRESHOLD)
-            detections = safe_yolo_detect(detector, img_bgr, conf_threshold=used_conf_threshold)
-            raw_eye_crops = detector.crop_eyes(img_bgr, detections)
-
-        yolo_elapsed_ms = (time.time() - yolo_start) * 1000.0
-
-        # 중복 박스 완화 + 좌/우 분리 후보 선택
-        eye_crops = select_distinct_eye_crops(raw_eye_crops, source_w, source_h)
-
-        # YOLO 단계 메모리 정리 (OOM 방지)
-        del detections
-        del raw_eye_crops
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        fallback_used = False
-        if len(eye_crops) == 0:
-            fallback_crop = build_selected_eye_fallback_crop(img_bgr, selected_eye)
-            if fallback_crop is not None:
-                eye_crops = [fallback_crop]
-                fallback_used = True
-
-        if len(eye_crops) == 0:
+        # Step 1) MediaPipe Face Mesh 검출 + 눈 크롭
+        detection_start = time.time()
+        
+        # MediaPipe에서 얼굴 검출 및 랜드마크 추출
+        detection_result = detector.detect(img_bgr)
+        
+        if detection_result is None:
+            # [ERROR] 얼굴을 인식할 수 없음
             return {
-                'status': 'warning',
-                'message': '양안을 검출하지 못했습니다. 얼굴을 조금 더 가까이 맞춰주세요.',
+                'status': 'error',
+                'message': '얼굴을 인식할 수 없습니다. 다시 촬영해주세요.',
                 'left_eye': None,
                 'right_eye': None,
                 'yolo_cam_image_url': None,
                 'meta': {
                     'source_resolution': [source_w, source_h],
                     'eyes_detected': 0,
-                    'yolo_time_ms': round(yolo_elapsed_ms, 1),
-                    'yolo_conf_threshold': round(float(used_conf_threshold), 3),
-                    'fallback_used': False
+                    'detection_method': 'mediapipe_face_mesh',
+                    'detection_time_ms': round((time.time() - detection_start) * 1000.0, 1),
+                    'face_detected': False
+                }
+            }
+        
+        # 양안 크롭 추출
+        raw_eye_crops = detector.crop_eyes(img_bgr, detection_result)
+        detection_elapsed_ms = (time.time() - detection_start) * 1000.0
+        
+        # MediaPipe은 이미 좌/우를 구분하여 반환하므로 select_distinct_eye_crops는 단순 정렬만 수행
+        eye_crops = select_distinct_eye_crops(raw_eye_crops, source_w, source_h)
+        
+        # 메모리 정리
+        del detection_result
+        del raw_eye_crops
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        # 눈이 검출되지 않은 경우 처리
+        if len(eye_crops) == 0:
+            return {
+                'status': 'error',
+                'message': '얼굴은 인식되었으나 눈을 감지하지 못했습니다. 다시 촬영해주세요.',
+                'left_eye': None,
+                'right_eye': None,
+                'yolo_cam_image_url': None,
+                'meta': {
+                    'source_resolution': [source_w, source_h],
+                    'eyes_detected': 0,
+                    'detection_method': 'mediapipe_face_mesh',
+                    'detection_time_ms': round(detection_elapsed_ms, 1),
+                    'face_detected': True
                 }
             }
 
-        yolo_overlay_bgr = build_yolo_overlay_image(img_bgr, eye_crops)
-        yolo_cam_image_url = save_cam_image(user_id, 'yolo', yolo_overlay_bgr)
+        # Step 2) 시각화 이미지 생성 (원본 이미지에 검출 박스 오버레이)
+        # [LEGACY YOLO] yolo_overlay_bgr = build_yolo_overlay_image(img_bgr, eye_crops)
+        # [LEGACY YOLO] yolo_cam_image_url = save_cam_image(user_id, 'yolo', yolo_overlay_bgr)
+        # MediaPipe: 랜드마크 시각화 이미지는 별도 함수로 구현 필요
+        yolo_cam_image_url = None  # TODO: MediaPipe landmark visualization
 
-        # 좌/우 레이블링
+        # 좌/우 레이블링 (MediaPipe은 'side' 필드로 이미 구분됨)
         labeled_eyes = {}
-        if len(eye_crops) >= 2:
-            labeled_eyes['left_eye'] = eye_crops[0]
-            labeled_eyes['right_eye'] = eye_crops[1]
-        else:
-            center_x = (eye_crops[0]['bbox'][0] + eye_crops[0]['bbox'][2]) / 2.0
-            if center_x < (source_w / 2.0):
-                labeled_eyes['left_eye'] = eye_crops[0]
-                labeled_eyes['right_eye'] = None
-            else:
-                labeled_eyes['left_eye'] = None
-                labeled_eyes['right_eye'] = eye_crops[0]
+        for crop in eye_crops:
+            side_field = crop.get('side', 'LEFT_EYE')
+            if 'LEFT_EYE' in side_field:
+                labeled_eyes['left_eye'] = crop
+            elif 'RIGHT_EYE' in side_field:
+                labeled_eyes['right_eye'] = crop
 
-        # Step 2) EfficientNet 순차 분류
+        # Step 3) EfficientNet 순차 분류
         result = {
             'status': 'success' if len(eye_crops) >= 2 else 'warning',
             'message': '양안 분석 완료' if len(eye_crops) >= 2 else '한쪽 눈만 검출되었습니다.',
@@ -1750,12 +1777,12 @@ def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None
             'meta': {
                 'source_resolution': [source_w, source_h],
                 'eyes_detected': len(eye_crops),
-                'yolo_time_ms': round(yolo_elapsed_ms, 1),
-                'yolo_conf_threshold': round(float(used_conf_threshold), 3),
-                'fallback_used': fallback_used
+                'detection_method': 'mediapipe_face_mesh',
+                'detection_time_ms': round(detection_elapsed_ms, 1)
             }
         }
 
+        # 양안 순차 분류
         for side in ['left_eye', 'right_eye']:
             eye_item = labeled_eyes.get(side)
             if eye_item is None:
@@ -1779,7 +1806,7 @@ def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None
                 'redness': round(float(eye_analysis.get('redness', 0.0)), 4),
                 'bbox': eye_item['bbox'],
                 'cam_image_url': cam_image_url,
-                'detection_confidence': round(float(eye_item['confidence']) * 100.0, 2),
+                'detection_confidence': 100.0,  # MediaPipe는 신뢰도를 직접 제공하지 않음
                 'process_time_ms': round(cls_elapsed_ms, 1)
             }
 
@@ -1792,9 +1819,11 @@ def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None
 
     except Exception as e:
         print(f"[ERROR] 양안 분석 실패: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             'status': 'error',
-            'message': str(e)
+            'message': f'분석 중 오류가 발생했습니다: {str(e)}'
         }
 
 
@@ -2067,42 +2096,42 @@ def gen_frames():
             
         frame_to_send = current_frame.copy()
 
-        # 스트림 오버레이 YOLO는 GPU 메모리 사용량이 커서 기본 비활성화한다.
-        if YOLO_STREAM_DEBUG_OVERLAY:
-            try:
-                debug_frame_counter += 1
-                if debug_frame_counter % 10 == 0 or len(debug_boxes_cache) == 0:
-                    manager = get_models()
-                    detector = manager.get_detector()
-                    detections = safe_yolo_detect(
-                        detector,
-                        frame_to_send,
-                        conf_threshold=config.YOLO_STATUS_CONF_THRESHOLD
-                    )
-
-                    boxes = []
-                    if detections is not None and hasattr(detections, 'boxes') and detections.boxes is not None:
-                        for box in detections.boxes:
-                            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-                            conf = float(box.conf.item()) if box.conf is not None else 0.0
-                            boxes.append((x1, y1, x2, y2, conf))
-
-                    debug_boxes_cache = boxes
-
-                for (x1, y1, x2, y2, conf) in debug_boxes_cache:
-                    cv2.rectangle(frame_to_send, (x1, y1), (x2, y2), (40, 205, 65), 2)
-                    label = f"Eye {conf*100:.1f}%"
-                    cv2.putText(
-                        frame_to_send,
-                        label,
-                        (x1, max(20, y1 - 8)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.55,
-                        (40, 205, 65),
-                        2
-                    )
-            except Exception as e:
-                print(f"[WARNING] YOLO 박스 오버레이 실패: {e}")
+        # [LEGACY YOLO] 스트림 오버레이 YOLO는 GPU 메모리 사용량이 커서 기본 비활성화한다.
+        # [LEGACY YOLO] if YOLO_STREAM_DEBUG_OVERLAY:
+        # [LEGACY YOLO]     try:
+        # [LEGACY YOLO]         debug_frame_counter += 1
+        # [LEGACY YOLO]         if debug_frame_counter % 10 == 0 or len(debug_boxes_cache) == 0:
+        # [LEGACY YOLO]             manager = get_models()
+        # [LEGACY YOLO]             detector = manager.get_detector()
+        # [LEGACY YOLO]             detections = safe_yolo_detect(
+        # [LEGACY YOLO]                 detector,
+        # [LEGACY YOLO]                 frame_to_send,
+        # [LEGACY YOLO]                 conf_threshold=config.YOLO_STATUS_CONF_THRESHOLD
+        # [LEGACY YOLO]             )
+        # [LEGACY YOLO]
+        # [LEGACY YOLO]             boxes = []
+        # [LEGACY YOLO]             if detections is not None and hasattr(detections, 'boxes') and detections.boxes is not None:
+        # [LEGACY YOLO]                 for box in detections.boxes:
+        # [LEGACY YOLO]                     x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+        # [LEGACY YOLO]                     conf = float(box.conf.item()) if box.conf is not None else 0.0
+        # [LEGACY YOLO]                     boxes.append((x1, y1, x2, y2, conf))
+        # [LEGACY YOLO]
+        # [LEGACY YOLO]             debug_boxes_cache = boxes
+        # [LEGACY YOLO]
+        # [LEGACY YOLO]         for (x1, y1, x2, y2, conf) in debug_boxes_cache:
+        # [LEGACY YOLO]             cv2.rectangle(frame_to_send, (x1, y1), (x2, y2), (40, 205, 65), 2)
+        # [LEGACY YOLO]             label = f"Eye {conf*100:.1f}%"
+        # [LEGACY YOLO]             cv2.putText(
+        # [LEGACY YOLO]                 frame_to_send,
+        # [LEGACY YOLO]                 label,
+        # [LEGACY YOLO]                 (x1, max(20, y1 - 8)),
+        # [LEGACY YOLO]                 cv2.FONT_HERSHEY_SIMPLEX,
+        # [LEGACY YOLO]                 0.55,
+        # [LEGACY YOLO]                 (40, 205, 65),
+        # [LEGACY YOLO]                 2
+        # [LEGACY YOLO]             )
+        # [LEGACY YOLO]     except Exception as e:
+        # [LEGACY YOLO]         print(f"[WARNING] YOLO 박스 오버레이 실패: {e}")
 
         ret, buffer = cv2.imencode('.jpg', frame_to_send)
         if not ret:
@@ -2150,17 +2179,29 @@ def run_diagnosis_pipeline(snapshot, language='ko'):
         }
         
         # ============================================
-        # Stage 1: 눈 검출 (YOLO)
+        # Stage 1: 얼굴 및 눈 검출 (MediaPipe Face Mesh)
         # ============================================
-        print("[Stage 1] YOLO 눈 검출 시작...")
+        print("[Stage 1] MediaPipe Face Mesh 얼굴 및 눈 검출 시작...")
         start_time = time.time()
         
-        detections = safe_yolo_detect(detector, snapshot)
-        eye_crops = detector.crop_eyes(snapshot, detections)
+        # MediaPipe 기반 검출
+        detection_result = detector.detect(snapshot)
+        
+        if detection_result is None:
+            result['status'] = 'error'
+            result['message'] = '얼굴을 인식할 수 없습니다. 다시 촬영해주세요.'
+            result['pipeline_steps'].append({
+                'stage': 'Detection (MediaPipe)',
+                'status': 'failed',
+                'reason': 'No face detected'
+            })
+            return result
+        
+        eye_crops = detector.crop_eyes(snapshot, detection_result)
         
         elapsed = time.time() - start_time
         result['pipeline_steps'].append({
-            'stage': 'Detection (YOLO)',
+            'stage': 'Detection (MediaPipe)',
             'status': 'completed',
             'time_ms': f"{elapsed*1000:.1f}",
             'eyes_detected': len(eye_crops)
@@ -2168,17 +2209,23 @@ def run_diagnosis_pipeline(snapshot, language='ko'):
         print(f"  ✓ {len(eye_crops)}개 눈 검출 ({elapsed*1000:.1f}ms)")
         
         if len(eye_crops) == 0:
-            result['status'] = 'warning'
-            result['message'] = '눈을 검출하지 못했습니다. 가이드라인을 확인하세요.'
+            result['status'] = 'error'
+            result['message'] = '얼굴은 인식되었으나 눈을 감지하지 못했습니다. 다시 촬영해주세요.'
             return result
         
         # ============================================
         # Stage 2 & 3: 각 눈마다 분류 및 분석
         # ============================================
-        eye_sides = ['left_eye', 'right_eye']
+        # MediaPipe은 이미 좌/우를 구분하므로 순서대로 처리
+        eye_sides = []
+        for crop in eye_crops:
+            side_field = crop.get('side', 'LEFT_EYE')
+            if 'LEFT_EYE' in side_field:
+                eye_sides.append(('left_eye', crop))
+            elif 'RIGHT_EYE' in side_field:
+                eye_sides.append(('right_eye', crop))
         
-        for idx, eye_crop in enumerate(eye_crops[:2]):  # 최대 2개 눈만 처리
-            eye_side = eye_sides[idx]
+        for eye_side, eye_crop in eye_sides:  # MediaPipe에서는 이미 구분됨
             print(f"\n[Stage 2-3] {eye_side} 분류 및 분석...")
             
             crop_image = eye_crop['image']

@@ -1,90 +1,228 @@
 """
-[1단계] YOLO 눈 검출 및 크롭
-이미지에서 눈을 검출하고 분류기 입력용 영역을 크롭
+[Upgraded] MediaPipe Face Mesh 기반 눈 검출 및 크롭
+정방형 크롭으로 EfficientNet 입력에 최적화
 """
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
+import mediapipe as mp
+# [LEGACY YOLO] from ultralytics import YOLO
 import config as config
 
 
 class EyeDetector:
     """
-    YOLOv8을 이용한 눈 검출기
+    MediaPipe Face Mesh를 이용한 눈 검출기
+    - 좌안(OS): LEFT_EYE indices
+    - 우안(OD): RIGHT_EYE indices
     """
     
-    def __init__(self, model_path=config.YOLO_MODEL_PATH):
+    # MediaPipe Face Mesh landmark indices
+    LEFT_EYE_INDICES = [33, 133, 157, 158, 159, 160, 161, 246, 173, 153, 154, 155, 144, 145, 163, 7]
+    RIGHT_EYE_INDICES = [362, 263, 384, 385, 386, 387, 388, 466, 398, 380, 381, 382, 373, 374, 390, 249]
+    
+    def __init__(self, model_path=None):
         """
-        YOLO 검출기 초기화
+        MediaPipe Face Mesh 초기화
         
         Args:
-            model_path (str): YOLOv8 모델 가중치 경로
+            model_path (str, optional): [LEGACY YOLO] 더 이상 사용하지 않음
         """
-        self.model = YOLO(model_path)
-        self.conf_threshold = config.YOLO_CONF_THRESHOLD
-        self.iou_threshold = config.YOLO_IOU_THRESHOLD
+        # [LEGACY YOLO] self.model = YOLO(model_path)
+        # [LEGACY YOLO] self.conf_threshold = config.YOLO_CONF_THRESHOLD
+        # [LEGACY YOLO] self.iou_threshold = config.YOLO_IOU_THRESHOLD
+        
+        self.mp_face_mesh = mp.solutions.face_mesh
+        self.face_mesh = self.mp_face_mesh.FaceMesh(
+            static_image_mode=True,
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.5
+        )
         
     def detect(self, image, conf_threshold=None):
         """
-        이미지에서 눈 검출
+        [LEGACY YOLO] 이전 YOLO 인터페이스 호환성 메서드
         
         Args:
             image (np.ndarray): 입력 이미지 (BGR)
-            conf_threshold (float, optional): 추론 시 신뢰도 임계값 오버라이드
+            conf_threshold (float, optional): [LEGACY YOLO] 무시됨
             
         Returns:
-            결과: 검출된 박스와 신뢰도를 포함한 YOLO 결과 객체
+            dict: { 'landmarks': [...], 'frame_height': h, 'frame_width': w }
         """
-        threshold = self.conf_threshold if conf_threshold is None else conf_threshold
-
-        results = self.model.predict(
-            image,
-            conf=threshold,
-            iou=self.iou_threshold,
-            imgsz=config.YOLO_INPUT_SIZE,
-            verbose=False
-        )
-        return results[0] if results else None
+        # [LEGACY YOLO] threshold = self.conf_threshold if conf_threshold is None else conf_threshold
+        # [LEGACY YOLO] results = self.model.predict(
+        # [LEGACY YOLO]     image,
+        # [LEGACY YOLO]     conf=threshold,
+        # [LEGACY YOLO]     iou=self.iou_threshold,
+        # [LEGACY YOLO]     imgsz=config.YOLO_INPUT_SIZE,
+        # [LEGACY YOLO]     verbose=False
+        # [LEGACY YOLO] )
+        # [LEGACY YOLO] return results[0] if results else None
+        
+        h, w, _ = image.shape
+        
+        # BGR을 RGB로 변환
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # MediaPipe Face Mesh 처리
+        results = self.face_mesh.process(image_rgb)
+        
+        if results.multi_face_landmarks is None or len(results.multi_face_landmarks) == 0:
+            return None
+        
+        # 첫 번째 얼굴만 사용
+        landmarks = results.multi_face_landmarks[0].landmark
+        
+        return {
+            'landmarks': landmarks,
+            'frame_height': h,
+            'frame_width': w
+        }
     
-    def crop_eyes(self, image, detections):
+    def get_efficientnet_crop(self, image, landmarks, indices, target_size=(224, 224)):
         """
-        검출된 눈 영역을 이미지에서 크롭
+        MediaPipe 랜드마크로부터 정방형 크롭 생성 (EfficientNet 입력용)
         
         Args:
-            image (np.ndarray): 원본 이미지
-            detections: YOLO 검출 결과
+            image (np.ndarray): 원본 이미지 (BGR)
+            landmarks (list): MediaPipe 랜드마크
+            indices (list): 눈 부분의 랜드마크 인덱스
+            target_size (tuple): 최종 리사이즈 크기 (기본값: 224x224)
             
         Returns:
-            list: 크롭된 눈 이미지 리스트 (좌표, 신뢰도 포함)
+            np.ndarray: 정규화된 224x224 크롭 또는 None (실패 시)
+        """
+        h, w, _ = image.shape
+        
+        try:
+            # 지정된 인덱스의 랜드마크 포인트 추출
+            points = np.array([
+                (landmarks[i].x * w, landmarks[i].y * h)
+                for i in indices
+                if i < len(landmarks)
+            ])
+            
+            if len(points) == 0:
+                return None
+            
+            # Bounding Box 계산
+            x_min, y_min = np.min(points, axis=0)
+            x_max, y_max = np.max(points, axis=0)
+            
+            # 중심과 크기 계산
+            cx, cy = (x_min + x_max) / 2, (y_min + y_max) / 2
+            box_w, box_h = x_max - x_min, y_max - y_min
+            
+            # 정방형 만들기 (가장 긴 변을 기준으로 20% 패딩)
+            side_length = max(box_w, box_h) * 1.2
+            half_side = side_length / 2
+            
+            # 이미지 범위 내로 조정
+            x1 = int(max(0, cx - half_side))
+            y1 = int(max(0, cy - half_side))
+            x2 = int(min(w, cx + half_side))
+            y2 = int(min(h, cy + half_side))
+            
+            # 크롭
+            cropped_eye = image[y1:y2, x1:x2]
+            
+            if cropped_eye is None or cropped_eye.size == 0:
+                return None
+            
+            # EfficientNet 입력 크기로 리사이즈
+            final_eye = cv2.resize(cropped_eye, target_size, interpolation=cv2.INTER_AREA)
+            
+            return final_eye
+        except Exception as e:
+            print(f"[ERROR] get_efficientnet_crop 실패: {e}")
+            return None
+    
+    def crop_eyes(self, image, detection_result):
+        """
+        MediaPipe 검출 결과로부터 양안 크롭 추출
+        
+        Args:
+            image (np.ndarray): 원본 이미지 (BGR)
+            detection_result (dict): detect() 반환값
+            
+        Returns:
+            list: [
+                {
+                    'image': cropped_eye_left,
+                    'bbox': (x1, y1, x2, y2),
+                    'confidence': 1.0,
+                    'side': 'LEFT_EYE'
+                },
+                {
+                    'image': cropped_eye_right,
+                    'bbox': (x1, y1, x2, y2),
+                    'confidence': 1.0,
+                    'side': 'RIGHT_EYE'
+                }
+            ]
         """
         eye_crops = []
         
-        if detections is None or len(detections.boxes) == 0:
+        if detection_result is None:
             return eye_crops
         
-        for box in detections.boxes:
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
+        landmarks = detection_result.get('landmarks')
+        if landmarks is None:
+            return eye_crops
+        
+        # 좌안(OS) 크롭
+        left_eye_crop = self.get_efficientnet_crop(
+            image,
+            landmarks,
+            self.LEFT_EYE_INDICES,
+            target_size=(224, 224)
+        )
+        
+        if left_eye_crop is not None:
+            # 좌안 bbox 계산
+            h, w, _ = image.shape
+            left_points = np.array([
+                (landmarks[i].x * w, landmarks[i].y * h)
+                for i in self.LEFT_EYE_INDICES
+                if i < len(landmarks)
+            ])
+            x_min, y_min = np.min(left_points, axis=0)
+            x_max, y_max = np.max(left_points, axis=0)
             
-            # 패딩 추가 (컨텍스트 정보 확보)
-            h, w = image.shape[:2]
-            box_w = max(1, x2 - x1)
-            box_h = max(1, y2 - y1)
-
-            # 고정 10px 대신 박스 크기 비율 기반 여유 패딩 적용
-            pad_x = int(max(12, min(72, box_w * 0.24)))
-            pad_y = int(max(10, min(64, box_h * 0.30)))
-
-            x1 = max(0, x1 - pad_x)
-            y1 = max(0, y1 - pad_y)
-            x2 = min(w, x2 + pad_x)
-            y2 = min(h, y2 + pad_y)
-            
-            crop = image[y1:y2, x1:x2]
             eye_crops.append({
-                'image': crop,
-                'bbox': (x1, y1, x2, y2),
-                'confidence': float(box.conf)
+                'image': left_eye_crop,
+                'bbox': (int(x_min), int(y_min), int(x_max), int(y_max)),
+                'confidence': 1.0,
+                'side': 'LEFT_EYE'
+            })
+        
+        # 우안(OD) 크롭
+        right_eye_crop = self.get_efficientnet_crop(
+            image,
+            landmarks,
+            self.RIGHT_EYE_INDICES,
+            target_size=(224, 224)
+        )
+        
+        if right_eye_crop is not None:
+            # 우안 bbox 계산
+            h, w, _ = image.shape
+            right_points = np.array([
+                (landmarks[i].x * w, landmarks[i].y * h)
+                for i in self.RIGHT_EYE_INDICES
+                if i < len(landmarks)
+            ])
+            x_min, y_min = np.min(right_points, axis=0)
+            x_max, y_max = np.max(right_points, axis=0)
+            
+            eye_crops.append({
+                'image': right_eye_crop,
+                'bbox': (int(x_min), int(y_min), int(x_max), int(y_max)),
+                'confidence': 1.0,
+                'side': 'RIGHT_EYE'
             })
         
         return eye_crops
+
