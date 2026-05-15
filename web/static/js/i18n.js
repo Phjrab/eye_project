@@ -246,6 +246,49 @@ class I18nEngine {
     });
 
     console.log(`[i18n.applyTranslations] Updated ${updateCount} elements (${errorCount} errors)`);
+    // Apply fallback translations to common selectors when templates lack data-i18n
+    try {
+      this.applyFallbackTranslations();
+    } catch (e) {
+      console.warn('[i18n.applyTranslations] applyFallbackTranslations error:', e);
+    }
+  }
+
+  /**
+   * Apply translations to common selectors if they lack data-i18n attributes.
+   * This helps translate pages that haven't been fully annotated with data-i18n.
+   */
+  applyFallbackTranslations() {
+    const mapping = [
+      { selector: 'h1', key: 'main_title' },
+      { selector: '.helper-text', key: 'helper_disclaimer' },
+      { selector: '.btn-start', key: 'btn_start_diagnosis' },
+      { selector: '.btn-kakao-link', key: 'btn_kakao_link' },
+      { selector: '.btn-mobile-access', key: 'btn_mobile_access' },
+      { selector: '.mobile-o2o-title', key: 'mobile_o2o_title' },
+      { selector: '.kakao-link-title', key: 'kakao_link_title' },
+      { selector: '#mobile-connect-status', key: 'mobile_o2o_waiting' },
+      { selector: '.theme-toggle-floating [data-role="label"]', key: 'theme_dark_mode' }
+    ];
+
+    mapping.forEach((item) => {
+      try {
+        const el = document.querySelector(item.selector);
+        if (!el) return;
+        // Skip if element already has data-i18n
+        if (el.hasAttribute && el.hasAttribute('data-i18n')) return;
+        const text = this.getTranslation(item.key);
+        if (!text) return;
+        // Respect HTML flag for known keys
+        if (item.key && (item.key.endsWith('_line1') || item.key.endsWith('_line2') || item.key.startsWith('subtitle'))) {
+          el.innerHTML = text;
+        } else {
+          el.textContent = text;
+        }
+      } catch (e) {
+        // continue on error
+      }
+    });
   }
 
   /**
