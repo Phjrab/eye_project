@@ -367,16 +367,16 @@
     </div>
 
     <div class="card">
-        <div class="section-title">일반 시스템 설정</div>
+        <div class="section-title" data-i18n="section_general_settings">일반 시스템 설정</div>
         <div id="config-grid" class="config-grid"></div>
 
-        <div class="section-title">LLM/API 키 설정</div>
+        <div class="section-title" data-i18n="section_llm_settings">LLM/API 키 설정</div>
         <div class="llm-note">API 키는 마스킹되어 표시됩니다. 비워두면 기존 키 유지, 새 값을 입력하면 즉시 갱신됩니다.</div>
         <div id="llm-config-grid" class="config-grid"></div>
     </div>
 
     <div class="actions">
-        <div id="status" class="status">설정을 불러오는 중...</div>
+        <div id="status" class="status" data-i18n="status_loading_config">설정을 불러오는 중...</div>
         <button class="btn btn-warning" onclick="requestServerControl('restart')">서버 재시작</button>
         <button class="btn btn-danger" onclick="requestServerControl('shutdown')">서버 종료</button>
         <button class="btn btn-secondary" onclick="loadConfig()">새로고침</button>

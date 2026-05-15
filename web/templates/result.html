@@ -506,7 +506,7 @@
             <div id="cam-overlay-layer" class="cam-overlay-layer">
                 <img id="cam-overlay-yolo" class="cam-overlay-full" alt="원본 YOLO 히트맵 오버레이">
             </div>
-            <div id="captured-empty-hint" class="captured-empty-hint">촬영된 원본 이미지가 없습니다. capture에서 얼굴 촬영을 먼저 진행해 주세요.</div>
+            <div id="captured-empty-hint" class="captured-empty-hint" data-i18n="captured_image_empty">촬영된 원본 이미지가 없습니다. capture에서 얼굴 촬영을 먼저 진행해 주세요.</div>
         </div>
 
         <div class="eye-select-row">
@@ -526,8 +526,8 @@
         <div class="card">
             <h2>🔍 자동 측정 데이터</h2>
             <div style="font-size:0.9rem; color:#475569;">
-                <div>좌안 충혈도: <b id="redness-left">-</b> <span id="redness-left-level"></span></div>
-                <div style="margin-top:4px;">우안 충혈도: <b id="redness-right">-</b> <span id="redness-right-level"></span></div>
+                <div data-i18n="redness_left">좌안 충혈도: <b id="redness-left">-</b> <span id="redness-left-level"></span></div>
+                <div style="margin-top:4px;" data-i18n="redness_right">우안 충혈도: <b id="redness-right">-</b> <span id="redness-right-level"></span></div>
                 <div style="margin-top:6px; font-size:0.8rem; color:#64748b;">
                     기준: 정상(&lt;0.08) · 경미(0.08~&lt;0.14) · 심함(0.14~&lt;0.22) · 매우심함(≥0.22)
                 </div>

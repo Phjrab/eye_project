@@ -893,7 +893,7 @@
 
     <header>
         <h1 data-i18n="report_title">👁️ 안구 건강 종합 리포트</h1>
-        <div class="user-info" id="user-display">사용자 정보 불러오는 중...</div>
+        <div class="user-info" id="user-display" data-i18n="user_info_loading">사용자 정보 불러오는 중...</div>
     </header>
 
     <div class="main-grid">
@@ -1037,7 +1037,7 @@
     <div id="pdf-overlay" class="pdf-overlay" onclick="closeReportPdfModal(event)">
         <div class="pdf-panel" onclick="event.stopPropagation()">
             <div class="pdf-header">
-                <div class="pdf-title">📄 보고서 미리보기</div>
+                <div class="pdf-title" data-i18n="pdf_preview_title">📄 보고서 미리보기</div>
                 <button class="pdf-close-btn" onclick="closeReportPdfModal()" data-i18n="btn_report_back">리포트로 돌아가기</button>
             </div>
             <iframe id="pdf-frame" class="pdf-frame" src="about:blank" title="PDF 보고서"></iframe>
@@ -1047,7 +1047,7 @@
     <div id="survey-overlay" class="survey-overlay" onclick="closeSurveyPreviewModal(event)">
         <div class="survey-panel" onclick="event.stopPropagation()">
             <div class="survey-header">
-                <div class="survey-title">📝 작성한 설문 상세 보기</div>
+                <div class="survey-title" data-i18n="survey_details_title">📝 작성한 설문 상세 보기</div>
                 <button class="survey-close-btn" onclick="closeSurveyPreviewModal()" data-i18n="btn_report_back">리포트로 돌아가기</button>
             </div>
             <div class="survey-body" id="survey-preview-body"></div>

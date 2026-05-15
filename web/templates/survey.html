@@ -313,7 +313,7 @@
 
     <header>
         <h1 data-i18n="survey_title">📋 안구 건강 정밀 문진</h1>
-        <p>정확한 AI 분석을 위해 현재 상태를 솔직하게 답변해 주세요.</p>
+        <p data-i18n="survey_instruction">정확한 AI 분석을 위해 현재 상태를 솔직하게 답변해 주세요.</p>
     </header>
 
     <div class="main-container">
@@ -321,11 +321,11 @@
             <h2>👤 기본 정보</h2>
             <div class="input-row">
                 <div class="field">
-                    <label>나이<span class="required-mark">*</span></label>
+                    <label data-i18n="label_age">나이<span class="required-mark">*</span></label>
                     <input type="number" id="user-age" placeholder="세" required min="1" max="120">
                 </div>
                 <div class="field">
-                    <label>성별</label>
+                    <label data-i18n="label_gender">성별</label>
                     <select id="user-gender">
                         <option value="남성">남성</option>
                         <option value="여성">여성</option>
@@ -333,7 +333,7 @@
                 </div>
             </div>
             <div class="field" style="margin-bottom:15px;">
-                <label>안경/렌즈 착용 유무</label>
+                <label data-i18n="label_wearing_glasses">안경/렌즈 착용 유무</label>
                 <select id="user-wearing">
                     <option value="미착용">미착용</option>
                     <option value="안경 착용">안경 착용</option>
@@ -342,14 +342,14 @@
             </div>
 
             <div class="field" style="margin-bottom:15px;">
-                <label>현재 교정시력 (선택)</label>
+                <label data-i18n="label_vision_correction">현재 교정시력 (선택)</label>
                 <div class="input-row">
                     <div class="field">
-                        <label>좌안(L)</label>
+                        <label data-i18n="label_vision_left">좌안(L)</label>
                         <input type="number" id="vision-left" step="0.1" min="0" max="3.0" placeholder="예: 1.0">
                     </div>
                     <div class="field">
-                        <label>우안(R)</label>
+                        <label data-i18n="label_vision_right">우안(R)</label>
                         <input type="number" id="vision-right" step="0.1" min="0" max="3.0" placeholder="예: 1.0">
                     </div>
                 </div>
@@ -357,20 +357,20 @@
 
             <h2>🏥 병력 및 생활 습관</h2>
             <div class="field" style="margin-bottom:10px;">
-                <label>기저질환 (당뇨, 고혈압 등)</label>
+                <label data-i18n="label_conditions">기저질환 (당뇨, 고혈압 등)</label>
                 <textarea id="user-conditions" rows="2" placeholder="예: 당뇨(5년차), 고혈압 약 복용 중"></textarea>
             </div>
             <div class="field" style="margin-bottom:10px;">
-                <label>안구 수술 이력</label>
+                <label data-i18n="label_surgery_history">안구 수술 이력</label>
                 <input id="user-surgery" type="text" placeholder="수술명 및 시기 작성">
             </div>
             <div class="input-row">
                 <div class="field">
-                    <label>흡연 유무</label>
+                    <label data-i18n="label_smoking">흡연 유무</label>
                     <select id="user-smoking"><option value="비흡연">비흡연</option><option value="흡연">흡연</option></select>
                 </div>
                 <div class="field">
-                    <label>음주 빈도</label>
+                    <label data-i18n="label_drinking">음주 빈도</label>
                     <select id="user-drinking"><option value="안함">안함</option><option value="가끔">가끔</option><option value="자주">자주</option></select>
                 </div>
             </div>
@@ -394,7 +394,7 @@
             </div>
             
             <div class="field" style="margin-top:20px;">
-                <label>기타 불편한 점</label>
+                <label data-i18n="label_other_notes">기타 불편한 점</label>
                 <textarea id="user-other-notes" rows="2" placeholder="위 항목 외에 불편한 점이 있다면 적어주세요."></textarea>
             </div>
         </div>
