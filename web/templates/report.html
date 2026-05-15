@@ -1038,7 +1038,7 @@
         <div class="pdf-panel" onclick="event.stopPropagation()">
             <div class="pdf-header">
                 <div class="pdf-title">📄 보고서 미리보기</div>
-                <button class="pdf-close-btn" onclick="closeReportPdfModal()">리포트로 돌아가기</button>
+                <button class="pdf-close-btn" onclick="closeReportPdfModal()" data-i18n="btn_report_back">리포트로 돌아가기</button>
             </div>
             <iframe id="pdf-frame" class="pdf-frame" src="about:blank" title="PDF 보고서"></iframe>
         </div>
@@ -1048,7 +1048,7 @@
         <div class="survey-panel" onclick="event.stopPropagation()">
             <div class="survey-header">
                 <div class="survey-title">📝 작성한 설문 상세 보기</div>
-                <button class="survey-close-btn" onclick="closeSurveyPreviewModal()">리포트로 돌아가기</button>
+                <button class="survey-close-btn" onclick="closeSurveyPreviewModal()" data-i18n="btn_report_back">리포트로 돌아가기</button>
             </div>
             <div class="survey-body" id="survey-preview-body"></div>
         </div>

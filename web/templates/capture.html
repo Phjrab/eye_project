@@ -482,11 +482,11 @@
 
         <div class="card">
             <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 얼굴 촬영 / 업로드</h2>
-            <button id="btn-capture-photo" class="btn-capture" onclick="takeSnapshot()">📸 얼굴 전체 촬영</button>
-            <button class="btn-upload" onclick="openImageUploader()">🖼️ 얼굴 사진 업로드</button>
-            <button id="btn-use-last-upload" class="btn-use-last" onclick="useLastUploadedImage()">↺ 최근 업로드 다시 사용</button>
-            <button class="btn-restore" onclick="restoreCameraPreview()">↩️ 실시간 카메라로 복귀</button>
-            <button id="btn-go-result" class="btn-go-result" onclick="goToResult()" disabled>✅ 결과 보기</button>
+            <button id="btn-capture-photo" class="btn-capture" onclick="takeSnapshot()" data-i18n="btn_capture_photo">📸 얼굴 전체 촬영</button>
+            <button class="btn-upload" onclick="openImageUploader()" data-i18n="btn_upload_photo">🖼️ 얼굴 사진 업로드</button>
+            <button id="btn-use-last-upload" class="btn-use-last" onclick="useLastUploadedImage()" data-i18n="btn_use_last_upload">↺ 최근 업로드 다시 사용</button>
+            <button class="btn-restore" onclick="restoreCameraPreview()" data-i18n="btn_restore_camera">↩️ 실시간 카메라로 복귀</button>
+            <button id="btn-go-result" class="btn-go-result" onclick="goToResult()" disabled data-i18n="btn_view_result">✅ 결과 보기</button>
             <input id="upload-image-input" type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleUploadedImage(event)">
             <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;">안내: 얼굴 사진 한 장을 촬영하면 MediaPipe Face Mesh가 좌/우 눈을 자동으로 감지해 분석합니다.</div>
         </div>
