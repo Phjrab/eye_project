@@ -61,6 +61,13 @@ const translations = {
     kakao_link_popup_blocked: '팝업이 차단되었습니다. 브라우저 팝업 허용 후 다시 시도해 주세요.',
     kakao_link_status_wait: '카카오 로그인/동의 후 창이 자동으로 닫힙니다.',
     kakao_link_error: '연동에 실패했습니다.',
+    // Page titles
+    report_title: '👁️ 안구 건강 종합 리포트',
+    survey_title: '📋 안구 건강 정밀 문진',
+    admin_config_title: '⚙️ 관리자 Config 설정',
+    m_dashboard_title: '✅ 모바일 인증 완료',
+    m_login_title: '📱 모바일 PIN 인증',
+    capture_title: '안구 촬영',
   },
 
   en: {
@@ -120,6 +127,13 @@ const translations = {
     kakao_link_popup_blocked: 'Popup blocked. Please allow popups in browser settings.',
     kakao_link_status_wait: 'Window will close automatically after consent.',
     kakao_link_error: 'Linking failed.',
+    // Page titles
+    report_title: '👁️ Comprehensive Eye Health Report',
+    survey_title: '📋 Detailed Eye Health Survey',
+    admin_config_title: '⚙️ Admin Config Settings',
+    m_dashboard_title: '✅ Mobile Verification Complete',
+    m_login_title: '📱 Mobile PIN Verification',
+    capture_title: 'Capture Eyes',
   },
 
   zh: {
@@ -179,6 +193,13 @@ const translations = {
     kakao_link_popup_blocked: '弹窗被阻止。请在浏览器设置中允许弹窗。',
     kakao_link_status_wait: '同意后窗口将自动关闭。',
     kakao_link_error: '关联失败。',
+    // Page titles
+    report_title: '👁️ 眼部健康综合报告',
+    survey_title: '📋 眼部健康详细问诊',
+    admin_config_title: '⚙️ 管理员配置',
+    m_dashboard_title: '✅ 移动验证完成',
+    m_login_title: '📱 移动 PIN 验证',
+    capture_title: '采集眼部照片',
   },
 
   vi: {
@@ -238,6 +259,13 @@ const translations = {
     kakao_link_popup_blocked: 'Popup bị chặn. Vui lòng cho phép popup trong cài đặt trình duyệt.',
     kakao_link_status_wait: 'Cửa sổ sẽ tự động đóng sau khi đồng ý.',
     kakao_link_error: 'Liên kết không thành công.',
+    // Page titles
+    report_title: '👁️ Báo cáo tổng hợp sức khỏe mắt',
+    survey_title: '📋 Bảng câu hỏi sức khỏe mắt chi tiết',
+    admin_config_title: '⚙️ Cấu hình quản trị',
+    m_dashboard_title: '✅ Xác thực di động hoàn tất',
+    m_login_title: '📱 Xác thực PIN di động',
+    capture_title: 'Chụp ảnh mắt',
   },
 
   ru: {
@@ -299,6 +327,13 @@ const translations = {
     kakao_link_popup_blocked: 'Всплывающее окно заблокировано. Разрешите всплывающие окна в настройках браузера.',
     kakao_link_status_wait: 'Окно закроется автоматически после согласия.',
     kakao_link_error: 'Ошибка связи.',
+    // Page titles
+    report_title: '👁️ Комплексный отчет о здоровье глаз',
+    survey_title: '📋 Детальная анкета по здоровью глаз',
+    admin_config_title: '⚙️ Настройки администратора',
+    m_dashboard_title: '✅ Мобильная верификация завершена',
+    m_login_title: '📱 Мобильная PIN-верификация',
+    capture_title: 'Съемка глаза',
   },
 
   ja: {
@@ -360,6 +395,13 @@ const translations = {
     kakao_link_popup_blocked: 'ポップアップがブロックされました。ブラウザ設定でポップアップを許可してください。',
     kakao_link_status_wait: '同意後、ウィンドウは自動的に閉じます。',
     kakao_link_error: 'リンクに失敗しました。',
+    // Page titles
+    report_title: '👁️ 眼の健康総合レポート',
+    survey_title: '📋 眼の健康詳細アンケート',
+    admin_config_title: '⚙️ 管理者設定',
+    m_dashboard_title: '✅ モバイル認証完了',
+    m_login_title: '📱 モバイルPIN認証',
+    capture_title: '眼の撮影',
   }
 };
 
