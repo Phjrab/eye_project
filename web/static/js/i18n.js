@@ -10,9 +10,9 @@
 
 class I18nEngine {
   constructor() {
+    this.supportedLanguages = ['ko', 'en', 'zh', 'vi', 'ru', 'ja'];
     // Load saved language or detect from browser
     this.currentLanguage = this.loadLanguage();
-    this.supportedLanguages = ['ko', 'en', 'zh', 'vi', 'ru', 'ja'];
     this.listeners = [];
     
     console.log(`[i18n] Initialized with language: ${this.currentLanguage}`);
@@ -44,7 +44,11 @@ class I18nEngine {
     }, 300);
 
     // Watch for dynamically added elements with data-i18n attributes
-    this.observeDOMChanges();
+    if (document.body) {
+      this.observeDOMChanges();
+    } else {
+      document.addEventListener('DOMContentLoaded', () => this.observeDOMChanges(), { once: true });
+    }
   }
 
   /**

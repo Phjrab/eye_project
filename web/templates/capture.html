@@ -445,14 +445,14 @@
 
         <div class="camera-bottom-btns">
             <div id="camera-guide-text" style="font-size: 0.9rem; color: #64748b;">
-                ※ 고해상도 촬영을 위해 가이드 중앙에 눈을 정렬해 주세요.
+                <span data-i18n="capture_eye_align_hint">※ 고해상도 촬영을 위해 가이드 중앙에 눈을 정렬해 주세요.</span>
             </div>
         </div>
     </div>
 
     <div class="right-panel">
         <div id="step0-card" class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 0. 눈 감지 상태</h2>
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);" data-i18n="capture_step0">Step 0. 눈 감지 상태</h2>
             <div id="detection-status" class="detection-status-box">
                 <div id="status-dot" style="width: 12px; height: 12px; border-radius: 50%; background: #ccc;"></div>
                 <div>
@@ -463,32 +463,32 @@
         </div>
 
         <div id="step2-card" class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 1. 자동셔터 / 디지털 줌</h2>
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);" data-i18n="capture_step1">Step 1. 자동셔터 / 디지털 줌</h2>
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-                <span style="font-size:0.95rem; color:#334155;">자동셔터</span>
+                <span style="font-size:0.95rem; color:#334155;" data-i18n="auto_shutter_label">자동셔터</span>
                 <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; color:#64748b;">
                     <input type="checkbox" id="auto-shutter-toggle" checked onchange="toggleAutoShutter()">
-                    사용
+                    <span data-i18n="use_label">사용</span>
                 </label>
             </div>
             <div id="auto-shutter-status" style="font-size:0.85rem; color:#64748b; margin-bottom:14px;" data-i18n="auto_shutter_status">자동셔터 대기 중</div>
 
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-size:0.95rem; color:#334155;">디지털 줌</span>
+                <span style="font-size:0.95rem; color:#334155;" data-i18n="digital_zoom_label">디지털 줌</span>
                 <span id="zoom-value" style="font-size:0.9rem; color:#64748b;">1.0x</span>
             </div>
             <input id="zoom-slider" type="range" min="1" max="2.5" step="0.1" value="1" oninput="setDigitalZoom(this.value)" style="width:100%;">
         </div>
 
         <div class="card">
-            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);">Step 2. 얼굴 촬영 / 업로드</h2>
+            <h2 style="margin:0 0 15px 0; font-size: 1.2rem; color: var(--primary);" data-i18n="capture_step2">Step 2. 얼굴 촬영 / 업로드</h2>
             <button id="btn-capture-photo" class="btn-capture" onclick="takeSnapshot()" data-i18n="btn_capture_photo">📸 얼굴 전체 촬영</button>
             <button class="btn-upload" onclick="openImageUploader()" data-i18n="btn_upload_photo">🖼️ 얼굴 사진 업로드</button>
             <button id="btn-use-last-upload" class="btn-use-last" onclick="useLastUploadedImage()" data-i18n="btn_use_last_upload">↺ 최근 업로드 다시 사용</button>
             <button class="btn-restore" onclick="restoreCameraPreview()" data-i18n="btn_restore_camera">↩️ 실시간 카메라로 복귀</button>
             <button id="btn-go-result" class="btn-go-result" onclick="goToResult()" disabled data-i18n="btn_view_result">✅ 결과 보기</button>
             <input id="upload-image-input" type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleUploadedImage(event)">
-            <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;">안내: 얼굴 사진 한 장을 촬영하면 MediaPipe Face Mesh가 좌/우 눈을 자동으로 감지해 분석합니다.</div>
+            <div id="capture-message" style="margin-top:10px; font-size:0.9rem; color:#64748b;" data-i18n="capture_guidance">안내: 얼굴 사진 한 장을 촬영하면 MediaPipe Face Mesh가 좌/우 눈을 자동으로 감지해 분석합니다.</div>
         </div>
 
     </div>
