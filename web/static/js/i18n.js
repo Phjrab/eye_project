@@ -339,6 +339,9 @@ class I18nEngine {
  */
 const i18n = new I18nEngine();
 
+// Make i18n globally accessible
+window.i18n = i18n;
+
 /**
  * ============================================================================
  * LLM INTEGRATION - ACTIVE FUNCTIONS

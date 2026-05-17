@@ -118,15 +118,10 @@ const translations = {
     
     // Chat widget
     chat_title: 'AI 의료 상담',
-    chat_placeholder: '증상이나 궁금한 점을 입력하세요.',
-    chat_close_label: '채팅 닫기',
-    chat_fab_label: 'AI 의료 상담 열기',
-    chat_send_btn: '전송',
     chat_greeting: '안녕하세요. AI 의료 상담입니다. 현재 불편한 증상이나 궁금한 점을 입력해 주세요.',
-    chat_fallback_general: '문의 주신 내용 확인했습니다. 현재 정보는 참고용이며, 정확한 진단은 전문의 진료를 통해 확인해 주세요.',
-    chat_fallback_redness: '충혈 증상이 반복되면 조명, 수면, 렌즈 착용 시간을 먼저 점검해 보세요. 통증/시력저하가 동반되면 가까운 안과 진료를 권장드립니다.',
-    chat_fallback_pain: '통증이 있는 경우는 단순 피로가 아닐 수 있습니다. 증상이 지속되면 즉시 전문의 진료를 받아주세요.',
-    chat_fallback_lens: '렌즈는 권장 착용 시간을 넘기지 않는 것이 중요합니다. 건조감이나 이물감이 있으면 즉시 제거 후 휴식을 권장합니다.',
+    chat_placeholder: '증상이나 궁금한 점을 입력하세요.',
+    chat_close_btn: '채팅 닫기',
+    chat_api_unconfigured: '⚠️ API 키가 연결되어 있지 않습니다. 관리자에게 문의해주세요. OpenAI API 키를 설정한 후 서비스를 이용할 수 있습니다.',
   },
 
   en: {
@@ -243,15 +238,10 @@ const translations = {
     
     // Chat widget
     chat_title: 'AI Medical Consultation',
+    chat_greeting: 'Hello. This is AI medical consultation. Please describe your symptoms or ask any questions.',
     chat_placeholder: 'Enter your symptoms or questions.',
-    chat_close_label: 'Close Chat',
-    chat_fab_label: 'Open AI Medical Consultation',
-    chat_send_btn: 'Send',
-    chat_greeting: 'Hello. This is AI medical consultation. Please enter your current symptoms or questions.',
-    chat_fallback_general: 'I understand your question. This information is for reference only. For accurate diagnosis, please consult with a specialist.',
-    chat_fallback_redness: 'If redness symptoms persist, first check lighting, sleep, and lens wearing time. We recommend seeing an ophthalmologist if pain or vision loss occurs.',
-    chat_fallback_pain: 'Pain may not be just fatigue. If symptoms persist, please see a specialist immediately.',
-    chat_fallback_lens: 'It is important not to exceed the recommended lens wearing time. If you experience dryness or foreign object sensation, remove immediately and rest.',
+    chat_close_btn: 'Close Chat',
+    chat_api_unconfigured: '⚠️ API key is not connected. Please contact the administrator. AI consultation service is available after OpenAI API key is configured.',
   },
 
   zh: {
@@ -356,6 +346,13 @@ const translations = {
     survey_details_title: '📝 Survey Details',
     section_general_settings: 'General System Settings',
     section_llm_settings: 'LLM/API Key Settings',
+    
+    // Chat widget
+    chat_title: '医学咨询',
+    chat_greeting: '您好。这是AI医学咨询服务。请描述您的症状或提出任何问题。',
+    chat_placeholder: '输入您的症状或问题。',
+    chat_close_btn: '关闭聊天',
+    chat_api_unconfigured: '⚠️ API密钥未连接。请联系管理员。配置OpenAI API密钥后可使用AI咨询服务。',
   },
 
   vi: {
@@ -460,6 +457,13 @@ const translations = {
     survey_details_title: '📝 Survey Details',
     section_general_settings: 'General System Settings',
     section_llm_settings: 'LLM/API Key Settings',
+    
+    // Chat widget
+    chat_title: 'Tư vấn Y tế AI',
+    chat_greeting: 'Xin chào. Đây là dịch vụ tư vấn y tế AI. Vui lòng mô tả triệu chứng của bạn hoặc đặt bất kỳ câu hỏi nào.',
+    chat_placeholder: 'Nhập triệu chứng hoặc câu hỏi của bạn.',
+    chat_close_btn: 'Đóng Trò chuyện',
+    chat_api_unconfigured: '⚠️ Khóa API chưa được kết nối. Vui lòng liên hệ với quản trị viên. Dịch vụ tư vấn AI khả dụng sau khi khóa OpenAI API được cấu hình.',
   },
 
   ru: {
@@ -566,6 +570,13 @@ const translations = {
     survey_details_title: '📝 Survey Details',
     section_general_settings: 'General System Settings',
     section_llm_settings: 'LLM/API Key Settings',
+    
+    // Chat widget
+    chat_title: 'Медицинская консультация ИИ',
+    chat_greeting: 'Привет. Это сервис медицинской консультации ИИ. Пожалуйста, опишите свои симптомы или задайте любые вопросы.',
+    chat_placeholder: 'Введите ваши симптомы или вопросы.',
+    chat_close_btn: 'Закрыть чат',
+    chat_api_unconfigured: '⚠️ Ключ API не подключен. Пожалуйста, свяжитесь с администратором. Сервис медицинской консультации ИИ доступен после настройки ключа OpenAI API.',
   },
 
   ja: {
@@ -672,6 +683,16 @@ const translations = {
     survey_details_title: '📝 Survey Details',
     section_general_settings: 'General System Settings',
     section_llm_settings: 'LLM/API Key Settings',
+    
+    // Chat widget
+    chat_title: 'AI医療相談',
+    chat_greeting: 'こんにちは。AI医療相談サービスです。症状を説明するか、ご質問ください。',
+    chat_placeholder: '症状やご質問を入力してください。',
+    chat_close_btn: 'チャットを閉じる',
+    chat_api_unconfigured: '⚠️ APIキーが接続されていません。管理者にお問い合わせください。OpenAI APIキーを設定した後、AI相談サービスがご利用いただけます。',
   }
 };
+
+// Make translations globally accessible
+window.translations = translations;
 
