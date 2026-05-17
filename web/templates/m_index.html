@@ -234,12 +234,26 @@
         const root = document.documentElement;
 
         function updateUI(theme) {
+            let lang = 'ko';
+            try {
+                const saved = localStorage.getItem('i18n_language') || localStorage.getItem('selectedLanguage') || document.documentElement.lang || 'ko';
+                lang = String(saved).slice(0, 2).toLowerCase();
+            } catch (e) {}
+            const map = {
+                ko: { dark: '다크 모드', light: '라이트 모드' },
+                en: { dark: 'Dark Mode', light: 'Light Mode' },
+                zh: { dark: '暗黑模式', light: '浅色模式' },
+                vi: { dark: 'Chế độ Tối', light: 'Chế độ Sáng' },
+                ru: { dark: 'Темный режим', light: 'Светлый режим' },
+                ja: { dark: 'ダークモード', light: 'ライトモード' }
+            };
+            const selected = map[lang] || map.ko;
             if (theme === 'dark') {
                 icon.textContent = '☀️';
-                label.textContent = '라이트 모드';
+                label.textContent = selected.light;
             } else {
                 icon.textContent = '🌙';
-                label.textContent = '다크 모드';
+                label.textContent = selected.dark;
             }
         }
 
