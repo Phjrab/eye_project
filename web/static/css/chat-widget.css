@@ -1,13 +1,13 @@
 .ai-chat-root {
     position: fixed;
     right: 20px;
-    bottom: 20px;
+    bottom: 160px;
     z-index: 3200;
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .ai-chat-root.offset-for-theme {
-    bottom: 84px;
+    bottom: 160px;
 }
 
 .ai-chat-fab {
