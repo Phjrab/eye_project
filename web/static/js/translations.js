@@ -115,6 +115,18 @@ const translations = {
     digital_zoom_label: '디지털 줌',
     capture_guidance: '안내: 얼굴 사진 한 장을 촬영하면 MediaPipe Face Mesh가 좌/우 눈을 자동으로 감지해 분석합니다.',
     login_privacy_note: 'ℹ️ <strong>비식별화 아키텍처</strong>를 통해 개인정보를 보호합니다.<br>입력하신 정보는 문진 결과 데이터베이스 매칭에 활용됩니다.',
+    
+    // Chat widget
+    chat_title: 'AI 의료 상담',
+    chat_placeholder: '증상이나 궁금한 점을 입력하세요.',
+    chat_close_label: '채팅 닫기',
+    chat_fab_label: 'AI 의료 상담 열기',
+    chat_send_btn: '전송',
+    chat_greeting: '안녕하세요. AI 의료 상담입니다. 현재 불편한 증상이나 궁금한 점을 입력해 주세요.',
+    chat_fallback_general: '문의 주신 내용 확인했습니다. 현재 정보는 참고용이며, 정확한 진단은 전문의 진료를 통해 확인해 주세요.',
+    chat_fallback_redness: '충혈 증상이 반복되면 조명, 수면, 렌즈 착용 시간을 먼저 점검해 보세요. 통증/시력저하가 동반되면 가까운 안과 진료를 권장드립니다.',
+    chat_fallback_pain: '통증이 있는 경우는 단순 피로가 아닐 수 있습니다. 증상이 지속되면 즉시 전문의 진료를 받아주세요.',
+    chat_fallback_lens: '렌즈는 권장 착용 시간을 넘기지 않는 것이 중요합니다. 건조감이나 이물감이 있으면 즉시 제거 후 휴식을 권장합니다.',
   },
 
   en: {
@@ -228,6 +240,18 @@ const translations = {
     digital_zoom_label: 'Digital Zoom',
     capture_guidance: 'Guidance: Capturing one face photo allows MediaPipe Face Mesh to auto-detect and analyze both eyes.',
     login_privacy_note: 'ℹ️ Personal information is protected through <strong>de-identification architecture</strong>.<br>Your input is used for survey-result database matching.',
+    
+    // Chat widget
+    chat_title: 'AI Medical Consultation',
+    chat_placeholder: 'Enter your symptoms or questions.',
+    chat_close_label: 'Close Chat',
+    chat_fab_label: 'Open AI Medical Consultation',
+    chat_send_btn: 'Send',
+    chat_greeting: 'Hello. This is AI medical consultation. Please enter your current symptoms or questions.',
+    chat_fallback_general: 'I understand your question. This information is for reference only. For accurate diagnosis, please consult with a specialist.',
+    chat_fallback_redness: 'If redness symptoms persist, first check lighting, sleep, and lens wearing time. We recommend seeing an ophthalmologist if pain or vision loss occurs.',
+    chat_fallback_pain: 'Pain may not be just fatigue. If symptoms persist, please see a specialist immediately.',
+    chat_fallback_lens: 'It is important not to exceed the recommended lens wearing time. If you experience dryness or foreign object sensation, remove immediately and rest.',
   },
 
   zh: {
