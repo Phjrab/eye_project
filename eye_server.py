@@ -399,7 +399,7 @@ def get_admin_llm_settings_snapshot():
     return {
         'LLM_PROVIDER': provider,
         'OPENAI_MODEL': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
-        'GEMINI_MODEL': os.getenv('GEMINI_MODEL', 'gemini-1.5-flash'),
+        'GEMINI_MODEL': os.getenv('GEMINI_MODEL', 'gemini-2.5-flash'),
         'OPENAI_API_KEY_MASKED': mask_secret_value(openai_key),
         'GEMINI_API_KEY_MASKED': mask_secret_value(gemini_key),
         'OPENAI_API_KEY_CONFIGURED': bool(str(openai_key).strip()),
@@ -2791,9 +2791,6 @@ def _call_gemini_chat(system_prompt, user_message):
     if not api_key:
         raise RuntimeError('GEMINI_API_KEY is not configured')
 
-    model_name = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash').strip() or 'gemini-1.5-flash'
-    url = f'https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}'
-
     prompt = (
         f"System instruction:\n{system_prompt}\n\n"
         f"User question:\n{user_message}"
@@ -2810,34 +2807,58 @@ def _call_gemini_chat(system_prompt, user_message):
         }
     }
 
-    response = requests.post(
-        url,
-        headers={'Content-Type': 'application/json'},
-        json=payload,
-        timeout=35
-    )
+    configured_model = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash').strip() or 'gemini-2.5-flash'
+    candidate_models = []
+    for model_name in [
+        configured_model,
+        'gemini-2.5-flash',
+        'gemini-2.5-pro',
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-001'
+    ]:
+        normalized = str(model_name or '').strip()
+        if normalized and normalized not in candidate_models:
+            candidate_models.append(normalized)
 
-    if response.status_code != 200:
-        detail = response.text[:400] if response.text else 'no detail'
-        raise RuntimeError(f'Gemini API error ({response.status_code}): {detail}')
+    last_error = None
+    for model_name in candidate_models:
+        url = f'https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}'
+        response = requests.post(
+            url,
+            headers={'Content-Type': 'application/json'},
+            json=payload,
+            timeout=35
+        )
 
-    data = response.json()
-    candidates = data.get('candidates') or []
-    if not candidates:
-        raise RuntimeError('Gemini API returned empty candidates')
+        if response.status_code != 200:
+            detail = response.text[:400] if response.text else 'no detail'
+            message = f'Gemini API error ({response.status_code}) for {model_name}: {detail}'
+            last_error = message
 
-    parts = ((candidates[0] or {}).get('content') or {}).get('parts') or []
-    text_chunks = []
-    for part in parts:
-        text = str((part or {}).get('text') or '').strip()
-        if text:
-            text_chunks.append(text)
+            # 지원하지 않는 모델이면 다음 후보를 시도한다.
+            if response.status_code == 404 and 'not found' in detail.lower():
+                continue
+            raise RuntimeError(message)
 
-    content = '\n'.join(text_chunks).strip()
-    if not content:
-        raise RuntimeError('Gemini API returned empty content')
+        data = response.json()
+        candidates = data.get('candidates') or []
+        if not candidates:
+            raise RuntimeError('Gemini API returned empty candidates')
 
-    return content
+        parts = ((candidates[0] or {}).get('content') or {}).get('parts') or []
+        text_chunks = []
+        for part in parts:
+            text = str((part or {}).get('text') or '').strip()
+            if text:
+                text_chunks.append(text)
+
+        content = '\n'.join(text_chunks).strip()
+        if not content:
+            raise RuntimeError('Gemini API returned empty content')
+
+        return content
+
+    raise RuntimeError(last_error or 'Gemini API returned no supported model response')
 
 
 def generate_llm_chat_reply(user_message, diagnosis_result):
