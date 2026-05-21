@@ -10,13 +10,25 @@ import threading
 import time
 import requests
 import qrcode
-from flask import Flask, request, jsonify, send_file, redirect
+from flask import Flask, Response, request, jsonify, send_file, redirect
 from flask_cors import CORS
+from db import init_db
 
-# [추가됨] 앱 설정을 로컬 JSON 파일에서 읽도록 변경.
-CONFIG_PATH = "config.local.json"
-DB_PATH = "database/database.db"
-REPORT_DIR = "reports"
+# [추가됨] 앱 설정과 런타임 경로를 스크립트 위치 기준으로 고정.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+CONFIG_PATH = os.path.join(PROJECT_ROOT, "config.local.json")
+DB_PATH = os.path.join(BASE_DIR, "database.db")
+REPORT_DIR = os.path.join(PROJECT_ROOT, "reports")
+
+
+def _ensure_runtime_paths() -> None:
+    os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
+    os.makedirs(os.path.dirname(CONFIG_PATH) or ".", exist_ok=True)
+    os.makedirs(REPORT_DIR, exist_ok=True)
+
+
+_ensure_runtime_paths()
 
 
 # [추가됨] 수동 환경변수 입력 대신 config.local.json 로딩 추가.
@@ -49,6 +61,7 @@ def update_json_config(updates: dict[str, str], path: str = CONFIG_PATH) -> None
         config[str(key)] = value
         os.environ[str(key)] = value
 
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as config_file:
         json.dump(config, config_file, ensure_ascii=False, indent=2)
 
@@ -421,9 +434,14 @@ def kakao_send_report():
         conn.close()
 
 def get_conn():
+    os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def initialize_runtime_database() -> None:
+    init_db(DB_PATH)
 
 
 # [추가됨] 기존 DB에도 사용자별 카카오 토큰 컬럼이 생기도록 보정.
@@ -447,6 +465,7 @@ def ensure_runtime_schema() -> None:
         conn.close()
 
 
+initialize_runtime_database()
 ensure_runtime_schema()
 
 
@@ -731,9 +750,6 @@ def get_report(session_id: int):
         return send_file(path, mimetype="application/pdf", as_attachment=download, download_name=os.path.basename(path))
     finally:
         conn.close()
-
-from flask import Response  # 상단 import에 추가
-
 @app.get("/open/<int:session_id>")
 def open_report(session_id: int):
     # 카톡 인앱브라우저에서 PDF 바로 렌더링이 불안정해서,
