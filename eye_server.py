@@ -107,6 +107,7 @@ load_dotenv()
 from flask import Flask, render_template, Response, jsonify, request, session, redirect, url_for
 import cv2
 import numpy as np
+import mediapipe as mp
 import torch
 import time
 import os
@@ -132,6 +133,16 @@ from PIL import Image
 import config as config
 from model_loader import initialize_models, get_models
 from utils.image_proc import resize_image, enhance_contrast
+
+MP_FACE_MESH = mp.solutions.face_mesh.FaceMesh(
+    static_image_mode=True,
+    max_num_faces=1,
+    refine_landmarks=True,
+    min_detection_confidence=0.5,
+)
+MP_DRAWING = mp.solutions.drawing_utils
+MP_DRAWING_STYLES = mp.solutions.drawing_styles
+MP_FACE_MESH_LOCK = threading.Lock()
 
 # ========================================
 # [1] Flask 앱 설정
@@ -689,6 +700,45 @@ def save_cam_image(user_id, eye_side, cam_image_bgr):
     return f"/static/captures/users/{safe_user_id}/{filename}"
 
 
+def build_mediapipe_mesh_overlay(source_bgr):
+    """원본 이미지 위에 MediaPipe Face Mesh를 시각화한다."""
+    if source_bgr is None or source_bgr.size == 0:
+        return None
+
+    source_rgb = cv2.cvtColor(source_bgr, cv2.COLOR_BGR2RGB)
+    with MP_FACE_MESH_LOCK:
+        results = MP_FACE_MESH.process(source_rgb)
+
+    if not results.multi_face_landmarks:
+        return None
+
+    overlay = source_bgr.copy()
+    for face_landmarks in results.multi_face_landmarks:
+        MP_DRAWING.draw_landmarks(
+            image=overlay,
+            landmark_list=face_landmarks,
+            connections=mp.solutions.face_mesh.FACEMESH_TESSELATION,
+            landmark_drawing_spec=None,
+            connection_drawing_spec=MP_DRAWING_STYLES.get_default_face_mesh_tesselation_style(),
+        )
+        MP_DRAWING.draw_landmarks(
+            image=overlay,
+            landmark_list=face_landmarks,
+            connections=mp.solutions.face_mesh.FACEMESH_CONTOURS,
+            landmark_drawing_spec=None,
+            connection_drawing_spec=MP_DRAWING_STYLES.get_default_face_mesh_contours_style(),
+        )
+        MP_DRAWING.draw_landmarks(
+            image=overlay,
+            landmark_list=face_landmarks,
+            connections=mp.solutions.face_mesh.FACEMESH_IRISES,
+            landmark_drawing_spec=None,
+            connection_drawing_spec=MP_DRAWING_STYLES.get_default_face_mesh_iris_connections_style(),
+        )
+
+    return overlay
+
+
 # [LEGACY YOLO] def build_yolo_overlay_image(source_bgr, eye_crops):
 # [LEGACY YOLO]     """원본 이미지 위에 YOLO 검출 기반 히트맵 오버레이를 생성한다."""
 # [LEGACY YOLO]     if source_bgr is None or source_bgr.size == 0:
@@ -1068,6 +1118,36 @@ def cleanup_old_report_exports(user_id, keep_count=10, max_age_hours=24):
                 print(f"[WARNING] 오래된 리포트 삭제 실패: {path} ({error})")
 
 
+def build_report_eye_image_reader(image_path, bbox=None):
+    """리포트용 눈 이미지를 원본 검사 사진에서 잘라 반환한다."""
+    if not image_path or not os.path.exists(image_path):
+        return None
+
+    try:
+        from reportlab.lib.utils import ImageReader as ReportImageReader
+
+        with Image.open(image_path) as source_image:
+            source_image = source_image.convert('RGB')
+            if bbox and isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+                try:
+                    x1, y1, x2, y2 = [int(float(value)) for value in bbox]
+                    left = max(0, min(source_image.width - 1, min(x1, x2)))
+                    top = max(0, min(source_image.height - 1, min(y1, y2)))
+                    right = max(left + 1, min(source_image.width, max(x1, x2)))
+                    bottom = max(top + 1, min(source_image.height, max(y1, y2)))
+                    source_image = source_image.crop((left, top, right, bottom))
+                except Exception:
+                    pass
+
+            buffer = io.BytesIO()
+            source_image.save(buffer, format='JPEG', quality=92)
+            buffer.seek(0)
+            return ReportImageReader(buffer)
+    except Exception as error:
+        print(f"[WARNING] 리포트 눈 이미지 준비 실패: {image_path} ({error})")
+        return None
+
+
 def generate_session_pdf_report(user_id, session_data, latest_survey):
     """
     메인 서버 기준 PDF 생성
@@ -1144,20 +1224,32 @@ def generate_session_pdf_report(user_id, session_data, latest_survey):
     image_drawn = 0
     for record in session_data.get('records', []):
         image_path = record.get('image_path')
-        if not image_path or not os.path.exists(image_path):
-            continue
         try:
-            with open(image_path, 'rb') as file:
-                image_reader = ImageReader(io.BytesIO(file.read()))
+            analysis = record.get('analysis') or {}
+            eye_candidates = []
+            if analysis.get('left_eye') and analysis['left_eye'].get('bbox'):
+                eye_candidates.append(analysis['left_eye'].get('bbox'))
+            if analysis.get('right_eye') and analysis['right_eye'].get('bbox'):
+                eye_candidates.append(analysis['right_eye'].get('bbox'))
 
-            draw_w = 240
-            draw_h = 150
-            if y - draw_h < 40:
-                c.showPage()
-                y = page_h - 48
-            c.drawImage(image_reader, 44, y - draw_h, width=draw_w, height=draw_h, preserveAspectRatio=True, mask='auto')
-            y -= (draw_h + 14)
-            image_drawn += 1
+            if not eye_candidates:
+                eye_candidates = [None]
+
+            for bbox in eye_candidates:
+                image_reader = build_report_eye_image_reader(image_path, bbox)
+                if image_reader is None:
+                    continue
+
+                draw_w = 240
+                draw_h = 150
+                if y - draw_h < 40:
+                    c.showPage()
+                    y = page_h - 48
+                c.drawImage(image_reader, 44, y - draw_h, width=draw_w, height=draw_h, preserveAspectRatio=True, mask='auto')
+                y -= (draw_h + 14)
+                image_drawn += 1
+                if image_drawn >= 2:
+                    break
             if image_drawn >= 2:
                 break
         except Exception as image_error:
@@ -1742,6 +1834,7 @@ def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None
                 'message': '얼굴은 인식되었으나 눈을 감지하지 못했습니다. 다시 촬영해주세요.',
                 'left_eye': None,
                 'right_eye': None,
+                'mediapipe_mesh_image_url': None,
                 'yolo_cam_image_url': None,
                 'meta': {
                     'source_resolution': [source_w, source_h],
@@ -1752,11 +1845,9 @@ def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None
                 }
             }
 
-        # Step 2) 시각화 이미지 생성 (원본 이미지에 검출 박스 오버레이)
-        # [LEGACY YOLO] yolo_overlay_bgr = build_yolo_overlay_image(img_bgr, eye_crops)
-        # [LEGACY YOLO] yolo_cam_image_url = save_cam_image(user_id, 'yolo', yolo_overlay_bgr)
-        # MediaPipe: 랜드마크 시각화 이미지는 별도 함수로 구현 필요
-        yolo_cam_image_url = None  # TODO: MediaPipe landmark visualization
+        # Step 2) 시각화 이미지 생성 (MediaPipe Face Mesh 오버레이)
+        mesh_overlay_bgr = build_mediapipe_mesh_overlay(img_bgr)
+        mediapipe_mesh_image_url = save_cam_image(user_id, 'mediapipe_mesh', mesh_overlay_bgr)
 
         # 좌/우 레이블링 (MediaPipe은 'side' 필드로 이미 구분됨)
         labeled_eyes = {}
@@ -1773,7 +1864,8 @@ def analyze_bilateral_from_image(img_bgr, user_id='anonymous', selected_eye=None
             'message': '양안 분석 완료' if len(eye_crops) >= 2 else '한쪽 눈만 검출되었습니다.',
             'left_eye': None,
             'right_eye': None,
-            'yolo_cam_image_url': yolo_cam_image_url,
+            'mediapipe_mesh_image_url': mediapipe_mesh_image_url,
+            'yolo_cam_image_url': mediapipe_mesh_image_url,
             'meta': {
                 'source_resolution': [source_w, source_h],
                 'eyes_detected': len(eye_crops),
@@ -2095,6 +2187,9 @@ def gen_frames():
             continue
             
         frame_to_send = current_frame.copy()
+        mesh_overlay = build_mediapipe_mesh_overlay(frame_to_send)
+        if mesh_overlay is not None:
+            frame_to_send = mesh_overlay
 
         # [LEGACY YOLO] 스트림 오버레이 YOLO는 GPU 메모리 사용량이 커서 기본 비활성화한다.
         # [LEGACY YOLO] if YOLO_STREAM_DEBUG_OVERLAY:
@@ -2494,7 +2589,12 @@ def video_frame():
             ret, buffer = cv2.imencode('.jpg', dummy)
             return Response(buffer.tobytes(), mimetype='image/jpeg')
         
-        ret, buffer = cv2.imencode('.jpg', current_frame)
+        show_mesh = str(request.args.get('mesh', '1')).strip().lower() not in ('0', 'false', 'no', 'off')
+        frame_to_send = current_frame
+        if show_mesh:
+            mesh_overlay = build_mediapipe_mesh_overlay(current_frame)
+            frame_to_send = mesh_overlay if mesh_overlay is not None else current_frame
+        ret, buffer = cv2.imencode('.jpg', frame_to_send)
         return Response(buffer.tobytes(), mimetype='image/jpeg')
     except Exception as e:
         print(f"[ERROR] /video_frame 실패: {e}")

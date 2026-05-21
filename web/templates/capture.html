@@ -637,6 +637,21 @@
             }
         }
 
+        async function fetchRawCameraFrameDataUrl() {
+            const response = await fetch(`/video_frame?mesh=0&t=${Date.now()}`);
+            if (!response.ok) {
+                throw new Error(`raw-frame-fetch-failed:${response.status}`);
+            }
+
+            const blob = await response.blob();
+            return await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
         async function startCaptureCameraSession() {
             if (mobileUploadOnlyMode) {
                 return true;
@@ -1111,6 +1126,10 @@
             try {
                 captureMessage.textContent = isAuto ? '자동셔터 촬영 중...' : '촬영 및 분석 중...';
 
+                // 미리보기는 메쉬를 유지하되, 분석용 입력은 원본 프레임을 사용한다.
+                const rawDataUrl = await fetchRawCameraFrameDataUrl();
+                const srcImg = await loadImageFromDataUrl(rawDataUrl);
+
                 // 1. 고해상도 캡처 캔버스 생성 (해상도 방어)
                 const tempCanvas = document.createElement('canvas');
                 tempCanvas.width = 1920;
@@ -1118,15 +1137,15 @@
                 const ctx = tempCanvas.getContext('2d');
 
                 // 2. 줌 배율을 캡처에도 동일하게 반영 (중앙 크롭)
-                const sourceWidth = videoImg.naturalWidth || 640;
-                const sourceHeight = videoImg.naturalHeight || 480;
+                const sourceWidth = srcImg.naturalWidth || srcImg.width || 640;
+                const sourceHeight = srcImg.naturalHeight || srcImg.height || 480;
                 const cropWidth = sourceWidth / digitalZoom;
                 const cropHeight = sourceHeight / digitalZoom;
                 const sx = (sourceWidth - cropWidth) / 2;
                 const sy = (sourceHeight - cropHeight) / 2;
 
-                // (UI는 거울처럼 반전되어 있지만, AI 진단을 위해 원본 방향 그대로 캡처합니다)
-                ctx.drawImage(videoImg, sx, sy, cropWidth, cropHeight, 0, 0, tempCanvas.width, tempCanvas.height);
+                // UI 미리보기와 별개로, 원본 프레임을 AI 진단 입력으로 사용한다.
+                ctx.drawImage(srcImg, sx, sy, cropWidth, cropHeight, 0, 0, tempCanvas.width, tempCanvas.height);
 
                 // 3. 이미지를 Base64 데이터로 변환
                 const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);

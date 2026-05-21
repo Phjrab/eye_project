@@ -504,7 +504,7 @@
         <div class="captured-media" id="captured-media">
             <img id="captured-image" alt="진단 이미지">
             <div id="cam-overlay-layer" class="cam-overlay-layer">
-                <img id="cam-overlay-yolo" class="cam-overlay-full" alt="원본 YOLO 히트맵 오버레이">
+                <img id="cam-overlay-yolo" class="cam-overlay-full" alt="원본 MediaPipe 메쉬 오버레이">
             </div>
             <div id="captured-empty-hint" class="captured-empty-hint" data-i18n="captured_image_empty">촬영된 원본 이미지가 없습니다. capture에서 얼굴 촬영을 먼저 진행해 주세요.</div>
         </div>
@@ -777,15 +777,15 @@
                 return;
             }
 
-            const hasYoloCam = !!sanitizeCamUrl(analysis?.yolo_cam_image_url);
-            if (!hasYoloCam) {
+            const meshUrl = sanitizeCamUrl(analysis?.mediapipe_mesh_image_url || analysis?.yolo_cam_image_url);
+            if (!meshUrl) {
                 btn.disabled = true;
-                btn.textContent = '🔥 YOLO 히트맵 없음';
+                btn.textContent = '🔥 MediaPipe 메쉬 없음';
                 return;
             }
 
             btn.disabled = false;
-            btn.textContent = gradCamVisible ? '🙈 YOLO 히트맵 숨기기' : '🔥 YOLO 히트맵 보기';
+            btn.textContent = gradCamVisible ? '🙈 MediaPipe 메쉬 숨기기' : '🔥 MediaPipe 메쉬 보기';
         }
 
         function loadImageFromDataUrl(dataUrl) {
@@ -834,10 +834,10 @@
                 return;
             }
 
-            const yoloUrl = sanitizeCamUrl(analysis?.yolo_cam_image_url);
-            const canShowOverlay = gradCamVisible && !!yoloUrl;
+            const meshUrl = sanitizeCamUrl(analysis?.mediapipe_mesh_image_url || analysis?.yolo_cam_image_url);
+            const canShowOverlay = gradCamVisible && !!meshUrl;
             if (canShowOverlay) {
-                yoloEl.src = yoloUrl;
+                yoloEl.src = meshUrl;
                 yoloEl.style.display = 'block';
             } else {
                 yoloEl.style.display = 'none';
